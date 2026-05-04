@@ -1,10 +1,39 @@
 {
-  "name": "knowledge-base-mcp",
+  "name": "@dyyz1993/kb-mcp",
   "version": "1.0.0",
+  "description": "跨项目知识库 MCP 服务，支持三层搜索（文本/TF-IDF/语义向量），提供 Web UI 管理界面",
   "type": "module",
+  "bin": {
+    "kb-mcp": "./src/index.ts"
+  },
+  "files": [
+    "src/**/*",
+    "web/src/**/*",
+    "web/index.html",
+    "web/vite.config.ts",
+    "web/tsconfig.json",
+    "web/package.json",
+    "tsconfig.json",
+    "EXECUTION_PLAN.md"
+  ],
+  "keywords": [
+    "mcp",
+    "knowledge-base",
+    "semantic-search",
+    "embedding",
+    "tf-idf",
+    "bun"
+  ],
+  "author": "dyyz1993",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dyyz1993/knowledge-base-mcp.git"
+  },
   "scripts": {
     "dev": "bun run src/index.ts --http --port 19877",
-    "start": "bun run src/index.ts --stdio"
+    "start": "bun run src/index.ts --stdio",
+    "test": "bun test"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
