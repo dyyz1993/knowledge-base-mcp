@@ -1,16 +1,35 @@
-import { pipeline, env, type Pipeline } from "@huggingface/transformers"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import type { DocMeta } from "../storage/index"
 
-env.localModelPath = join(homedir(), ".cache/huggingface/local-models")
-env.allowLocalModels = true
+let transformersAvailable = true
+let pipelineFn: any = null
+let envConfigured = false
 
-let embedder: Pipeline | null = null
+async function loadTransformers() {
+  if (pipelineFn) return pipelineFn
+  try {
+    const mod = await import("@huggingface/transformers")
+    if (!envConfigured) {
+      mod.env.localModelPath = join(homedir(), ".cache/huggingface/local-models")
+      mod.env.allowLocalModels = true
+      envConfigured = true
+    }
+    pipelineFn = mod.pipeline
+    return pipelineFn
+  } catch {
+    transformersAvailable = false
+    return null
+  }
+}
+
+let embedder: any = null
 
 async function getEmbedder() {
+  const pipe = await loadTransformers()
+  if (!pipe) return null
   if (!embedder) {
-    embedder = await pipeline("feature-extraction", "Xenova/paraphrase-multilingual-MiniLM-L12-v2", {
+    embedder = await pipe("feature-extraction", "Xenova/paraphrase-multilingual-MiniLM-L12-v2", {
       dtype: "fp32",
       local_files_only: true,
     })
@@ -20,6 +39,7 @@ async function getEmbedder() {
 
 export async function embed(text: string): Promise<number[]> {
   const pipe = await getEmbedder()
+  if (!pipe) throw new Error("Semantic search unavailable: @huggingface/transformers not installed")
   const output = await pipe(text, { pooling: "mean", normalize: true })
   return Array.from(output.data) as number[]
 }
@@ -50,11 +70,16 @@ export async function semanticSearch(
   topK = 10,
 ): Promise<(DocMeta & { score: number })[]> {
   if (!query || docs.length === 0) return []
-  const queryVec = await embed(query)
-  const scored = docs.map(d => ({
-    ...d.meta,
-    score: cosineSimilarityVec(queryVec, d.embedding),
-  }))
-  scored.sort((a, b) => b.score - a.score)
-  return scored.slice(0, topK)
+  if (!transformersAvailable) return []
+  try {
+    const queryVec = await embed(query)
+    const scored = docs.map(d => ({
+      ...d.meta,
+      score: cosineSimilarityVec(queryVec, d.embedding),
+    }))
+    scored.sort((a, b) => b.score - a.score)
+    return scored.slice(0, topK)
+  } catch {
+    return []
+  }
 }

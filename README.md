@@ -53,7 +53,7 @@ console.log("Model downloaded")
 '
 ```
 
-如果不下载模型，语义搜索（P2）不可用，但文本匹配（P0）和 TF-IDF（P1）仍正常工作。
+语义搜索（P2）为可选功能。未安装 `@huggingface/transformers` 时，P0 文本匹配和 P1 TF-IDF 搜索仍正常工作。如果不下载模型，语义搜索（P2）不可用，但文本匹配（P0）和 TF-IDF（P1）仍正常工作。
 
 ## OpenCode 配置
 
