@@ -1,0 +1,18 @@
+{
+  "name": "knowledge-base-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts --http --port 19877",
+    "start": "bun run src/index.ts --stdio"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^4.4.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.vectors/
+*.bak
+web/node_modules/
+web/dist/
