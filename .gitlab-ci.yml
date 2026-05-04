@@ -1,0 +1,5 @@
+test:
+  image: oven/bun:1
+  script:
+    - bun install
+    - bun test

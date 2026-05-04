@@ -324,12 +324,12 @@ describe("searchDocs", () => {
     expect(results[0].score).toBe(10)
   })
 
-  test("matches by keywords with score=4", () => {
+  test("matches by keywords with tokenized scoring", () => {
     seedDocs()
     const results = searchDocs("kw-alpha")
-    expect(results.length).toBe(1)
+    expect(results.length).toBe(3)
     expect(results[0].title).toBe("UniqueTitle ABC")
-    expect(results[0].score).toBe(4)
+    expect(results[0].score).toBe(11)
   })
 
   test("matches by intent with score=5", () => {
@@ -384,7 +384,13 @@ describe("searchDocs", () => {
   test("shared keyword matches multiple docs", () => {
     seedDocs()
     const results = searchDocs("kw-shared")
-    expect(results.length).toBe(2)
+    expect(results.length).toBe(3)
+    const docA = results.find(r => r.title === "UniqueTitle ABC")
+    const docB = results.find(r => r.title === "OtherTitle JKL")
+    expect(docA).toBeDefined()
+    expect(docB).toBeDefined()
+    expect(docA!.score).toBe(11)
+    expect(docB!.score).toBe(11)
   })
 
   test("returns empty for no match", () => {

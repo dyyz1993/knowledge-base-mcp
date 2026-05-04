@@ -106,10 +106,19 @@ export function searchDocs(
   for (const doc of Object.values(idx.documents)) {
     let score = 0
     if (q) {
-      if (doc.title.toLowerCase().includes(q)) score += 10
-      if (doc.keywords.some(k => k.toLowerCase().includes(q))) score += 4
-      if (doc.intent.toLowerCase().includes(q)) score += 5
-      if (doc.project_description.toLowerCase().includes(q)) score += 3
+      const tokens = q.split(/[\s\-_]+/).filter(Boolean)
+      for (const token of tokens) {
+        if (doc.title.toLowerCase().includes(token)) score += 10
+        if (doc.keywords.some(k => k.toLowerCase().includes(token))) score += 4
+        if (doc.intent.toLowerCase().includes(token)) score += 5
+        if (doc.project_description.toLowerCase().includes(token)) score += 3
+      }
+      if (tokens.length > 1) {
+        if (doc.title.toLowerCase().includes(q)) score += 5
+        if (doc.keywords.some(k => k.toLowerCase().includes(q))) score += 3
+        if (doc.intent.toLowerCase().includes(q)) score += 2
+        if (doc.project_description.toLowerCase().includes(q)) score += 1
+      }
     }
     if (tags?.length) {
       if (doc.tags.some(t => tags.includes(t))) score += 5

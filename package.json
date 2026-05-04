@@ -1,13 +1,13 @@
 {
   "name": "@dyyz1993/kb-mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "跨项目知识库 MCP 服务，支持三层搜索（文本/TF-IDF/语义向量），提供 Web UI 管理界面",
   "type": "module",
   "bin": {
-    "kb-mcp": "./src/index.ts"
+    "kb-mcp": "./dist/index.js"
   },
   "files": [
-    "src/**/*",
+    "dist",
     "web/src/**/*",
     "web/index.html",
     "web/vite.config.ts",
@@ -32,7 +32,9 @@
   },
   "scripts": {
     "dev": "bun run src/index.ts --http --port 19877",
-    "start": "bun run src/index.ts --stdio",
+    "start": "bun run dist/index.js --stdio",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "prepublishOnly": "bun run build",
     "test": "bun test"
   },
   "dependencies": {
