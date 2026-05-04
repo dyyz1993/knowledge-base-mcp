@@ -101,6 +101,7 @@ function registerTools(server: McpServer) {
             documents: results.map(d => ({
               id: d.id,
               title: d.title,
+              file_path: d.file_path,
               tags: d.tags,
               keywords: d.keywords,
               source_project: d.source_project,
@@ -131,6 +132,7 @@ function registerTools(server: McpServer) {
               documents: results.map(d => ({
                 id: d.id,
                 title: d.title,
+                file_path: d.file_path,
                 tags: d.tags,
                 keywords: d.keywords,
                 source_project: d.source_project,
@@ -168,6 +170,7 @@ function registerTools(server: McpServer) {
             documents: docs.map(d => ({
               id: d.id,
               title: d.title,
+              file_path: d.file_path,
               tags: d.tags,
               keywords: d.keywords,
               source_project: d.source_project,
