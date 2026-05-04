@@ -12,6 +12,27 @@
 
 ## 快速开始
 
+### npx 一键启动（推荐）
+
+无需克隆仓库，直接运行：
+
+```bash
+# Stdio 模式
+npx @dyyz1993/kb-mcp --stdio
+
+# HTTP 模式
+npx @dyyz1993/kb-mcp --http --port 19877
+```
+
+### 全局安装（可选）
+
+```bash
+npm install -g @dyyz1993/kb-mcp
+kb-mcp --stdio
+```
+
+### 从源码构建
+
 ```bash
 git clone https://github.com/dyyz1993/knowledge-base-mcp.git
 cd knowledge-base-mcp
@@ -46,7 +67,7 @@ console.log("Model downloaded")
     "servers": {
       "knowledge-base": {
         "type": "local",
-        "command": ["bun", "run", "/absolute/path/to/knowledge-base-mcp/src/index.ts", "--stdio"]
+        "command": ["npx", "@dyyz1993/kb-mcp", "--stdio"]
       }
     }
   }
@@ -60,7 +81,7 @@ console.log("Model downloaded")
 先启动服务：
 
 ```bash
-bun run src/index.ts --http --port 19877
+npx @dyyz1993/kb-mcp --http --port 19877
 ```
 
 配置：
@@ -97,7 +118,7 @@ bun run src/index.ts --http --port 19877
 
 ```bash
 # 先启动 HTTP 服务
-bun run src/index.ts --http --port 19877
+npx @dyyz1993/kb-mcp --http --port 19877
 
 # 启动 Web UI
 cd web
