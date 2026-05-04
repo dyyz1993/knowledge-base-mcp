@@ -85,7 +85,7 @@ function registerTools(server: McpServer) {
 
   server.tool(
     "kb_search",
-    "搜索知识文档。支持自由文本、关键词、标签多维搜索，返回匹配文档列表（不含正文）。",
+    "搜索知识文档。支持自由文本、关键词、标签多维搜索，返回匹配文档列表（不含正文）。结果包含 intent 字段作为文档摘要描述。",
     {
       query: z.string().optional().describe("自由文本搜索"),
       keywords: z.array(z.string()).optional().describe("按关键词过滤"),
@@ -102,6 +102,7 @@ function registerTools(server: McpServer) {
             documents: results.map(d => ({
               id: d.id,
               title: d.title,
+              description: d.intent,
               file_path: d.file_path,
               tags: d.tags,
               keywords: d.keywords,
@@ -133,6 +134,7 @@ function registerTools(server: McpServer) {
               documents: results.map(d => ({
                 id: d.id,
                 title: d.title,
+                description: d.intent,
                 file_path: d.file_path,
                 tags: d.tags,
                 keywords: d.keywords,
@@ -171,6 +173,7 @@ function registerTools(server: McpServer) {
             documents: docs.map(d => ({
               id: d.id,
               title: d.title,
+              description: d.intent,
               file_path: d.file_path,
               tags: d.tags,
               keywords: d.keywords,
