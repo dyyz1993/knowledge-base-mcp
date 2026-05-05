@@ -10,6 +10,10 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http"
 import { readFileSync, existsSync } from "node:fs"
 import { join, extname } from "node:path"
 import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined } from "./storage/index.js"
+import { handleChat } from "./chat/api-chat.js"
+import { handleGetModels, handleSetModel } from "./chat/api-models.js"
+import { handleListSessions, handleCreateSession, handleDeleteSession } from "./chat/api-sessions.js"
+import { handleListFavorites, handleAddFavorite, handleDeleteFavorite } from "./chat/api-favorites.js"
 
 function registerTools(server: McpServer) {
   server.tool(
@@ -438,6 +442,15 @@ function startHttp(port: number) {
         json(res, { status: "ok", service: "knowledge-base-mcp" })
         return
       }
+      if (url.pathname === "/api/chat" && req.method === "POST") return handleChat(req, res)
+      if (url.pathname === "/api/models" && req.method === "GET") return handleGetModels(req, res)
+      if (url.pathname === "/api/models" && req.method === "PUT") return handleSetModel(req, res)
+      if (url.pathname === "/api/sessions" && req.method === "GET") return handleListSessions(req, res)
+      if (url.pathname === "/api/sessions" && req.method === "POST") return handleCreateSession(req, res)
+      if (url.pathname.startsWith("/api/sessions/") && req.method === "DELETE") return handleDeleteSession(req, res, url)
+      if (url.pathname === "/api/favorites" && req.method === "GET") return handleListFavorites(req, res)
+      if (url.pathname === "/api/favorites" && req.method === "POST") return handleAddFavorite(req, res)
+      if (url.pathname.startsWith("/api/favorites/") && req.method === "DELETE") return handleDeleteFavorite(req, res, url)
       if (url.pathname.startsWith("/api/")) {
         await handleRestAPI(req, res, url)
         return

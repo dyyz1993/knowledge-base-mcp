@@ -13,6 +13,55 @@ export interface DocMeta {
   file_path: string
 }
 
+export interface ModelInfo {
+  provider: string
+  id: string
+  name: string
+}
+
+export interface SessionInfo {
+  id: string
+  name: string
+  createdAt: number
+  messageCount: number
+}
+
+export interface Message {
+  role: "user" | "assistant" | "tool_call" | "tool_result"
+  content: string
+  timestamp: number
+  model?: string
+  name?: string
+  args?: string
+}
+
+export interface Favorite {
+  id: string
+  sessionId: string
+  messageId: string
+  content: string
+  createdAt: number
+}
+
+export interface KBDoc {
+  id: string
+  title: string
+  tags: string[]
+  keywords: string[]
+  intent: string
+  score?: number
+  snippet?: string
+}
+
+export interface StreamCallbacks {
+  onToken: (delta: string) => void
+  onThinking: (delta: string) => void
+  onToolCall: (name: string, args: string) => void
+  onToolResult: (name: string, result: string) => void
+  onDone: (messageId: string) => void
+  onError: (error: string) => void
+}
+
 export async function fetchDocs(): Promise<DocMeta[]> {
   const res = await fetch(`${BASE}/api/docs`)
   return res.json()
@@ -38,5 +87,142 @@ export async function searchDocs(query: string, keywords?: string[], tags?: stri
 
 export async function fetchOutline(project: string) {
   const res = await fetch(`${BASE}/api/outline?project=${encodeURIComponent(project)}`)
+  return res.json()
+}
+
+export async function streamChat(params: {
+  message: string
+  sessionId: string
+  model?: { provider: string; id: string }
+} & StreamCallbacks): Promise<void> {
+  const res = await fetch(`${BASE}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: params.message,
+      sessionId: params.sessionId,
+      model: params.model,
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    params.onError(text || `HTTP ${res.status}`)
+    return
+  }
+
+  const reader = res.body!.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  let currentEvent = ""
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    const lines = buffer.split("\n")
+    buffer = lines.pop() || ""
+
+    for (const line of lines) {
+      if (line.startsWith("event: ")) {
+        currentEvent = line.slice(7).trim()
+      } else if (line.startsWith("data: ") && currentEvent) {
+        const raw = line.slice(6)
+        let data: Record<string, string>
+        try { data = JSON.parse(raw) } catch { continue }
+        switch (currentEvent) {
+          case "token": params.onToken(data.delta || ""); break
+          case "thinking": params.onThinking(data.delta || ""); break
+          case "tool_call": params.onToolCall(data.name || "", data.args || ""); break
+          case "tool_call_delta": break
+          case "tool_result": params.onToolResult(data.name || "", data.content || data.result || ""); break
+          case "done": params.onDone(data.messageId || ""); break
+          case "error": params.onError(data.error || "Unknown error"); break
+        }
+        currentEvent = ""
+      }
+    }
+  }
+}
+
+export async function getModels(): Promise<{ models: ModelInfo[]; current: { provider: string; id: string } | null }> {
+  const res = await fetch(`${BASE}/api/models`)
+  return res.json()
+}
+
+export async function setModel(sessionId: string, provider: string, id: string) {
+  const res = await fetch(`${BASE}/api/models`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, provider, id }),
+  })
+  return res.json()
+}
+
+export async function listSessions(): Promise<SessionInfo[]> {
+  const res = await fetch(`${BASE}/api/sessions`)
+  return res.json()
+}
+
+export async function createSession(): Promise<{ id: string; name: string }> {
+  const res = await fetch(`${BASE}/api/sessions`, { method: "POST" })
+  return res.json()
+}
+
+export async function deleteSession(id: string) {
+  await fetch(`${BASE}/api/sessions/${id}`, { method: "DELETE" })
+}
+
+export async function getSessionMessages(id: string): Promise<Message[]> {
+  const res = await fetch(`${BASE}/api/sessions/${id}/messages`)
+  return res.json()
+}
+
+export async function listFavorites(): Promise<Favorite[]> {
+  const res = await fetch(`${BASE}/api/favorites`)
+  return res.json()
+}
+
+export async function addFavorite(sessionId: string, messageId: string, content: string): Promise<{ id: string }> {
+  const res = await fetch(`${BASE}/api/favorites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, messageId, content }),
+  })
+  return res.json()
+}
+
+export async function deleteFavorite(id: string) {
+  await fetch(`${BASE}/api/favorites/${id}`, { method: "DELETE" })
+}
+
+export async function searchKB(query: string, limit = 10): Promise<KBDoc[]> {
+  const res = await fetch(`${BASE}/api/search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, limit }),
+  })
+  const data = await res.json()
+  return data.documents || data
+}
+
+export async function writeKB(params: {
+  title: string
+  content: string
+  tags: string[]
+  keywords: string[]
+  intent?: string
+}): Promise<{ id: string; title: string; filePath: string }> {
+  const res = await fetch(`${BASE}/api/docs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: params.title,
+      content: params.content,
+      tags: params.tags,
+      keywords: params.keywords,
+    }),
+  })
   return res.json()
 }

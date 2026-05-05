@@ -1,6 +1,6 @@
 {
   "name": "@dyyz1993/kb-mcp",
-  "version": "1.3.0",
+  "version": "2.0.0",
   "description": "跨项目知识库 MCP 服务，支持三层搜索（文本/TF-IDF/语义向量），提供 Web UI 管理界面",
   "type": "module",
   "bin": {
@@ -34,6 +34,9 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@dyyz1993/pi-ai": "latest",
+    "@dyyz1993/pi-agent-core": "latest",
+    "@dyyz1993/pi-coding-agent": "latest",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "zod": "^4.4.2"
   },
