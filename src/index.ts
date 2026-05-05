@@ -7,6 +7,8 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js"
 import { z } from "zod"
 import { randomUUID } from "node:crypto"
 import { createServer, IncomingMessage, ServerResponse } from "node:http"
+import { readFileSync, existsSync } from "node:fs"
+import { join, extname } from "node:path"
 import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined } from "./storage/index.js"
 
 function registerTools(server: McpServer) {
@@ -402,6 +404,18 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
 }
 
 function startHttp(port: number) {
+  const serveWeb = process.argv.includes("--web")
+  const webDist = join(import.meta.dir, "..", "web", "dist")
+  const mimeTypes: Record<string, string> = {
+    ".html": "text/html",
+    ".js": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+  }
+
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, `http://${req.headers.host}`)
 
@@ -428,6 +442,20 @@ function startHttp(port: number) {
         await handleRestAPI(req, res, url)
         return
       }
+      if (serveWeb) {
+        const fp = join(webDist, url.pathname === "/" ? "index.html" : url.pathname)
+        if (existsSync(fp)) {
+          res.writeHead(200, { "Content-Type": mimeTypes[extname(fp)] || "application/octet-stream" })
+          res.end(readFileSync(fp))
+          return
+        }
+        const idx = join(webDist, "index.html")
+        if (existsSync(idx)) {
+          res.writeHead(200, { "Content-Type": "text/html" })
+          res.end(readFileSync(idx))
+          return
+        }
+      }
       json(res, { error: "Not Found" }, 404)
     } catch (e: any) {
       console.error("Request error:", e)
@@ -440,11 +468,14 @@ function startHttp(port: number) {
     console.log(`  StreamableHTTP: http://localhost:${port}/mcp`)
     console.log(`  SSE (legacy):   http://localhost:${port}/sse`)
     console.log(`  API:            http://localhost:${port}/api/docs`)
+    if (serveWeb) {
+      console.log(`  Web UI:         http://localhost:${port}`)
+    }
   })
 }
 
 async function main() {
-  const mode = process.argv.includes("--http") ? "http" : "stdio"
+  const mode = process.argv.includes("--http") || process.argv.includes("--web") ? "http" : "stdio"
 
   if (mode === "stdio") {
     const transport = new StdioServerTransport()

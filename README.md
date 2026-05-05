@@ -117,16 +117,11 @@ npx @dyyz1993/kb-mcp --http --port 19877
 ## Web UI
 
 ```bash
-# 先启动 HTTP 服务
-npx @dyyz1993/kb-mcp --http --port 19877
-
-# 启动 Web UI
-cd web
-bun install
-bun run dev
+# 一条命令同时启动 MCP API + Web UI
+npx @dyyz1993/kb-mcp --http --web --port 19877
 ```
 
-访问 http://localhost:5180，API 请求自动代理到 `:19877`。
+访问 http://localhost:19877 查看 Web UI。
 
 ## MCP 工具
 
