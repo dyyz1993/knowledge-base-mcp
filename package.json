@@ -1,6 +1,6 @@
 {
   "name": "@dyyz1993/kb-mcp",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "跨项目知识库 MCP 服务，支持三层搜索（文本/TF-IDF/语义向量），提供 Web UI 管理界面",
   "type": "module",
   "bin": {
@@ -29,7 +29,7 @@
     "dev": "bun run src/index.ts --http --port 19877",
     "start": "bun run dist/index.js --stdio",
     "build:web": "cd web && bun install && bun run build",
-    "build": "bun build src/index.ts --outdir dist --target bun && bun run build:web",
+    "build": "bun build src/index.ts --outdir dist --target bun --external '@dyyz1993/*' && bun run build:web",
     "prepublishOnly": "bun run build",
     "test": "bun test"
   },

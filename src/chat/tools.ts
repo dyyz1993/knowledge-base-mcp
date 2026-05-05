@@ -2,6 +2,7 @@ import { Type } from "@dyyz1993/pi-ai"
 import type { AgentTool } from "@dyyz1993/pi-agent-core"
 import { searchDocs, searchDocsSemantic, searchDocsCombined, writeDoc, listDocs } from "../storage/index.js"
 import { getProviders, getModels } from "@dyyz1993/pi-ai"
+import { getConfiguredModels } from "./api-models"
 
 const kbSearchTool: AgentTool = {
   name: "kb_search",
@@ -73,9 +74,7 @@ const listModelsTool: AgentTool = {
   description: "列出所有可用的 LLM 模型。",
   parameters: Type.Object({}),
   execute: async () => {
-    const models = getProviders().flatMap(p =>
-      getModels(p as never).map(m => ({ provider: m.provider, id: m.id, name: m.name }))
-    )
+    const models = getConfiguredModels()
     const text = models.map(m => `${m.provider}/${m.id}: ${m.name}`).join("\n") || "No models available"
     return { content: [{ type: "text", text }], details: models }
   },

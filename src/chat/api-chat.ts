@@ -1,7 +1,8 @@
-import { streamSimple, getProviders, getModels } from "@dyyz1993/pi-ai"
+import { streamSimple, getModels } from "@dyyz1993/pi-ai"
 import type { Context, Message, Model, Api } from "@dyyz1993/pi-ai"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { agentTools } from "./tools"
+import { getConfiguredModels } from "./api-models"
 import * as session from "./session"
 import { generateId } from "../storage/index.js"
 
@@ -15,9 +16,11 @@ function resolveModel(provider?: string, modelId?: string): Model<Api> | null {
     const found = models.find(m => m.id === modelId)
     if (found) return found
   }
-  for (const p of getProviders()) {
-    const models = getModels(p as never)
-    if (models.length > 0) return models[0]
+  const configured = getConfiguredModels()
+  if (configured.length > 0) {
+    const models = getModels(configured[0].provider as never)
+    const found = models.find(m => m.id === configured[0].id)
+    if (found) return found
   }
   return null
 }
