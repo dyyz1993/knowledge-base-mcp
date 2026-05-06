@@ -1,6 +1,6 @@
 {
   "name": "@dyyz1993/kb-mcp",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "跨项目知识库 MCP 服务，支持三层搜索（文本/TF-IDF/语义向量），提供 Web UI 管理界面",
   "type": "module",
   "bin": {
