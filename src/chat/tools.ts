@@ -1,129 +1,145 @@
-import { searchDocs, searchDocsSemantic, searchDocsCombined, writeDoc, listDocs } from "../storage/index.js"
-import { getConfiguredModels } from "./api-models"
+import { searchDocs, readDoc, listDocs } from "../storage/index.js"
+import { existsSync } from "node:fs"
 
-interface ToolParam {
-  type: string
-  description?: string
-  default?: unknown
-  items?: ToolParam
-  enum?: string[]
-  properties?: Record<string, ToolParam>
-  required?: string[]
-  anyOf?: ToolParam[]
+export interface OpenAITool {
+  type: "function"
+  function: {
+    name: string
+    description: string
+    parameters: Record<string, unknown>
+  }
 }
 
-interface ToolSchema {
-  type: "object"
-  properties: Record<string, ToolParam>
-  required?: string[]
-}
+export const toolDefinitions: OpenAITool[] = [
+  {
+    type: "function",
+    function: {
+      name: "kb_search",
+      description: "Search the knowledge base for relevant documents. Use this FIRST before answering any user question to find relevant context.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Search query - use keywords that match the user's question" },
+          limit: { type: "number", description: "Max results to return (default 5)" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "kb_read",
+      description: "Read a specific document from the knowledge base by its ID. Use after kb_search to get full content of a relevant document.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Document ID from kb_search results" },
+        },
+        required: ["id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "kb_list",
+      description: "List all documents in the knowledge base, optionally filtered by tag or project.",
+      parameters: {
+        type: "object",
+        properties: {
+          tag: { type: "string", description: "Filter by tag (e.g. tutorial, guide, best-practice)" },
+          limit: { type: "number", description: "Max results (default 20)" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_file",
+      description: "Read a file from the local filesystem. Use to inspect code, config files, or any text file.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string", description: "Absolute file path to read" },
+        },
+        required: ["path"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "grep_search",
+      description: "Search file contents using regex pattern matching (like grep). Use to find specific code patterns, function definitions, or text within files.",
+      parameters: {
+        type: "object",
+        properties: {
+          pattern: { type: "string", description: "Regex pattern to search for" },
+          path: { type: "string", description: "Directory path to search in (default: current directory)" },
+          glob: { type: "string", description: "File glob pattern to filter (e.g. '*.ts', '*.json')" },
+        },
+        required: ["pattern"],
+      },
+    },
+  },
+]
 
-interface AgentTool {
-  name: string
-  label: string
-  description: string
-  parameters: ToolSchema
-  execute: (id: string, params: Record<string, unknown>) => Promise<{ content: { type: string; text: string }[]; details?: unknown }>
-}
-
-function obj(props: Record<string, ToolParam>, required?: string[]): ToolSchema {
-  return { type: "object", properties: props, ...(required ? { required } : {}) }
-}
-
-function str(desc?: string): ToolParam {
-  return { type: "string", ...(desc ? { description: desc } : {}) }
-}
-
-function num(desc?: string, def?: number): ToolParam {
-  return { type: "number", ...(desc ? { description: desc } : {}), ...(def !== undefined ? { default: def } : {}) }
-}
-
-function arr(items: ToolParam, desc?: string): ToolParam {
-  return { type: "array", items, ...(desc ? { description: desc } : {}) }
-}
-
-function lit(values: string[]): ToolParam {
-  return { type: "string", enum: values }
-}
-
-function opt(p: ToolParam, desc?: string): ToolParam {
-  return { ...p, ...(desc ? { description: desc } : {}) }
-}
-
-const kbSearchTool: AgentTool = {
-  name: "kb_search",
-  label: "Search Knowledge Base",
-  description: "搜索知识库文档。支持关键词搜索、语义搜索和组合搜索。",
-  parameters: obj({
-    query: str("搜索查询字符串"),
-    mode: opt({ anyOf: [lit(["keyword"]), lit(["semantic"]), lit(["combined"])] }, "搜索模式"),
-    limit: opt(num("返回数量限制", 10)),
-  }),
-  execute: async (_id, params) => {
-    const limit = (params.limit as number) || 10
-    let results
-    if (params.mode === "semantic") {
-      results = await searchDocsSemantic(params.query as string, limit)
-    } else if (params.mode === "keyword") {
-      results = searchDocs(params.query as string, undefined, undefined, limit)
-    } else {
-      results = await searchDocsCombined(params.query as string, undefined, undefined, limit)
+export async function executeTool(name: string, args: Record<string, unknown>): Promise<string> {
+  switch (name) {
+    case "kb_search": {
+      const q = String(args.query || "")
+      const limit = Number(args.limit) || 5
+      const results = searchDocs(q, undefined, undefined, limit)
+      if (results.length === 0) return "No results found in knowledge base."
+      return results.map(r => `[${r.id}] ${r.title} (score: ${r.score.toFixed(2)}, tags: ${r.tags.join(", ")})`).join("\n")
     }
-    const text = results.map((r: { id: string; title: string; score: number }) => `[${r.id}] ${r.title} (score: ${r.score.toFixed(2)})`).join("\n") || "No results found"
-    return { content: [{ type: "text", text }], details: results }
-  },
+    case "kb_read": {
+      const id = String(args.id)
+      const doc = readDoc(id, true)
+      if (!doc) return `Document ${id} not found.`
+      const suffix = doc.truncated ? "\n...(content truncated, showing first 50 lines)" : ""
+      return `## ${doc.meta.title}\nTags: ${doc.meta.tags.join(", ")} | Keywords: ${doc.meta.keywords.join(", ")}\nIntent: ${doc.meta.intent}\n\n${doc.content}${suffix}`
+    }
+    case "kb_list": {
+      const tag = args.tag ? String(args.tag) : undefined
+      const limit = Number(args.limit) || 20
+      const docs = listDocs(tag, undefined).slice(0, limit)
+      if (docs.length === 0) return "No documents found."
+      return docs.map(d => `[${d.id}] ${d.title} (tags: ${d.tags.join(", ")}, created: ${new Date(d.created_at).toLocaleDateString()})`).join("\n")
+    }
+    case "read_file": {
+      const p = String(args.path)
+      if (!existsSync(p)) return `File not found: ${p}`
+      try {
+        const content = await Bun.file(p).text()
+        const lines = content.split("\n")
+        if (lines.length > 200) return lines.slice(0, 200).join("\n") + "\n...(truncated)"
+        return content
+      } catch (e) {
+        return `Error reading file: ${e instanceof Error ? e.message : String(e)}`
+      }
+    }
+    case "grep_search": {
+      const pattern = String(args.pattern)
+      const dir = args.path ? String(args.path) : "."
+      const glob = args.glob ? String(args.glob) : ""
+      try {
+        const args2 = ["-rn", "--include=*", pattern, dir]
+        if (glob) {
+          args2.splice(2, 1, `--include=${glob}`)
+        }
+        const proc = Bun.$`grep ${args2}`
+        const out = await proc.text()
+        if (!out.trim()) return `No matches found for pattern "${pattern}" in ${dir}`
+        const lines = out.split("\n")
+        return lines.slice(0, 50).join("\n") + (lines.length > 50 ? "\n...(truncated)" : "")
+      } catch (e) {
+        return `grep error: ${e instanceof Error ? e.message : String(e)}`
+      }
+    }
+    default:
+      return `Unknown tool: ${name}`
+  }
 }
-
-const kbWriteTool: AgentTool = {
-  name: "kb_write",
-  label: "Write to Knowledge Base",
-  description: "写入知识库文档。创建新的知识文档并保存到知识库。",
-  parameters: obj({
-    title: str("文档标题"),
-    content: str("文档内容 (Markdown)"),
-    tags: opt(arr(str(), "标签列表")),
-    keywords: opt(arr(str(), "关键词列表")),
-    intent: opt(str("创建意图")),
-    project_description: opt(str("项目描述")),
-  }),
-  execute: async (_id, params) => {
-    const doc = writeDoc({
-      title: params.title as string,
-      tags: (params.tags as string[]) || [],
-      keywords: (params.keywords as string[]) || [],
-      intent: (params.intent as string) || "",
-      project_description: (params.project_description as string) || "kb-chat",
-      source_project: "",
-      source_worktree: "",
-    }, params.content as string)
-    const text = `Document saved: [${doc.id}] ${doc.title} at ${doc.file_path}`
-    return { content: [{ type: "text", text }], details: doc }
-  },
-}
-
-const summarizeTool: AgentTool = {
-  name: "summarize",
-  label: "Summarize Conversation",
-  description: "总结当前对话上下文。返回对话的摘要。",
-  parameters: obj({
-    instruction: opt(str("自定义总结指令")),
-  }),
-  execute: async (_id, params) => {
-    const text = (params.instruction as string) || "Please summarize the current conversation."
-    return { content: [{ type: "text", text: `Summary instruction: ${text}` }], details: { instruction: params.instruction } }
-  },
-}
-
-const listModelsTool: AgentTool = {
-  name: "list_models",
-  label: "List Available Models",
-  description: "列出所有可用的 LLM 模型。",
-  parameters: obj({}),
-  execute: async () => {
-    const models = getConfiguredModels()
-    const text = models.map(m => `${m.provider}/${m.id}: ${m.name}`).join("\n") || "No models available"
-    return { content: [{ type: "text", text }], details: models }
-  },
-}
-
-export const agentTools: AgentTool[] = [kbSearchTool, kbWriteTool, summarizeTool, listModelsTool]

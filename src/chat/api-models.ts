@@ -44,6 +44,17 @@ function readJson(filePath: string): unknown | null {
   }
 }
 
+function getDefaultModel(): { provider: string; id: string } | null {
+  const cfgPath = path.join(os.homedir(), ".pi", "agent", "models.json")
+  const raw = readJson(cfgPath)
+  if (!raw) return null
+  const cfg = raw as PiModelsConfig
+  if (cfg.defaultProvider && cfg.defaultModel) {
+    return { provider: cfg.defaultProvider, id: cfg.defaultModel }
+  }
+  return null
+}
+
 function fromPiModelsJson(): ConfiguredModel[] {
   const cfgPath = path.join(os.homedir(), ".pi", "agent", "models.json")
   const raw = readJson(cfgPath)
@@ -122,7 +133,8 @@ export function getConfiguredModels(): ConfiguredModel[] {
 
 export async function handleGetModels(_req: IncomingMessage, res: ServerResponse) {
   const models = getConfiguredModels().map(({ apiKey: _, ...m }) => m)
-  json(res, { models, current: null })
+  const current = getDefaultModel()
+  json(res, { models, current })
 }
 
 export async function handleSetModel(req: IncomingMessage, res: ServerResponse) {

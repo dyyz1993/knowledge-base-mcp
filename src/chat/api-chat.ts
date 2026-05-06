@@ -1,11 +1,31 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { getConfiguredModels, type ConfiguredModel } from "./api-models"
+import { toolDefinitions, executeTool } from "./tools.js"
 import * as session from "./session"
 import { generateId } from "../storage/index.js"
 
-const SYSTEM_PROMPT = `You are a helpful AI assistant with knowledge base search capabilities.
-You can search and write to a knowledge base using the available tools.
-Always be concise, helpful, and accurate.`
+const SYSTEM_PROMPT = `You are a Knowledge Base Assistant. Your primary role is to help users by searching and retrieving information from the knowledge base.
+
+## CRITICAL RULES
+1. ALWAYS call kb_search FIRST before answering any user question, even if you think you know the answer
+2. After getting search results, read the most relevant documents using kb_read to get full content
+3. Base your answer on the knowledge base content and cite document titles
+4. If the knowledge base has no relevant results, answer from general knowledge but explicitly mention: "Note: No relevant documents found in the knowledge base, answering from general knowledge."
+5. Be concise and helpful. Use markdown formatting for better readability.
+
+## Available Tools
+- kb_search: Search knowledge base documents by keywords
+- kb_read: Read full content of a specific document by ID
+- kb_list: List all documents, optionally filtered by tag
+- read_file: Read files from the filesystem
+- grep_search: Search file contents with regex patterns
+
+## Workflow
+1. User asks a question
+2. Call kb_search with relevant keywords extracted from the question
+3. If results found, call kb_read on the most relevant document IDs
+4. Synthesize an answer based on KB content, citing sources like: "According to [Document Title]..."
+5. If no results, answer from general knowledge with a disclaimer`
 
 function resolveConfiguredModel(provider?: string, modelId?: string): ConfiguredModel | null {
   const configured = getConfiguredModels()
@@ -28,28 +48,42 @@ function parseModelRef(model: unknown): { provider: string; id: string } | null 
   return null
 }
 
-async function* streamOpenAI(
+interface ChatMessage {
+  role: string
+  content: string | null
+  tool_calls?: Array<{
+    id: string
+    type: "function"
+    function: { name: string; arguments: string }
+  }>
+  tool_call_id?: string
+  name?: string
+}
+
+async function callOpenAI(
   baseUrl: string,
   apiKey: string,
   modelId: string,
-  messages: { role: string; content: string }[],
-): AsyncGenerator<{ type: string; delta?: string; error?: string }> {
+  messages: ChatMessage[],
+  tools: typeof toolDefinitions | undefined,
+  stream: boolean,
+): Promise<Response> {
   const url = `${baseUrl.replace(/\/+$/, "")}/chat/completions`
-  const resp = await fetch(url, {
+  const body: Record<string, unknown> = { model: modelId, messages }
+  if (tools) body.tools = tools
+  body.stream = stream
+
+  return fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model: modelId, messages, stream: true }),
+    body: JSON.stringify(body),
   })
+}
 
-  if (!resp.ok) {
-    const body = await resp.text()
-    yield { type: "error", error: `API ${resp.status}: ${body.slice(0, 500)}` }
-    return
-  }
-
+async function* streamResponse(resp: Response): AsyncGenerator<{ type: string; delta?: string; toolCalls?: unknown; finishReason?: string; error?: string }> {
   const reader = resp.body?.getReader()
   if (!reader) {
     yield { type: "error", error: "No response body" }
@@ -74,20 +108,36 @@ async function* streamOpenAI(
 
       try {
         const chunk = JSON.parse(trimmed.slice(6))
-        const delta = chunk.choices?.[0]?.delta
+        const choice = chunk.choices?.[0]
+        if (!choice) continue
+
+        const delta = choice.delta
         if (delta?.content) {
           yield { type: "text_delta", delta: delta.content }
         }
         if (delta?.reasoning_content) {
           yield { type: "thinking_delta", delta: delta.reasoning_content }
         }
+        if (delta?.tool_calls) {
+          yield { type: "tool_calls_delta", toolCalls: delta.tool_calls }
+        }
+        if (choice.finish_reason) {
+          yield { type: "finish", finishReason: choice.finish_reason }
+        }
       } catch {
         // skip malformed chunks
       }
     }
   }
-
   yield { type: "done" }
+}
+
+function parseToolCallArgs(args: string): Record<string, unknown> {
+  try {
+    return JSON.parse(args)
+  } catch {
+    return {}
+  }
 }
 
 export async function handleChat(req: IncomingMessage, res: ServerResponse) {
@@ -128,30 +178,97 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
       return
     }
 
-    const chatMessages = [
+    const chatMessages: ChatMessage[] = [
       { role: "system", content: SYSTEM_PROMPT },
       ...messages.map(m => ({ role: m.role, content: m.content })),
     ]
 
     let assistantContent = ""
-    const stream = streamOpenAI(cfg.baseUrl, cfg.apiKey, cfg.id, chatMessages)
+    const MAX_TOOL_ROUNDS = 10
 
-    for await (const event of stream) {
-      switch (event.type) {
-        case "text_delta":
-          send("token", { delta: event.delta })
-          assistantContent += event.delta || ""
-          break
-        case "thinking_delta":
-          send("thinking", { delta: event.delta })
-          break
-        case "done":
-          send("done", { messageId: generateId() })
-          break
-        case "error":
-          send("error", { error: event.error })
-          break
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const resp = await callOpenAI(cfg.baseUrl, cfg.apiKey, cfg.id, chatMessages, toolDefinitions, true)
+
+      if (!resp.ok) {
+        const errBody = await resp.text()
+        send("error", { error: `API ${resp.status}: ${errBody.slice(0, 500)}` })
+        res.end()
+        return
       }
+
+      let currentToolCalls: Array<{ id: string; name: string; args: string }> = []
+      let finishReason = ""
+      let thinkingContent = ""
+
+      for await (const event of streamResponse(resp)) {
+        switch (event.type) {
+          case "text_delta":
+            send("token", { delta: event.delta })
+            assistantContent += event.delta || ""
+            break
+          case "thinking_delta":
+            send("thinking", { delta: event.delta })
+            thinkingContent += event.delta || ""
+            break
+          case "tool_calls_delta": {
+            const deltas = event.toolCalls as Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }>
+            for (const d of deltas) {
+              while (currentToolCalls.length <= d.index) {
+                currentToolCalls.push({ id: "", name: "", args: "" })
+              }
+              if (d.id) currentToolCalls[d.index].id = d.id
+              if (d.function?.name) currentToolCalls[d.index].name = d.function.name
+              if (d.function?.arguments) currentToolCalls[d.index].args += d.function.arguments
+            }
+            break
+          }
+          case "finish":
+            finishReason = event.finishReason || ""
+            break
+          case "error":
+            send("error", { error: event.error })
+            break
+        }
+      }
+
+      if (finishReason !== "tool_calls" || currentToolCalls.length === 0) {
+        send("done", { messageId: generateId() })
+        break
+      }
+
+      const assistantMsg: ChatMessage = {
+        role: "assistant",
+        content: assistantContent || null,
+        tool_calls: currentToolCalls.map(tc => ({
+          id: tc.id,
+          type: "function" as const,
+          function: { name: tc.name, arguments: tc.args },
+        })),
+      }
+      chatMessages.push(assistantMsg)
+
+      for (const tc of currentToolCalls) {
+        const args = parseToolCallArgs(tc.args)
+        send("tool_call", { name: tc.name, args: JSON.stringify(args) })
+
+        let result: string
+        try {
+          result = await executeTool(tc.name, args)
+        } catch (e) {
+          result = `Tool error: ${e instanceof Error ? e.message : String(e)}`
+        }
+
+        send("tool_result", { name: tc.name, result })
+
+        chatMessages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          name: tc.name,
+          content: result,
+        })
+      }
+
+      assistantContent = ""
     }
 
     if (assistantContent) {
