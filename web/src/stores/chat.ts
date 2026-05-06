@@ -236,7 +236,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const finalState = get().streamStates.get(targetSessionId)
         const rawContent = finalState?.streamingContent || ""
 
-        const suggestionMatch = rawContent.match(/\[SUGGESTIONS\]\r?\n([\s\S]*?)\[\/SUGGESTIONS\]/)
+        const closedMatch = rawContent.match(/\[SUGGESTIONS\]\r?\n([\s\S]*?)\[\/SUGGESTIONS\]/)
+        const openMatch = !closedMatch ? rawContent.match(/\[SUGGESTIONS\]\r?\n([\s\S]+)$/) : null
+        const suggestionMatch = closedMatch || openMatch
         let cleanContent = rawContent
         let suggestions: string[] = []
         if (suggestionMatch) {

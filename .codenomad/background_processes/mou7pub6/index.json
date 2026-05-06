@@ -106,13 +106,40 @@
     "title": "kb-mcp service",
     "command": "bun run /Users/xuyingzhou/.npm/_npx/daf9cd518aaa9eb6/node_modules/@dyyz1993/kb-mcp/dist/index.js --http --web --port 19877",
     "cwd": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
-    "status": "running",
+    "status": "error",
     "pid": 18793,
     "startedAt": "2026-05-06T18:09:04.344Z",
-    "outputSizeBytes": 0,
+    "outputSizeBytes": 234,
     "notify": {
       "sessionID": "ses_20186e9fbffe5XVcnblJm6FYal",
-      "directory": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp"
-    }
+      "directory": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+      "sentAt": "2026-05-06T18:37:00.264Z"
+    },
+    "terminalReason": "failed",
+    "stoppedAt": "2026-05-06T18:37:00.170Z"
+  },
+  {
+    "id": "proc_2026-05-06T1855_41f92d",
+    "workspaceId": "mou7pub6",
+    "title": "kb-mcp-server",
+    "command": "kb-mcp --http --web --port 19877",
+    "cwd": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+    "status": "stopped",
+    "pid": 16073,
+    "startedAt": "2026-05-06T18:55:21.178Z",
+    "outputSizeBytes": 234,
+    "terminalReason": "user_stopped",
+    "stoppedAt": "2026-05-06T19:00:06.189Z"
+  },
+  {
+    "id": "proc_2026-05-06T1900_5215b7",
+    "workspaceId": "mou7pub6",
+    "title": "kb-mcp-local-dev",
+    "command": "bun run dev --web",
+    "cwd": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+    "status": "running",
+    "pid": 33438,
+    "startedAt": "2026-05-06T19:00:16.355Z",
+    "outputSizeBytes": 0
   }
 ]

@@ -83,6 +83,11 @@ export const toolDefinitions: OpenAITool[] = [
             items: { type: "string" },
             description: "Related project paths or names that this knowledge connects to",
           },
+          related_files: {
+            type: "array",
+            items: { type: "string" },
+            description: "Related source file paths for staleness detection",
+          },
         },
         required: ["title", "content"],
       },
@@ -191,7 +196,8 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         const score = typeof r.score === "number" ? r.score.toFixed(2) : "0.00"
         const proj = r.source_project ? r.source_project.split("/").pop() || "" : ""
         const projStr = proj ? `, project: ${proj}` : ""
-        const base = `[${r.id ?? "?"}] ${r.title ?? "untitled"} (score: ${score}, tags: ${tags}${projStr})`
+        const matchInfo = Array.isArray(r.matched_by) && r.matched_by.length > 0 ? `, matched: ${r.matched_by.join("+")}` : ""
+        const base = `[${r.id ?? "?"}] ${r.title ?? "untitled"} (score: ${score}, tags: ${tags}${projStr}${matchInfo})`
         if (r.snippet) return base + `\n  snippet: ${r.snippet}`
         return base
       }).join("\n")
@@ -239,6 +245,7 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         source_project: "",
         source_worktree: "",
         related_projects: Array.isArray(args.related_projects) ? args.related_projects as string[] : undefined,
+        related_files: Array.isArray(args.related_files) ? args.related_files as string[] : undefined,
       }
       const doc = writeDoc(meta, content)
       return `✅ Saved to knowledge base:\n  ID: ${doc.id}\n  Title: ${doc.title}\n  Tags: ${doc.tags.join(", ")}\n  Keywords: ${doc.keywords.join(", ")}\n  File: ${doc.file_path}`
