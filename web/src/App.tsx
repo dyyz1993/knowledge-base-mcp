@@ -104,15 +104,15 @@ export default function App() {
         <div className="flex flex-1 overflow-hidden relative">
           {sidebarOpen && (
             <div
-              className="fixed inset-0 z-20 bg-black/50 lg:hidden"
+              className="fixed inset-0 top-10 z-20 bg-black/50 lg:hidden"
               onClick={() => setSidebarOpen(false)}
             />
           )}
 
           <aside className={`
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-            fixed inset-y-0 left-0 z-30 w-64 sm:w-56
-            lg:translate-x-0 lg:relative lg:w-56 xl:w-60
+            fixed top-10 bottom-0 left-0 z-30 w-64 sm:w-56
+            lg:translate-x-0 lg:relative lg:top-0 lg:w-56 xl:w-60
             transition-transform duration-200 ease-in-out
             border-r border-zinc-800 flex flex-col shrink-0 bg-zinc-950
           `}>

@@ -168,6 +168,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           sess.id === targetSessionId ? { ...sess, name } : sess
         ),
       }))
+      api.renameSession(targetSessionId, name).catch(() => {})
     }
 
     await api.streamChat({
@@ -235,15 +236,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const finalState = get().streamStates.get(targetSessionId)
         const rawContent = finalState?.streamingContent || ""
 
-        const suggestionMatch = rawContent.match(/\[SUGGESTIONS\]\n([\s\S]*?)\[\/SUGGESTIONS\]/)
+        const suggestionMatch = rawContent.match(/\[SUGGESTIONS\]\r?\n([\s\S]*?)\[\/SUGGESTIONS\]/)
         let cleanContent = rawContent
         let suggestions: string[] = []
         if (suggestionMatch) {
           cleanContent = rawContent.replace(suggestionMatch[0], "").trim()
           suggestions = suggestionMatch[1]
-            .split("\n")
-            .filter((l) => /^\d+\./.test(l))
+            .split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter((l) => /^\d+\.\s/.test(l))
             .map((l) => l.replace(/^\d+\.\s*/, ""))
+            .filter(Boolean)
         }
 
         if (cleanContent) {

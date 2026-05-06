@@ -12,7 +12,7 @@ import { join, extname } from "node:path"
 import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined } from "./storage/index.js"
 import { handleChat } from "./chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "./chat/api-models.js"
-import { handleListSessions, handleCreateSession, handleDeleteSession, handleGetMessages } from "./chat/api-sessions.js"
+import { handleListSessions, handleCreateSession, handleDeleteSession, handleGetMessages, handleRenameSession } from "./chat/api-sessions.js"
 import { handleListFavorites, handleAddFavorite, handleDeleteFavorite } from "./chat/api-favorites.js"
 
 function registerTools(server: McpServer) {
@@ -452,6 +452,7 @@ function startHttp(port: number) {
       if (url.pathname === "/api/models" && req.method === "PUT") return handleSetModel(req, res)
       if (url.pathname === "/api/sessions" && req.method === "GET") return handleListSessions(req, res)
       if (url.pathname === "/api/sessions" && req.method === "POST") return handleCreateSession(req, res)
+      if (url.pathname.match(/^\/api\/sessions\/[^/]+\/rename$/) && req.method === "PUT") return handleRenameSession(req, res, url)
       if (url.pathname.match(/^\/api\/sessions\/[^/]+\/messages$/) && req.method === "GET") return handleGetMessages(req, res, url)
       if (url.pathname.startsWith("/api/sessions/") && req.method === "DELETE") return handleDeleteSession(req, res, url)
       if (url.pathname === "/api/favorites" && req.method === "GET") return handleListFavorites(req, res)

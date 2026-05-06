@@ -171,6 +171,14 @@ export async function createSession(): Promise<{ id: string; name: string }> {
   return res.json()
 }
 
+export async function renameSession(id: string, name: string) {
+  await fetch(`${BASE}/api/sessions/${id}/rename`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  })
+}
+
 export async function deleteSession(id: string) {
   await fetch(`${BASE}/api/sessions/${id}`, { method: "DELETE" })
 }

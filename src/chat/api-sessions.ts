@@ -14,6 +14,16 @@ export async function handleCreateSession(req: IncomingMessage, res: ServerRespo
   json(res, sess)
 }
 
+export async function handleRenameSession(req: IncomingMessage, res: ServerResponse, url: URL) {
+  const id = url.pathname.split("/").filter(Boolean)[2]
+  if (!id) { json(res, { error: "Session ID required" }, 400); return }
+  let body: Record<string, string> = {}
+  try { body = JSON.parse(await readBody(req)) } catch {}
+  if (!body.name) { json(res, { error: "Name required" }, 400); return }
+  session.setName(id, body.name)
+  json(res, { ok: true })
+}
+
 export async function handleGetMessages(_req: IncomingMessage, res: ServerResponse, url: URL) {
   const match = url.pathname.match(/^\/api\/sessions\/([^/]+)\/messages$/)
   if (!match) { json(res, { error: "Session ID required" }, 400); return }

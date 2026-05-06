@@ -1,0 +1,47 @@
+# Module: chat
+# Reusable operation sequences
+
+send_message_flow:
+  description: "Send a message in the chat and wait for response"
+  steps:
+    - action: click
+      selector: "textarea[placeholder='Type a message...']"
+      description: "Click chat input to focus"
+    - action: type
+      selector: "textarea[placeholder='Type a message...']"
+      description: "Type message content"
+    - action: eval
+      selector: "javascript"
+      value: "textarea.focus(); new KeyboardEvent('keydown', {key:'Enter',code:'Enter',keyCode:13,bubbles:true})"
+      description: "Press Enter to send (fill + Enter key simulation)"
+  wait_after_submit: 8000
+  expected_result: "AI response appears in chat area"
+  notes: "Fill command may not trigger React state properly; prefer type + Enter key dispatch"
+
+create_new_session_flow:
+  description: "Create a new chat session"
+  steps:
+    - action: click
+      selector: "button.hover\\:bg-zinc-800"
+      description: "Click New Chat button in sidebar"
+  expected_result: "New empty session created and activated"
+
+switch_session_flow:
+  description: "Switch to a different session"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "sidebar.children[N].click()"
+      description: "Click target session item in sidebar"
+  notes: "Need to determine session index first"
+
+tips:
+  - "fill command on textarea may not trigger React onChange; use type + Enter key dispatch instead"
+  - "AI responses are fast (2-5s), hard to capture loading states"
+  - "Sidebar shows session IDs (e.g. Chat 618ea29f), not message content names"
+  - "Model selector is in the header bar (top of chat area), not near input"
+  - "Chat area is the 2nd .flex-1.overflow-y-auto element (index [1])"
+  - "Mobile responsive not working - sidebar uses fixed widths (w-56, w-64) with no breakpoint hiding"
+  - "Copy buttons on assistant messages use opacity-0 + hover:opacity-100 pattern"
+  - "Code blocks have separate copy buttons in the header bar of each code block"
+  - "Knowledge base search works - AI calls kb_outline, kb_search, kb_read tools"

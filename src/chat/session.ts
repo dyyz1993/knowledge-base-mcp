@@ -1,4 +1,4 @@
-import { readMessages, appendMessage, readSession, createSession, updateSessionModel, listSessions } from "./store-sessions"
+import { readMessages, appendMessage, readSession, createSession, updateSessionModel, updateSessionName, listSessions } from "./store-sessions"
 import type { ChatMessage, ChatSession } from "./store-sessions"
 
 const active = new Map<string, { messages: ChatMessage[] }>()
@@ -31,6 +31,10 @@ export function getMessages(sessionId: string): ChatMessage[] {
   const messages = readMessages(sessionId)
   active.set(sessionId, { messages })
   return messages
+}
+
+export function setName(sessionId: string, name: string) {
+  updateSessionName(sessionId, name)
 }
 
 export function setModel(sessionId: string, model: { provider: string; id: string }) {

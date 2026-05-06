@@ -62,6 +62,22 @@ export function readSession(id: string): ChatSession | null {
   return null
 }
 
+export function updateSessionName(id: string, name: string) {
+  ensureBase()
+  const path = sessionPath(id)
+  if (!existsSync(path)) return
+  const lines = readFileSync(path, "utf-8").trim().split("\n").filter(Boolean)
+  if (lines.length === 0) return
+  try {
+    const header = JSON.parse(lines[0])
+    if (header.type === "session") {
+      header.name = name
+      lines[0] = JSON.stringify(header)
+      writeFileSync(path, lines.join("\n") + "\n")
+    }
+  } catch {}
+}
+
 export function updateSessionModel(id: string, model: { provider: string; id: string }) {
   ensureBase()
   const path = sessionPath(id)

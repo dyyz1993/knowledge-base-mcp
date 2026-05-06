@@ -61,5 +61,58 @@
     },
     "terminalReason": "failed",
     "stoppedAt": "2026-05-06T17:19:53.330Z"
+  },
+  {
+    "id": "proc_2026-05-06T1807_66a08f",
+    "workspaceId": "mou7pub6",
+    "title": "kb-mcp service",
+    "command": "npx -y @dyyz1993/kb-mcp@2.6.0 --http --web --port 19877",
+    "cwd": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+    "status": "error",
+    "pid": 14582,
+    "startedAt": "2026-05-06T18:07:30.143Z",
+    "outputSizeBytes": 30,
+    "notify": {
+      "sessionID": "ses_20186e9fbffe5XVcnblJm6FYal",
+      "directory": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+      "sentAt": "2026-05-06T18:07:30.958Z"
+    },
+    "terminalReason": "failed",
+    "exitCode": 127,
+    "stoppedAt": "2026-05-06T18:07:30.952Z"
+  },
+  {
+    "id": "proc_2026-05-06T1807_965587",
+    "workspaceId": "mou7pub6",
+    "title": "kb-mcp service",
+    "command": "/Users/xuyingzhou/.nvm/versions/node/v25.2.1/bin/npx -y @dyyz1993/kb-mcp@2.6.0 --http --web --port 19877",
+    "cwd": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+    "status": "error",
+    "pid": 17221,
+    "startedAt": "2026-05-06T18:07:59.348Z",
+    "outputSizeBytes": 30,
+    "notify": {
+      "sessionID": "ses_20186e9fbffe5XVcnblJm6FYal",
+      "directory": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+      "sentAt": "2026-05-06T18:08:00.209Z"
+    },
+    "terminalReason": "failed",
+    "exitCode": 127,
+    "stoppedAt": "2026-05-06T18:08:00.202Z"
+  },
+  {
+    "id": "proc_2026-05-06T1809_29fb7e",
+    "workspaceId": "mou7pub6",
+    "title": "kb-mcp service",
+    "command": "bun run /Users/xuyingzhou/.npm/_npx/daf9cd518aaa9eb6/node_modules/@dyyz1993/kb-mcp/dist/index.js --http --web --port 19877",
+    "cwd": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+    "status": "running",
+    "pid": 18793,
+    "startedAt": "2026-05-06T18:09:04.344Z",
+    "outputSizeBytes": 0,
+    "notify": {
+      "sessionID": "ses_20186e9fbffe5XVcnblJm6FYal",
+      "directory": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp"
+    }
   }
 ]

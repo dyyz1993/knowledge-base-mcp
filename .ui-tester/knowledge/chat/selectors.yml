@@ -1,0 +1,29 @@
+# Module: chat
+# Site: http://localhost:19877
+# Version: 1
+# Last updated: 2026-05-07
+# Updated in round: r1
+
+chat_page:
+  url: "http://localhost:19877"
+  sidebar_toggle_kb: "button.hover\\:text-zinc-300.transition-colors:nth-child(1)"
+  sidebar_toggle_chat: "div.items-center.gap-1:nth-child(1) > button.transition-colors.items-center:nth-child(2)"
+  model_selector: "#rc_select_0"
+  new_chat_button: "button.hover\\:bg-zinc-800"
+  chat_input: "textarea[placeholder='Type a message...']"
+  send_button: "button.shrink-0.rounded-lg.bg-blue-600"
+  search_kb_input: "input[placeholder='Search knowledge base...']"
+  search_kb_go: "button.hover\\:bg-zinc-700.transition-colors"
+  write_to_kb: "button.hover\\:border-zinc-500"
+
+chat_messages:
+  user_message: "div.bg-blue-600.text-white"
+  assistant_message: "div.bg-zinc-800.text-zinc-200"
+  copy_button: "button[title='Copy']"
+  code_block: "pre code"
+  code_copy_button: "pre button"
+
+sidebar:
+  session_list_container: "aside .flex-1.overflow-y-auto"
+  session_item: "aside button"
+  session_delete_button: "button.lucide-trash-2"

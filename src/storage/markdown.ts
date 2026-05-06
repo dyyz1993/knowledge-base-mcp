@@ -19,7 +19,7 @@ export function parseFrontmatter(raw: string): { meta: Partial<DocMeta>; content
 }
 
 export function buildFrontmatter(doc: DocMeta): string {
-  const fields = {
+  const fields: Record<string, unknown> = {
     id: doc.id,
     title: doc.title,
     tags: doc.tags,
@@ -31,6 +31,8 @@ export function buildFrontmatter(doc: DocMeta): string {
     created_at: doc.created_at,
     file_path: doc.file_path,
   }
+  if (doc.related_files && doc.related_files.length > 0) fields.related_files = doc.related_files
+  if (doc.updated_at) fields.updated_at = doc.updated_at
   const lines = ["---"]
   for (const [k, v] of Object.entries(fields)) {
     lines.push(`${k}: ${JSON.stringify(v)}`)

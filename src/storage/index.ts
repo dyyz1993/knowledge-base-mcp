@@ -17,7 +17,9 @@ export interface DocMeta {
   source_project: string
   source_worktree: string
   related_projects?: string[]
+  related_files?: string[]
   created_at: number
+  updated_at?: number
   file_path: string
 }
 
@@ -73,6 +75,7 @@ export function writeDoc(
   const id = meta.id || existing?.id || generateId()
   const created_at = meta.created_at || existing?.created_at || Date.now()
   const file_path = meta.file_path || existing?.file_path || docFilePath(id, meta.title)
+  const updated_at = Date.now()
 
   if (existing) {
     if (existsSync(existing.file_path) && existing.file_path !== file_path) {
@@ -80,7 +83,7 @@ export function writeDoc(
     }
   }
 
-  const doc: DocMeta = { ...meta, id, created_at, file_path } as DocMeta
+  const doc: DocMeta = { ...meta, id, created_at, updated_at, file_path } as DocMeta
 
   const md = buildFrontmatter(doc) + "\n" + content
   writeFileSync(file_path, md)
@@ -151,24 +154,25 @@ export function searchDocs(
   keywords?: string[],
   tags?: string[],
   limit = 10,
-): (DocMeta & { score: number; snippet?: string })[] {
+): (DocMeta & { score: number; snippet?: string; matched_by: string[] })[] {
   const idx = readIndex()
   const q = (query || "").toLowerCase()
-  const results: (DocMeta & { score: number; snippet?: string })[] = []
+  const results: (DocMeta & { score: number; snippet?: string; matched_by: string[] })[] = []
 
   for (const doc of Object.values(idx.documents)) {
     let score = 0
     let snippet = ""
+    const matched_by: string[] = []
     const body = readDocContent(doc.file_path).toLowerCase()
 
     if (q) {
       const tokens = q.split(/[\s\-_]+/).filter(Boolean)
       for (const token of tokens) {
-        if (tokenMatch(doc.title, token)) score += 10
-        if (doc.keywords.some(k => tokenMatch(k, token))) score += 4
-        if (tokenMatch(doc.intent, token)) score += 5
-        if (tokenMatch(doc.project_description, token)) score += 3
-        if (body.includes(token)) score += 2
+        if (tokenMatch(doc.title, token)) { score += 10; if (!matched_by.includes("title")) matched_by.push("title") }
+        if (doc.keywords.some(k => tokenMatch(k, token))) { score += 4; if (!matched_by.includes("keywords")) matched_by.push("keywords") }
+        if (tokenMatch(doc.intent, token)) { score += 5; if (!matched_by.includes("intent")) matched_by.push("intent") }
+        if (tokenMatch(doc.project_description, token)) { score += 3; if (!matched_by.includes("project_description")) matched_by.push("project_description") }
+        if (body.includes(token)) { score += 2; if (!matched_by.includes("content")) matched_by.push("content") }
       }
       if (tokens.length > 1) {
         if (tokenMatch(doc.title, q)) score += 5
@@ -182,12 +186,12 @@ export function searchDocs(
       }
     }
     if (tags?.length) {
-      if (doc.tags.some(t => tags.includes(t))) score += 5
+      if (doc.tags.some(t => tags.includes(t))) { score += 5; if (!matched_by.includes("tags")) matched_by.push("tags") }
     }
     if (keywords?.length) {
-      if (doc.keywords.some(k => keywords.some(kw => tokenMatch(k, kw)))) score += 3
+      if (doc.keywords.some(k => keywords.some(kw => tokenMatch(k, kw)))) { score += 3; if (!matched_by.includes("keywords")) matched_by.push("keywords") }
     }
-    if (score > 0) results.push({ ...doc, score, snippet })
+    if (score > 0) results.push({ ...doc, score, snippet, matched_by })
   }
 
   return results.sort((a, b) => b.score - a.score).slice(0, limit)
