@@ -1,5 +1,4 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
-import { getProviders, getModels, getEnvApiKey } from "@dyyz1993/pi-ai"
 import * as fs from "node:fs"
 import * as path from "node:path"
 import * as os from "node:os"
@@ -43,19 +42,6 @@ function readJson(filePath: string): unknown | null {
   } catch {
     return null
   }
-}
-
-function fromPiAiProviders(): ConfiguredModel[] {
-  return getProviders()
-    .filter(p => !!getEnvApiKey(p))
-    .flatMap(p =>
-      getModels(p as never).map(m => ({
-        provider: m.provider,
-        id: m.id,
-        name: m.name,
-        apiKey: getEnvApiKey(p) || undefined,
-      }))
-    )
 }
 
 function fromPiModelsJson(): ConfiguredModel[] {
@@ -122,7 +108,7 @@ export function getConfiguredModels(): ConfiguredModel[] {
   const seen = new Set<string>()
   const all: ConfiguredModel[] = []
 
-  for (const src of [fromPiAiProviders, fromPiModelsJson, fromOpencodeConfig]) {
+  for (const src of [fromPiModelsJson, fromOpencodeConfig]) {
     for (const m of src()) {
       const key = `${m.provider}::${m.id}`
       if (!seen.has(key)) {
