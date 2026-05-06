@@ -27,12 +27,13 @@ interface PiModelsConfig {
   defaultModel?: string
 }
 
-interface ConfiguredModel {
+export interface ConfiguredModel {
   provider: string
   id: string
   name: string
   api?: string
   baseUrl?: string
+  apiKey?: string
 }
 
 function readJson(filePath: string): unknown | null {
@@ -48,7 +49,12 @@ function fromPiAiProviders(): ConfiguredModel[] {
   return getProviders()
     .filter(p => !!getEnvApiKey(p))
     .flatMap(p =>
-      getModels(p as never).map(m => ({ provider: m.provider, id: m.id, name: m.name }))
+      getModels(p as never).map(m => ({
+        provider: m.provider,
+        id: m.id,
+        name: m.name,
+        apiKey: getEnvApiKey(p) || undefined,
+      }))
     )
 }
 
@@ -70,6 +76,7 @@ function fromPiModelsJson(): ConfiguredModel[] {
           name: m.name || m.id,
           api: prov.api,
           baseUrl: prov.baseUrl,
+          apiKey: prov.apiKey,
         })
       }
     }
@@ -103,6 +110,7 @@ function fromOpencodeConfig(): ConfiguredModel[] {
           name: modelDef?.name || modelId,
           api: val.npm,
           baseUrl: val.options?.baseURL || val.options?.baseUrl,
+          apiKey: val.options.apiKey,
         })
       }
     }
@@ -127,7 +135,7 @@ export function getConfiguredModels(): ConfiguredModel[] {
 }
 
 export async function handleGetModels(_req: IncomingMessage, res: ServerResponse) {
-  const models = getConfiguredModels()
+  const models = getConfiguredModels().map(({ apiKey: _, ...m }) => m)
   json(res, { models, current: null })
 }
 
