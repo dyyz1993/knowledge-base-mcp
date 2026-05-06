@@ -1,5 +1,6 @@
 import { searchDocs, readDoc, listDocs, writeDoc, getOutline } from "../storage/index.js"
 import { existsSync } from "node:fs"
+import { join } from "node:path"
 import { expandQuery } from "./query-expander.js"
 
 export interface OpenAITool {
@@ -98,6 +99,27 @@ export const toolDefinitions: OpenAITool[] = [
           project: { type: "string", description: "Absolute path of the project directory" },
         },
         required: ["project"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "scan_project",
+      description: "Scan a project directory to extract key information including tech stack, structure, dependencies, and README. Results can be saved to the knowledge base.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: {
+            type: "string",
+            description: "Absolute path of the project directory to scan",
+          },
+          save: {
+            type: "boolean",
+            description: "Whether to auto-save scan results to knowledge base (default: false)",
+          },
+        },
+        required: ["path"],
       },
     },
   },
@@ -232,6 +254,80 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         return `${i + 1}. [${d.id}] ${d.title}\n   tags: ${tags} | keywords: ${kws}`
       }).join("\n\n")
       return header + body
+    }
+    case "scan_project": {
+      const projectPath = String(args.path ?? "")
+      if (!projectPath) return "Project path is required."
+      if (!existsSync(projectPath)) return `Directory not found: ${projectPath}`
+
+      const shouldSave = args.save === true
+      const results: string[] = []
+      const projectName = projectPath.split("/").pop() || projectPath
+
+      const pkgPath = join(projectPath, "package.json")
+      if (existsSync(pkgPath)) {
+        const pkg = JSON.parse(await Bun.file(pkgPath).text())
+        results.push(`## package.json`)
+        results.push(`Name: ${pkg.name || projectName}`)
+        results.push(`Version: ${pkg.version || "N/A"}`)
+        results.push(`Description: ${pkg.description || "N/A"}`)
+        if (pkg.dependencies) results.push(`Dependencies: ${Object.keys(pkg.dependencies).join(", ")}`)
+        if (pkg.devDependencies) results.push(`DevDependencies: ${Object.keys(pkg.devDependencies).join(", ")}`)
+        if (pkg.scripts) results.push(`Scripts: ${Object.keys(pkg.scripts).join(", ")}`)
+      }
+
+      const readmePath = join(projectPath, "README.md")
+      if (existsSync(readmePath)) {
+        const readme = await Bun.file(readmePath).text()
+        const lines = readme.split("\n").slice(0, 30)
+        results.push(`\n## README.md (前30行)`)
+        results.push(lines.join("\n"))
+      }
+
+      results.push(`\n## 目录结构`)
+      try {
+        const findOutput = await Bun.$`find ${projectPath} -maxdepth 3 -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -not -path '*/.next/*' -not -path '*/build/*' | head -100`.text()
+        results.push(findOutput)
+      } catch {
+        results.push("(无法获取目录结构)")
+      }
+
+      const configFiles = ["tsconfig.json", "vite.config.ts", "vite.config.js", "next.config.ts", "next.config.js", "nuxt.config.ts", "tailwind.config.ts", "tailwind.config.js", ".eslintrc.js", ".eslintrc.json"]
+      for (const cf of configFiles) {
+        const fp = join(projectPath, cf)
+        if (existsSync(fp)) {
+          const content = await Bun.file(fp).text()
+          const lines = content.split("\n").slice(0, 20)
+          results.push(`\n## ${cf}`)
+          results.push(lines.join("\n"))
+        }
+      }
+
+      const srcPath = join(projectPath, "src")
+      if (existsSync(srcPath)) {
+        try {
+          const srcOutput = await Bun.$`find ${srcPath} -maxdepth 2 -type f -not -path '*/node_modules/*' | head -50`.text()
+          results.push(`\n## src/ 文件结构`)
+          results.push(srcOutput)
+        } catch {}
+      }
+
+      const scanContent = results.join("\n")
+
+      if (shouldSave) {
+        const doc = writeDoc({
+          title: `${projectName} 项目扫描报告`,
+          tags: ["reference", "architecture"],
+          keywords: [projectName, "项目扫描", "project-scan"],
+          intent: `项目 ${projectName} 的自动扫描报告`,
+          project_description: projectName,
+          source_project: projectPath,
+          source_worktree: "",
+        }, scanContent)
+        return `✅ 项目扫描完成并已存入知识库:\n  ID: ${doc.id}\n  Title: ${doc.title}\n\n${scanContent}`
+      }
+
+      return `📋 项目扫描结果 (${projectName}):\n\n${scanContent}\n\n💡 提示: 如需保存到知识库，可以让我用 kb_write 存储。`
     }
     case "read_file": {
       const p = String(args.path ?? "")

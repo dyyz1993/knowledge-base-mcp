@@ -17,6 +17,56 @@ body {
   border-radius: 3px;
 }
 
+.markdown-body p {
+  margin: 0.4em 0;
+}
+.markdown-body p:first-child {
+  margin-top: 0;
+}
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0.4em 0;
+  padding-left: 1.5em;
+}
+.markdown-body li {
+  margin: 0.15em 0;
+}
+.markdown-body blockquote {
+  margin: 0.5em 0;
+  padding: 0.3em 0.8em;
+  border-left: 3px solid #3f3f46;
+  color: #a1a1aa;
+}
+.markdown-body a {
+  color: #60a5fa;
+  text-decoration: underline;
+}
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  font-size: 13px;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid #3f3f46;
+  padding: 0.3em 0.6em;
+}
+.markdown-body th {
+  background: #27272a;
+}
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid #3f3f46;
+  margin: 0.75em 0;
+}
+.markdown-body img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+
 .ant-pagination .ant-pagination-item a {
   color: #a1a1aa;
 }

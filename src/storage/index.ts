@@ -135,6 +135,17 @@ function readDocContent(filePath: string): string {
   }
 }
 
+function tokenMatch(text: string, token: string): boolean {
+  if (token.length <= 3) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    return new RegExp(
+      `(?:^|[\\s,，.。:：/\\\\|\\-_=+\\[\\](){}"'\\\`\\n\\r])${escaped}(?:[\\s,，.。:：/\\\\|\\-_=+\\[\\](){}"'\\\`\\n\\r]|$)`,
+      "i",
+    ).test(text)
+  }
+  return text.toLowerCase().includes(token)
+}
+
 export function searchDocs(
   query?: string,
   keywords?: string[],
@@ -153,17 +164,17 @@ export function searchDocs(
     if (q) {
       const tokens = q.split(/[\s\-_]+/).filter(Boolean)
       for (const token of tokens) {
-        if (doc.title.toLowerCase().includes(token)) score += 10
-        if (doc.keywords.some(k => k.toLowerCase().includes(token))) score += 4
-        if (doc.intent.toLowerCase().includes(token)) score += 5
-        if (doc.project_description.toLowerCase().includes(token)) score += 3
+        if (tokenMatch(doc.title, token)) score += 10
+        if (doc.keywords.some(k => tokenMatch(k, token))) score += 4
+        if (tokenMatch(doc.intent, token)) score += 5
+        if (tokenMatch(doc.project_description, token)) score += 3
         if (body.includes(token)) score += 2
       }
       if (tokens.length > 1) {
-        if (doc.title.toLowerCase().includes(q)) score += 5
+        if (tokenMatch(doc.title, q)) score += 5
         if (doc.keywords.some(k => k.toLowerCase().includes(q))) score += 3
-        if (doc.intent.toLowerCase().includes(q)) score += 2
-        if (doc.project_description.toLowerCase().includes(q)) score += 1
+        if (tokenMatch(doc.intent, q)) score += 2
+        if (tokenMatch(doc.project_description, q)) score += 1
         if (body.includes(q)) score += 3
       }
       if (body && tokens.some(t => body.includes(t))) {
@@ -174,7 +185,7 @@ export function searchDocs(
       if (doc.tags.some(t => tags.includes(t))) score += 5
     }
     if (keywords?.length) {
-      if (doc.keywords.some(k => keywords.some(kw => k.toLowerCase().includes(kw.toLowerCase())))) score += 3
+      if (doc.keywords.some(k => keywords.some(kw => tokenMatch(k, kw)))) score += 3
     }
     if (score > 0) results.push({ ...doc, score, snippet })
   }

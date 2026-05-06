@@ -134,8 +134,30 @@ export function expandQuery(query: string): string[] {
   }
 
   const tokens = tokenizeQuery(trimmed)
+  const expandedTokens: string[] = []
   for (const token of tokens) {
     if (token.length < 2 || STOP_WORDS.has(token.toLowerCase())) continue
+    if (isChinese(token) && token.length > 3) {
+      let current = ""
+      for (const char of token) {
+        if (STOP_WORDS.has(char) || STOP_WORDS.has(current + char)) {
+          if (current.length >= 2 && !STOP_WORDS.has(current)) {
+            expandedTokens.push(current)
+          }
+          current = ""
+        } else {
+          current += char
+        }
+      }
+      if (current.length >= 2 && !STOP_WORDS.has(current)) {
+        expandedTokens.push(current)
+      }
+    } else {
+      expandedTokens.push(token)
+    }
+  }
+
+  for (const token of expandedTokens) {
     keywords.add(token)
 
     const tokenLower = token.toLowerCase()
@@ -167,7 +189,10 @@ export function expandQuery(query: string): string[] {
     }
   }
 
-  const result = Array.from(keywords)
+  const result = Array.from(keywords).filter(k => {
+    if (isChinese(k) && k.length > 6) return false
+    return true
+  })
   const originalIndex = result.indexOf(trimmed)
   if (originalIndex > 0) {
     result.splice(originalIndex, 1)

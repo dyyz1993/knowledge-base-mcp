@@ -1,7 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback, type ReactNode } from "react"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { Send, Square, ChevronDown, ChevronRight, Wrench, Loader2 } from "lucide-react"
 import { useChatStore } from "../stores/chat"
+import CopyButton from "./CopyButton"
 
 function ToolCallBlock({ name, args, result }: { name: string; args: string; result: string }) {
   const [open, setOpen] = useState(false)
@@ -36,6 +40,37 @@ function ToolCallBlock({ name, args, result }: { name: string; args: string; res
   )
 }
 
+function CodeBlock({ children, className }: { children?: ReactNode; className?: string }) {
+  const match = /language-(\w+)/.exec(className || "")
+  const code = String(children).replace(/\n$/, "")
+  const language = match ? match[1] : ""
+
+  if (!className) {
+    return (
+      <code className="rounded bg-zinc-900 px-1.5 py-0.5 text-xs text-zinc-300 font-mono">
+        {children}
+      </code>
+    )
+  }
+
+  return (
+    <div className="relative group my-2 rounded-lg overflow-hidden border border-zinc-700/50">
+      <div className="flex items-center justify-between bg-zinc-800 px-3 py-1 text-xs text-zinc-500 border-b border-zinc-700/50">
+        <span>{language || "code"}</span>
+        <CopyButton text={code} className="opacity-0 group-hover:opacity-100 -mr-1 -mt-0.5" />
+      </div>
+      <SyntaxHighlighter
+        style={oneDark}
+        language={language || "text"}
+        PreTag="div"
+        customStyle={{ margin: 0, borderRadius: 0, fontSize: "13px", background: "#18181b" }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  )
+}
+
 function StreamingIndicator() {
   return (
     <span className="inline-flex gap-1 ml-1">
@@ -43,6 +78,20 @@ function StreamingIndicator() {
       <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
       <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
     </span>
+  )
+}
+
+const markdownComponents = {
+  code({ children, className }: { children?: ReactNode; className?: string }) {
+    return <CodeBlock className={className}>{children}</CodeBlock>
+  },
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      {content}
+    </ReactMarkdown>
   )
 }
 
@@ -97,17 +146,16 @@ export default function ChatPanel() {
             >
               {msg.role === "assistant" ? (
                 <div className="markdown-body">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <MarkdownContent content={msg.content} />
+                  <div className="mt-1.5 flex justify-end opacity-0 hover:opacity-100 transition-opacity" style={{ marginTop: "4px" }}>
+                    <CopyButton text={msg.content} className="-mr-1.5 -mb-1" />
+                  </div>
                 </div>
               ) : (
                 <p className="whitespace-pre-wrap">{msg.content}</p>
               )}
             </div>
           </div>
-        ))}
-
-        {isStreaming && streamingToolCalls.map((tc, i) => (
-          <ToolCallBlock key={`tc-${i}`} name={tc.name} args={tc.args} result={tc.result} />
         ))}
 
         {isStreaming && streamingThinking && (
@@ -117,13 +165,17 @@ export default function ChatPanel() {
           </div>
         )}
 
+        {isStreaming && streamingToolCalls.map((tc, i) => (
+          <ToolCallBlock key={`tc-${i}`} name={tc.name} args={tc.args} result={tc.result} />
+        ))}
+
         {isStreaming && streamingContent && (
           <div className="flex justify-start">
             <div className="max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
               <div className="markdown-body">
-                <ReactMarkdown>{streamingContent}</ReactMarkdown>
-                <StreamingIndicator />
-              </div>
+                  <MarkdownContent content={streamingContent} />
+                  <StreamingIndicator />
+                </div>
             </div>
           </div>
         )}
