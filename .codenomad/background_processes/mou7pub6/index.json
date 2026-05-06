@@ -1,0 +1,28 @@
+[
+  {
+    "id": "proc_2026-05-06T1543_af0f11",
+    "workspaceId": "mou7pub6",
+    "title": "KB MCP HTTP Server",
+    "command": "cd /Users/xuyingzhou/Project/temporary/knowledge-base-mcp && bun run src/index.ts --http --port 19877",
+    "cwd": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+    "status": "stopped",
+    "pid": 34339,
+    "startedAt": "2026-05-06T15:43:53.791Z",
+    "outputSizeBytes": 193,
+    "terminalReason": "user_stopped",
+    "stoppedAt": "2026-05-06T15:45:14.251Z"
+  },
+  {
+    "id": "proc_2026-05-06T1702_c08f56",
+    "workspaceId": "mou7pub6",
+    "title": "kb-mcp via bun directly",
+    "command": "bun run /var/folders/j9/bv0n54t96556fycmy511r2rc0000gn/T/opencode/kb-mcp-inspect/package/dist/index.js --http --port 19877",
+    "cwd": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+    "status": "error",
+    "pid": 33625,
+    "startedAt": "2026-05-06T17:02:41.280Z",
+    "outputSizeBytes": 193,
+    "terminalReason": "failed",
+    "stoppedAt": "2026-05-06T17:06:58.971Z"
+  }
+]
