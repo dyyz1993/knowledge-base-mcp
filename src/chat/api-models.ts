@@ -32,6 +32,7 @@ interface ConfiguredModel {
   id: string
   name: string
   api?: string
+  baseUrl?: string
 }
 
 function readJson(filePath: string): unknown | null {
@@ -68,6 +69,7 @@ function fromPiModelsJson(): ConfiguredModel[] {
           id: m.id,
           name: m.name || m.id,
           api: prov.api,
+          baseUrl: prov.baseUrl,
         })
       }
     }
@@ -100,6 +102,7 @@ function fromOpencodeConfig(): ConfiguredModel[] {
           id: modelId,
           name: modelDef?.name || modelId,
           api: val.npm,
+          baseUrl: val.options?.baseURL || val.options?.baseUrl,
         })
       }
     }
