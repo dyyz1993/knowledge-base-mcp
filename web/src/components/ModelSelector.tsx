@@ -4,10 +4,18 @@ import { useChatStore } from "../stores/chat"
 export default function ModelSelector() {
   const { models, currentModel, setModel } = useChatStore()
 
+  const nameCounts = models.reduce<Record<string, number>>((acc, m) => {
+    const name = m.name || m.id
+    acc[name] = (acc[name] || 0) + 1
+    return acc
+  }, {})
+
   const grouped = models.reduce<Record<string, { value: string; label: string }[]>>((acc, m) => {
     const key = m.provider
     if (!acc[key]) acc[key] = []
-    acc[key].push({ value: `${m.provider}|${m.id}`, label: m.name || m.id })
+    const name = m.name || m.id
+    const label = nameCounts[name] > 1 ? `${name} (${m.provider})` : name
+    acc[key].push({ value: `${m.provider}|${m.id}`, label })
     return acc
   }, {})
 

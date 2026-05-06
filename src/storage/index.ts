@@ -57,14 +57,28 @@ function docFilePath(id: string, title: string) {
   return `${KNOWLEDGE_DIR}/${id}-${slugify(title)}.md`
 }
 
+export function findDuplicate(meta: { title: string; source_project: string }, idx: IndexFile): DocMeta | null {
+  return Object.values(idx.documents).find(
+    d => d.title === meta.title && d.source_project === (meta.source_project || "")
+  ) || null
+}
+
 export function writeDoc(
   meta: Omit<DocMeta, "id" | "file_path" | "created_at"> & { id?: string; file_path?: string; created_at?: number },
   content: string,
 ): DocMeta {
   const idx = readIndex()
-  const id = meta.id || generateId()
-  const created_at = meta.created_at || Date.now()
-  const file_path = meta.file_path || docFilePath(id, meta.title)
+  const existing = !meta.id ? findDuplicate(meta, idx) : null
+  const id = meta.id || existing?.id || generateId()
+  const created_at = meta.created_at || existing?.created_at || Date.now()
+  const file_path = meta.file_path || existing?.file_path || docFilePath(id, meta.title)
+
+  if (existing) {
+    if (existsSync(existing.file_path) && existing.file_path !== file_path) {
+      unlinkSync(existing.file_path)
+    }
+  }
+
   const doc: DocMeta = { ...meta, id, created_at, file_path } as DocMeta
 
   const md = buildFrontmatter(doc) + "\n" + content

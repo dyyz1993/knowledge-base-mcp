@@ -7,7 +7,7 @@ import TagBadge from "./TagBadge"
 function groupByProject(docs: DocMeta[]): Record<string, DocMeta[]> {
   const groups: Record<string, DocMeta[]> = {}
   for (const d of docs) {
-    const key = d.source_project || "unknown"
+    const key = d.source_project || "Uncategorized"
     const name = key.split("/").pop() || key
     ;(groups[name] ||= []).push(d)
   }
