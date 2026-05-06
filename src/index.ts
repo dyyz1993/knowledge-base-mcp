@@ -59,16 +59,21 @@ function registerTools(server: McpServer) {
 
   server.tool(
     "kb_read",
-    "读取知识文档。超50行自动截断并返回文件路径，建议用子任务读取大文档。",
+    "读取知识文档。超200行自动截断并返回文件路径，建议用子任务读取大文档。",
     {
       id: z.string().describe("文档 ID"),
     },
     async (args) => {
-      const result = readDoc(args.id)
+      const result = readDoc(args.id, false)
       if (!result) {
         return { content: [{ type: "text", text: JSON.stringify({ error: "文档不存在", id: args.id }) }] }
       }
-      const { meta, content, truncated } = result
+      const { meta, content: rawContent } = result
+      const lines = rawContent.split("\n")
+      const truncated = lines.length > 200
+      const content = truncated
+        ? lines.slice(0, 200).join("\n")
+        : rawContent
       return {
         content: [{
           type: "text",
@@ -82,7 +87,7 @@ function registerTools(server: McpServer) {
             created_at: meta.created_at,
             content,
             truncated,
-            ...(truncated ? { hint: `文档超过50行已截断，完整路径: ${meta.file_path}，建议用子任务读取全文` } : {}),
+            ...(truncated ? { hint: `文档较长(共${lines.length}行)，仅显示前200行。完整路径: ${meta.file_path}` } : {}),
           }, null, 2),
         }],
       }
@@ -220,7 +225,7 @@ function registerTools(server: McpServer) {
       keywords: z.array(z.string()).optional().describe("新关键词"),
     },
     async (args) => {
-      const existing = readDoc(args.id)
+      const existing = readDoc(args.id, false)
       if (!existing) {
         return { content: [{ type: "text", text: JSON.stringify({ error: "文档不存在", id: args.id }) }] }
       }

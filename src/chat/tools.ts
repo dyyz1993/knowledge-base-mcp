@@ -201,16 +201,19 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
     case "kb_read": {
       const id = String(args.id ?? "")
       if (!id) return "Document ID is required."
-      const doc = readDoc(id, true)
+      const doc = readDoc(id, false)
       if (!doc) return `Document ${id} not found.`
       const meta = doc.meta ?? {}
       const tags = Array.isArray(meta.tags) ? meta.tags.join(", ") : "none"
       const keywords = Array.isArray(meta.keywords) ? meta.keywords.join(", ") : "none"
-      const suffix = doc.truncated ? "\n...(content truncated, showing first 50 lines)" : ""
       const related = Array.isArray(meta.related_projects) && meta.related_projects.length > 0
         ? `\nRelated Projects: ${meta.related_projects.join(", ")}`
         : ""
-      return `## ${meta.title ?? id}\nTags: ${tags} | Keywords: ${keywords}\nIntent: ${meta.intent ?? "N/A"}${related}\n\n${doc.content}${suffix}`
+      const lines = doc.content.split("\n")
+      const content = lines.length > 200
+        ? lines.slice(0, 200).join("\n") + `\n\n...(文档较长，共${lines.length}行，仅显示前200行。可用 read_file("${meta.file_path}") 读取完整文件)`
+        : doc.content
+      return `## ${meta.title ?? id}\nTags: ${tags} | Keywords: ${keywords}\nIntent: ${meta.intent ?? "N/A"}${related}\n\n${content}`
     }
     case "kb_list": {
       const tag = args.tag ? String(args.tag) : undefined

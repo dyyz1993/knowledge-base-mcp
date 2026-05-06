@@ -237,16 +237,15 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
       let currentToolCalls: Array<{ id: string; name: string; args: string }> = []
       let finishReason = ""
       let thinkingContent = ""
-      let bufferedTokens: string[] = []
 
       for await (const event of streamResponse(resp)) {
         switch (event.type) {
           case "text_delta":
-            bufferedTokens.push(event.delta || "")
+            send("token", { delta: event.delta, round })
             assistantContent += event.delta || ""
             break
           case "thinking_delta":
-            send("thinking", { delta: event.delta })
+            send("thinking", { delta: event.delta, round })
             thinkingContent += event.delta || ""
             break
           case "tool_calls_delta": {
@@ -271,10 +270,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
       }
 
       if (finishReason !== "tool_calls" || currentToolCalls.length === 0) {
-        for (const t of bufferedTokens) {
-          send("token", { delta: t })
-        }
-        send("done", { messageId: generateId() })
+        send("done", { messageId: generateId(), round })
         break
       }
 
@@ -291,7 +287,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
 
       for (const tc of currentToolCalls) {
         const args = parseToolCallArgs(tc.args)
-        send("tool_call", { name: tc.name, args: JSON.stringify(args) })
+        send("tool_call", { name: tc.name, args: JSON.stringify(args), round })
 
         let result: string
         try {
@@ -300,7 +296,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
           result = `Tool error: ${e instanceof Error ? e.message : String(e)}`
         }
 
-        send("tool_result", { name: tc.name, result })
+        send("tool_result", { name: tc.name, result, round })
 
         chatMessages.push({
           role: "tool",
@@ -311,7 +307,6 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
       }
 
       assistantContent = ""
-      bufferedTokens = []
     }
 
     if (assistantContent) {

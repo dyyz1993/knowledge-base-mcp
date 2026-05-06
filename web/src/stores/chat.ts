@@ -2,6 +2,19 @@ import { create } from "zustand"
 import type { ModelInfo, SessionInfo, Message, Favorite, KBDoc } from "../services/api"
 import * as api from "../services/api"
 
+export interface TimelineEvent {
+  type: "thinking" | "text" | "tool_call" | "tool_result"
+  round: number
+  content: string
+  name?: string
+  args?: string
+  result?: string
+}
+
+export interface MergedTimelineEvent extends TimelineEvent {
+  id: number
+}
+
 interface ChatState {
   sessions: SessionInfo[]
   currentSessionId: string | null
@@ -13,6 +26,7 @@ interface ChatState {
   streamingContent: string
   streamingThinking: string
   streamingToolCalls: { name: string; args: string; result: string }[]
+  streamingTimeline: TimelineEvent[]
   kbResults: KBDoc[]
   kbQuery: string
   abortController: AbortController | null
@@ -43,6 +57,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingContent: "",
   streamingThinking: "",
   streamingToolCalls: [],
+  streamingTimeline: [],
   kbResults: [],
   kbQuery: "",
   abortController: null,
@@ -114,6 +129,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingContent: "",
       streamingThinking: "",
       streamingToolCalls: [],
+      streamingTimeline: [],
     }))
 
     const ctrl = new AbortController()
@@ -123,23 +139,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
       message: content,
       sessionId: currentSessionId,
       model: currentModel || undefined,
-      onToken: (delta) => {
-        set((s) => ({ streamingContent: s.streamingContent + delta }))
-      },
-      onThinking: (delta) => {
-        set((s) => ({ streamingThinking: s.streamingThinking + delta }))
-      },
-      onToolCall: (name, args) => {
+      onToken: (delta, round) => {
         set((s) => ({
+          streamingTimeline: [...s.streamingTimeline, { type: "text", round, content: delta }],
+          streamingContent: s.streamingContent + delta,
+        }))
+      },
+      onThinking: (delta, round) => {
+        set((s) => ({
+          streamingTimeline: [...s.streamingTimeline, { type: "thinking", round, content: delta }],
+          streamingThinking: s.streamingThinking + delta,
+        }))
+      },
+      onToolCall: (name, args, round) => {
+        set((s) => ({
+          streamingTimeline: [...s.streamingTimeline, { type: "tool_call", round, content: "", name, args }],
           streamingToolCalls: [...s.streamingToolCalls, { name, args, result: "" }],
         }))
       },
-      onToolResult: (name, result) => {
-        set((s) => ({
-          streamingToolCalls: s.streamingToolCalls.map((tc) =>
+      onToolResult: (name, result, round) => {
+        set((s) => {
+          const tl = [...s.streamingTimeline]
+          const idx = tl.findLastIndex((e) => e.type === "tool_call" && e.name === name && !e.result)
+          if (idx >= 0) {
+            tl[idx] = { ...tl[idx], result } as TimelineEvent
+          }
+          tl.push({ type: "tool_result", round, content: result, name })
+
+          const tcs = s.streamingToolCalls.map((tc) =>
             tc.name === name && !tc.result ? { ...tc, result } : tc
-          ),
-        }))
+          )
+          return { streamingTimeline: tl, streamingToolCalls: tcs }
+        })
       },
       onDone: () => {
         const { streamingContent, messages } = get()
@@ -156,6 +187,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           streamingContent: "",
           streamingThinking: "",
           streamingToolCalls: [],
+          streamingTimeline: [],
           abortController: null,
         })
       },
@@ -171,6 +203,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           streamingContent: "",
           streamingThinking: "",
           streamingToolCalls: [],
+          streamingTimeline: [],
           abortController: null,
         }))
       },
@@ -192,6 +225,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         streamingContent: "",
         streamingThinking: "",
         streamingToolCalls: [],
+        streamingTimeline: [],
         abortController: null,
       })
     }

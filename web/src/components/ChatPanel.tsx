@@ -4,8 +4,35 @@ import remarkGfm from "remark-gfm"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { Send, Square, ChevronDown, ChevronRight, Wrench, Loader2 } from "lucide-react"
-import { useChatStore } from "../stores/chat"
+import { useChatStore, type TimelineEvent } from "../stores/chat"
 import CopyButton from "./CopyButton"
+
+interface MergedEvent {
+  type: "thinking" | "text" | "tool_call" | "tool_result"
+  round: number
+  content: string
+  name?: string
+  args?: string
+  result?: string
+}
+
+function mergeTimelineEvents(events: TimelineEvent[]): MergedEvent[] {
+  const merged: MergedEvent[] = []
+  for (const event of events) {
+    const last = merged[merged.length - 1]
+    if (
+      last &&
+      last.type === event.type &&
+      last.round === event.round &&
+      (event.type === "thinking" || event.type === "text")
+    ) {
+      last.content += event.content
+    } else {
+      merged.push({ ...event })
+    }
+  }
+  return merged
+}
 
 function ToolCallBlock({ name, args, result }: { name: string; args: string; result: string }) {
   const [open, setOpen] = useState(false)
@@ -99,9 +126,7 @@ export default function ChatPanel() {
   const {
     messages,
     isStreaming,
-    streamingContent,
-    streamingThinking,
-    streamingToolCalls,
+    streamingTimeline,
     sendMessage,
     abort,
   } = useChatStore()
@@ -110,7 +135,7 @@ export default function ChatPanel() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, streamingContent, streamingToolCalls])
+  }, [messages, streamingTimeline])
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim()
@@ -125,6 +150,8 @@ export default function ChatPanel() {
       handleSend()
     }
   }, [handleSend])
+
+  const merged = mergeTimelineEvents(streamingTimeline)
 
   return (
     <div className="flex flex-col h-full">
@@ -158,29 +185,7 @@ export default function ChatPanel() {
           </div>
         ))}
 
-        {isStreaming && streamingThinking && (
-          <div className="mx-auto max-w-[80%] rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 italic">
-            <span className="font-medium text-zinc-400">Thinking...</span>
-            <p className="mt-1 whitespace-pre-wrap">{streamingThinking}</p>
-          </div>
-        )}
-
-        {isStreaming && streamingToolCalls.map((tc, i) => (
-          <ToolCallBlock key={`tc-${i}`} name={tc.name} args={tc.args} result={tc.result} />
-        ))}
-
-        {isStreaming && streamingContent && (
-          <div className="flex justify-start">
-            <div className="max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
-              <div className="markdown-body">
-                  <MarkdownContent content={streamingContent} />
-                  <StreamingIndicator />
-                </div>
-            </div>
-          </div>
-        )}
-
-        {isStreaming && !streamingContent && !streamingThinking && streamingToolCalls.length === 0 && (
+        {isStreaming && merged.length === 0 && (
           <div className="flex justify-start">
             <div className="rounded-2xl bg-zinc-800 text-zinc-400 px-4 py-2.5 text-sm flex items-center gap-2">
               <Loader2 size={14} className="animate-spin" />
@@ -189,6 +194,40 @@ export default function ChatPanel() {
             </div>
           </div>
         )}
+
+        {isStreaming && merged.map((event, i) => {
+          switch (event.type) {
+            case "thinking":
+              return (
+                <div key={`tl-${i}`} className="mx-auto max-w-[80%] rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 italic">
+                  <span className="font-medium text-zinc-400">Thinking...</span>
+                  <p className="mt-1 whitespace-pre-wrap">{event.content}</p>
+                </div>
+              )
+            case "text":
+              return (
+                <div key={`tl-${i}`} className="flex justify-start">
+                  <div className="max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
+                    <div className="markdown-body">
+                      <MarkdownContent content={event.content} />
+                      <StreamingIndicator />
+                    </div>
+                  </div>
+                </div>
+              )
+            case "tool_call":
+              return (
+                <ToolCallBlock
+                  key={`tl-${i}`}
+                  name={event.name || ""}
+                  args={event.args || ""}
+                  result={event.result || ""}
+                />
+              )
+            case "tool_result":
+              return null
+          }
+        })}
 
         <div ref={bottomRef} />
       </div>

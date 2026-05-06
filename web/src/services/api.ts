@@ -54,11 +54,11 @@ export interface KBDoc {
 }
 
 export interface StreamCallbacks {
-  onToken: (delta: string) => void
-  onThinking: (delta: string) => void
-  onToolCall: (name: string, args: string) => void
-  onToolResult: (name: string, result: string) => void
-  onDone: (messageId: string) => void
+  onToken: (delta: string, round: number) => void
+  onThinking: (delta: string, round: number) => void
+  onToolCall: (name: string, args: string, round: number) => void
+  onToolResult: (name: string, result: string, round: number) => void
+  onDone: (messageId: string, round: number) => void
   onError: (error: string) => void
 }
 
@@ -129,16 +129,17 @@ export async function streamChat(params: {
         currentEvent = line.slice(7).trim()
       } else if (line.startsWith("data: ") && currentEvent) {
         const raw = line.slice(6)
-        let data: Record<string, string>
+        let data: Record<string, unknown>
         try { data = JSON.parse(raw) } catch { continue }
+        const round = typeof data.round === "number" ? data.round : 0
         switch (currentEvent) {
-          case "token": params.onToken(data.delta || ""); break
-          case "thinking": params.onThinking(data.delta || ""); break
-          case "tool_call": params.onToolCall(data.name || "", data.args || ""); break
+          case "token": params.onToken(String(data.delta || ""), round); break
+          case "thinking": params.onThinking(String(data.delta || ""), round); break
+          case "tool_call": params.onToolCall(String(data.name || ""), String(data.args || ""), round); break
           case "tool_call_delta": break
-          case "tool_result": params.onToolResult(data.name || "", data.content || data.result || ""); break
-          case "done": params.onDone(data.messageId || ""); break
-          case "error": params.onError(data.error || "Unknown error"); break
+          case "tool_result": params.onToolResult(String(data.name || ""), String(data.content || data.result || ""), round); break
+          case "done": params.onDone(String(data.messageId || ""), round); break
+          case "error": params.onError(String(data.error || "Unknown error")); break
         }
         currentEvent = ""
       }
