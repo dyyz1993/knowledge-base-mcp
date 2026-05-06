@@ -16,6 +16,7 @@ export interface DocMeta {
   project_description: string
   source_project: string
   source_worktree: string
+  related_projects?: string[]
   created_at: number
   file_path: string
 }

@@ -92,7 +92,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   loadModels: async () => {
     const data = await api.getModels()
-    set({ models: data.models, currentModel: data.current })
+    const resolved = data.current || (data.models.length > 0 ? { provider: data.models[0].provider, id: data.models[0].id } : null)
+    set({ models: data.models, currentModel: resolved })
   },
 
   setModel: async (provider, id) => {

@@ -7,6 +7,7 @@ const FIELD_WEIGHTS: [string, number][] = [
   ["keywords", 2],
   ["intent", 1.5],
   ["project_description", 1],
+  ["body", 0.8],
 ]
 
 function readDocBody(filePath: string): string {

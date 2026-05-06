@@ -133,7 +133,13 @@ export function getConfiguredModels(): ConfiguredModel[] {
 
 export async function handleGetModels(_req: IncomingMessage, res: ServerResponse) {
   const models = getConfiguredModels().map(({ apiKey: _, ...m }) => m)
-  const current = getDefaultModel()
+  let current = getDefaultModel()
+  if (current && !models.some((m) => m.provider === current!.provider && m.id === current!.id)) {
+    current = null
+  }
+  if (!current && models.length > 0) {
+    current = { provider: models[0].provider, id: models[0].id }
+  }
   json(res, { models, current })
 }
 
