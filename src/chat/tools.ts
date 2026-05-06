@@ -93,7 +93,11 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       const limit = Number(args.limit) || 5
       const results = searchDocs(q, undefined, undefined, limit)
       if (results.length === 0) return "No results found in knowledge base."
-      return results.map(r => `[${r.id}] ${r.title} (score: ${r.score.toFixed(2)}, tags: ${r.tags.join(", ")})`).join("\n")
+      return results.map(r => {
+        const base = `[${r.id}] ${r.title} (score: ${r.score.toFixed(2)}, tags: ${r.tags.join(", ")})`
+        if (r.snippet) return base + `\n  snippet: ${r.snippet}`
+        return base
+      }).join("\n")
     }
     case "kb_read": {
       const id = String(args.id)

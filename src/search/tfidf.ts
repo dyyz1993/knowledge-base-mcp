@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import { parseFrontmatter } from "../storage/markdown"
 import type { DocMeta } from "../storage/index"
 
 const FIELD_WEIGHTS: [string, number][] = [
@@ -6,6 +8,16 @@ const FIELD_WEIGHTS: [string, number][] = [
   ["intent", 1.5],
   ["project_description", 1],
 ]
+
+function readDocBody(filePath: string): string {
+  try {
+    const raw = readFileSync(filePath, "utf-8")
+    const { content } = parseFrontmatter(raw)
+    return content
+  } catch {
+    return ""
+  }
+}
 
 export function tokenize(text: string): string[] {
   const tokens: string[] = []
@@ -39,6 +51,7 @@ function buildWeightedTF(doc: DocMeta): Map<string, number> {
     [doc.keywords.join(" "), 2],
     [doc.intent, 1.5],
     [doc.project_description, 1],
+    [readDocBody(doc.file_path), 0.8],
   ]
   for (const [text, weight] of fields) {
     const tf = buildTF(tokenize(text))

@@ -1,5 +1,7 @@
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { readFileSync } from "node:fs"
+import { parseFrontmatter } from "../storage/markdown"
 import type { DocMeta } from "../storage/index"
 
 let transformersAvailable = true
@@ -54,13 +56,26 @@ export function cosineSimilarityVec(a: number[], b: number[]): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB) + 1e-8)
 }
 
+function readDocBody(filePath: string): string {
+  try {
+    const raw = readFileSync(filePath, "utf-8")
+    const { content } = parseFrontmatter(raw)
+    const lines = content.split("\n")
+    return lines.length > 30 ? lines.slice(0, 30).join(" ") : content.replace(/\n/g, " ")
+  } catch {
+    return ""
+  }
+}
+
 export function docToSearchableText(doc: DocMeta): string {
+  const body = readDocBody(doc.file_path)
   return [
     doc.title,
     doc.keywords.join(" "),
     doc.intent,
     doc.project_description,
     ...(doc.tags || []),
+    body,
   ].filter(Boolean).join(" ")
 }
 

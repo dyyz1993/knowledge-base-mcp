@@ -329,7 +329,7 @@ describe("searchDocs", () => {
     const results = searchDocs("kw-alpha")
     expect(results.length).toBe(3)
     expect(results[0].title).toBe("UniqueTitle ABC")
-    expect(results[0].score).toBe(11)
+    expect(results[0].score).toBe(13)
   })
 
   test("matches by intent with score=5", () => {
