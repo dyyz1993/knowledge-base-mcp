@@ -15,6 +15,16 @@ export interface MergedTimelineEvent extends TimelineEvent {
   id: number
 }
 
+export interface SessionStreamState {
+  isStreaming: boolean
+  streamingContent: string
+  streamingThinking: string
+  streamingToolCalls: { name: string; args: string; result: string }[]
+  streamingTimeline: TimelineEvent[]
+  abortController: AbortController | null
+  suggestions: string[]
+}
+
 interface ChatState {
   sessions: SessionInfo[]
   currentSessionId: string | null
@@ -22,14 +32,9 @@ interface ChatState {
   models: ModelInfo[]
   currentModel: { provider: string; id: string } | null
   favorites: Favorite[]
-  isStreaming: boolean
-  streamingContent: string
-  streamingThinking: string
-  streamingToolCalls: { name: string; args: string; result: string }[]
-  streamingTimeline: TimelineEvent[]
+  streamStates: Map<string, SessionStreamState>
   kbResults: KBDoc[]
   kbQuery: string
-  abortController: AbortController | null
 
   loadSessions: () => Promise<void>
   createSession: () => Promise<void>
@@ -46,6 +51,18 @@ interface ChatState {
   setKBQuery: (q: string) => void
 }
 
+function emptyStreamState(): SessionStreamState {
+  return {
+    isStreaming: false,
+    streamingContent: "",
+    streamingThinking: "",
+    streamingToolCalls: [],
+    streamingTimeline: [],
+    abortController: null,
+    suggestions: [],
+  }
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   sessions: [],
   currentSessionId: null,
@@ -53,14 +70,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   models: [],
   currentModel: null,
   favorites: [],
-  isStreaming: false,
-  streamingContent: "",
-  streamingThinking: "",
-  streamingToolCalls: [],
-  streamingTimeline: [],
+  streamStates: new Map(),
   kbResults: [],
   kbQuery: "",
-  abortController: null,
 
   loadSessions: async () => {
     const sessions = await api.listSessions()
@@ -84,13 +96,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deleteSession: async (id) => {
-    await api.deleteSession(id)
+    const state = get().streamStates.get(id)
+    if (state?.abortController) state.abortController.abort()
+
     set((s) => {
+      const streamStates = new Map(s.streamStates)
+      streamStates.delete(id)
       const sessions = s.sessions.filter((x) => x.id !== id)
       const currentSessionId = s.currentSessionId === id
         ? (sessions[0]?.id || null)
         : s.currentSessionId
-      return { sessions, currentSessionId, messages: s.currentSessionId === id ? [] : s.messages }
+      return { sessions, currentSessionId, messages: s.currentSessionId === id ? [] : s.messages, streamStates }
     })
     const { currentSessionId } = get()
     if (currentSessionId) {
@@ -119,114 +135,154 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: async (content) => {
-    const { currentSessionId, currentModel, isStreaming } = get()
-    if (!currentSessionId || isStreaming) return
+    const { currentSessionId, currentModel, streamStates } = get()
+    if (!currentSessionId) return
+    const currentState = streamStates.get(currentSessionId)
+    if (currentState?.isStreaming) return
 
-    const userMsg: Message = { role: "user", content, timestamp: Date.now() }
-    set((s) => ({
-      messages: [...s.messages, userMsg],
+    const targetSessionId = currentSessionId
+
+    const ctrl = new AbortController()
+    const initialStreamState: SessionStreamState = {
       isStreaming: true,
       streamingContent: "",
       streamingThinking: "",
       streamingToolCalls: [],
       streamingTimeline: [],
-    }))
+      abortController: ctrl,
+      suggestions: [],
+    }
+    set((s) => {
+      const states = new Map(s.streamStates)
+      states.set(targetSessionId, initialStreamState)
+      return { streamStates: states }
+    })
 
-    const ctrl = new AbortController()
-    set({ abortController: ctrl })
+    const userMsg: Message = { role: "user", content, timestamp: Date.now() }
+    set((s) => ({ messages: [...s.messages, userMsg] }))
+
+    if (get().messages.length <= 1) {
+      const name = content.slice(0, 30) + (content.length > 30 ? "..." : "")
+      set((s) => ({
+        sessions: s.sessions.map((sess) =>
+          sess.id === targetSessionId ? { ...sess, name } : sess
+        ),
+      }))
+    }
 
     await api.streamChat({
       message: content,
-      sessionId: currentSessionId,
+      sessionId: targetSessionId,
       model: currentModel || undefined,
       onToken: (delta, round) => {
-        set((s) => ({
-          streamingTimeline: [...s.streamingTimeline, { type: "text", round, content: delta }],
-          streamingContent: s.streamingContent + delta,
-        }))
+        set((s) => {
+          const states = new Map(s.streamStates)
+          const state = states.get(targetSessionId)
+          if (!state) return s
+          states.set(targetSessionId, {
+            ...state,
+            streamingContent: state.streamingContent + delta,
+            streamingTimeline: [...state.streamingTimeline, { type: "text", round, content: delta }],
+          })
+          return { streamStates: states }
+        })
       },
       onThinking: (delta, round) => {
-        set((s) => ({
-          streamingTimeline: [...s.streamingTimeline, { type: "thinking", round, content: delta }],
-          streamingThinking: s.streamingThinking + delta,
-        }))
+        set((s) => {
+          const states = new Map(s.streamStates)
+          const state = states.get(targetSessionId)
+          if (!state) return s
+          states.set(targetSessionId, {
+            ...state,
+            streamingThinking: state.streamingThinking + delta,
+            streamingTimeline: [...state.streamingTimeline, { type: "thinking", round, content: delta }],
+          })
+          return { streamStates: states }
+        })
       },
       onToolCall: (name, args, round) => {
-        set((s) => ({
-          streamingTimeline: [...s.streamingTimeline, { type: "tool_call", round, content: "", name, args }],
-          streamingToolCalls: [...s.streamingToolCalls, { name, args, result: "" }],
-        }))
+        set((s) => {
+          const states = new Map(s.streamStates)
+          const state = states.get(targetSessionId)
+          if (!state) return s
+          states.set(targetSessionId, {
+            ...state,
+            streamingToolCalls: [...state.streamingToolCalls, { name, args, result: "" }],
+            streamingTimeline: [...state.streamingTimeline, { type: "tool_call", round, content: "", name, args }],
+          })
+          return { streamStates: states }
+        })
       },
       onToolResult: (name, result, round) => {
         set((s) => {
-          const tl = [...s.streamingTimeline]
-          const idx = tl.findLastIndex((e) => e.type === "tool_call" && e.name === name && !e.result)
-          if (idx >= 0) {
-            tl[idx] = { ...tl[idx], result } as TimelineEvent
-          }
-          tl.push({ type: "tool_result", round, content: result, name })
+          const states = new Map(s.streamStates)
+          const state = states.get(targetSessionId)
+          if (!state) return s
 
-          const tcs = s.streamingToolCalls.map((tc) =>
-            tc.name === name && !tc.result ? { ...tc, result } : tc
-          )
-          return { streamingTimeline: tl, streamingToolCalls: tcs }
+          const tcs = [...state.streamingToolCalls]
+          const idx = tcs.findIndex((tc) => tc.name === name && !tc.result)
+          if (idx >= 0) tcs[idx] = { ...tcs[idx], result }
+
+          states.set(targetSessionId, {
+            ...state,
+            streamingToolCalls: tcs,
+            streamingTimeline: [...state.streamingTimeline, { type: "tool_result", round, content: result, name }],
+          })
+          return { streamStates: states }
         })
       },
       onDone: () => {
-        const { streamingContent, messages } = get()
-        if (streamingContent) {
-          const assistantMsg: Message = {
-            role: "assistant",
-            content: streamingContent,
-            timestamp: Date.now(),
-          }
-          set({ messages: [...messages, assistantMsg] })
+        const finalState = get().streamStates.get(targetSessionId)
+        const rawContent = finalState?.streamingContent || ""
+
+        const suggestionMatch = rawContent.match(/\[SUGGESTIONS\]\n([\s\S]*?)\[\/SUGGESTIONS\]/)
+        let cleanContent = rawContent
+        let suggestions: string[] = []
+        if (suggestionMatch) {
+          cleanContent = rawContent.replace(suggestionMatch[0], "").trim()
+          suggestions = suggestionMatch[1]
+            .split("\n")
+            .filter((l) => /^\d+\./.test(l))
+            .map((l) => l.replace(/^\d+\.\s*/, ""))
         }
-        set({
-          isStreaming: false,
-          streamingContent: "",
-          streamingThinking: "",
-          streamingToolCalls: [],
-          streamingTimeline: [],
-          abortController: null,
+
+        if (cleanContent) {
+          const assistantMsg: Message = { role: "assistant", content: cleanContent, timestamp: Date.now() }
+          set((s) => ({ messages: [...s.messages, assistantMsg] }))
+        }
+
+        set((s) => {
+          const states = new Map(s.streamStates)
+          states.set(targetSessionId, { ...emptyStreamState(), suggestions })
+          return { streamStates: states }
         })
       },
       onError: (error) => {
-        const errMsg: Message = {
-          role: "assistant",
-          content: `⚠️ Error: ${error}`,
-          timestamp: Date.now(),
-        }
-        set((s) => ({
-          messages: [...s.messages, errMsg],
-          isStreaming: false,
-          streamingContent: "",
-          streamingThinking: "",
-          streamingToolCalls: [],
-          streamingTimeline: [],
-          abortController: null,
-        }))
+        const errMsg: Message = { role: "assistant", content: `⚠️ Error: ${error}`, timestamp: Date.now() }
+        set((s) => {
+          const states = new Map(s.streamStates)
+          states.set(targetSessionId, emptyStreamState())
+          return { streamStates: states, messages: [...s.messages, errMsg] }
+        })
       },
     } as Parameters<typeof api.streamChat>[0])
   },
 
   abort: () => {
-    const { abortController } = get()
-    if (abortController) {
-      abortController.abort()
-      const { streamingContent, messages } = get()
-      if (streamingContent) {
-        set({
-          messages: [...messages, { role: "assistant", content: streamingContent, timestamp: Date.now() }],
-        })
+    const { currentSessionId, streamStates } = get()
+    if (!currentSessionId) return
+    const state = streamStates.get(currentSessionId)
+    if (state?.abortController) {
+      state.abortController.abort()
+      if (state.streamingContent) {
+        set((s) => ({
+          messages: [...s.messages, { role: "assistant", content: state.streamingContent, timestamp: Date.now() } as Message],
+        }))
       }
-      set({
-        isStreaming: false,
-        streamingContent: "",
-        streamingThinking: "",
-        streamingToolCalls: [],
-        streamingTimeline: [],
-        abortController: null,
+      set((s) => {
+        const states = new Map(s.streamStates)
+        states.set(currentSessionId, emptyStreamState())
+        return { streamStates: states }
       })
     }
   },

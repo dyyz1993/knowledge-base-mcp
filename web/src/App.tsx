@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback } from "react"
-import { Search, Command, MessageSquare, Database } from "lucide-react"
+import { Search, Command, MessageSquare, Database, Menu } from "lucide-react"
 import { useDocStore } from "./stores/docs"
 import { useChatStore } from "./stores/chat"
 import Sidebar from "./components/Sidebar"
 import DocViewer from "./components/DocViewer"
 import SearchPalette from "./components/SearchPalette"
-import ModelSelector from "./components/ModelSelector"
 import SessionList from "./components/SessionList"
 import ChatPanel from "./components/ChatPanel"
 import KBPanel from "./components/KBPanel"
@@ -19,6 +18,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("kb")
   const [searchOpen, setSearchOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string>()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   useEffect(() => { load() }, [])
   useEffect(() => { loadSessions(); loadModels(); loadFavorites() }, [])
@@ -39,9 +39,22 @@ export default function App() {
     await select(id)
   }, [select])
 
+  const currentSessionName = useChatStore((s) => {
+    const sess = s.sessions.find(x => x.id === s.currentSessionId)
+    return sess?.name || ""
+  })
+
   return (
     <div className="h-screen flex flex-col bg-zinc-950 text-zinc-100">
-      <header className="h-10 border-b border-zinc-800 flex items-center px-4 shrink-0 bg-zinc-950">
+      <header className="h-10 border-b border-zinc-800 flex items-center px-3 md:px-4 shrink-0 bg-zinc-950 gap-2">
+        {tab === "chat" && (
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="lg:hidden shrink-0 p-1 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+          >
+            <Menu size={18} />
+          </button>
+        )}
         <div className="flex items-center gap-1">
           <button
             onClick={() => setTab("kb")}
@@ -63,7 +76,9 @@ export default function App() {
           </button>
         </div>
 
-        {tab === "chat" && <ModelSelector />}
+        {tab === "chat" && (
+          <span className="hidden lg:inline-flex text-xs text-zinc-500 truncate max-w-[200px]">{currentSessionName}</span>
+        )}
 
         {tab === "kb" && (
           <button
@@ -86,14 +101,34 @@ export default function App() {
           <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} onSelect={handleSelect} />
         </div>
       ) : (
-        <div className="flex flex-1 overflow-hidden">
-          <aside className="w-56 border-r border-zinc-800 flex flex-col shrink-0">
+        <div className="flex flex-1 overflow-hidden relative">
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 z-20 bg-black/50 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+
+          <aside className={`
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            fixed inset-y-0 left-0 z-30 w-64 sm:w-56
+            lg:translate-x-0 lg:relative lg:w-56 xl:w-60
+            transition-transform duration-200 ease-in-out
+            border-r border-zinc-800 flex flex-col shrink-0 bg-zinc-950
+          `}>
             <SessionList />
           </aside>
-          <main className="flex-1 min-w-0">
+
+          <main className="flex-1 min-w-0 flex flex-col">
+            {tab === "chat" && (
+              <header className="flex items-center gap-3 p-3 border-b border-zinc-800 lg:hidden shrink-0">
+                <span className="text-sm font-medium truncate">{currentSessionName}</span>
+              </header>
+            )}
             <ChatPanel />
           </main>
-          <aside className="w-64 border-l border-zinc-800 flex flex-col shrink-0">
+
+          <aside className="hidden xl:flex w-64 border-l border-zinc-800 flex-col shrink-0 flex-col">
             <div className="flex border-b border-zinc-800">
               <div className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-zinc-400 border-b-2 border-transparent">
                 <Database size={12} />

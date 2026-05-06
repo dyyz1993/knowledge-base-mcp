@@ -6,6 +6,7 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { Send, Square, ChevronDown, ChevronRight, Wrench, Loader2 } from "lucide-react"
 import { useChatStore, type TimelineEvent } from "../stores/chat"
 import CopyButton from "./CopyButton"
+import ModelSelector from "./ModelSelector"
 
 interface MergedEvent {
   type: "thinking" | "text" | "tool_call" | "tool_result"
@@ -122,20 +123,54 @@ function MarkdownContent({ content }: { content: string }) {
   )
 }
 
+function SuggestionButtons({ suggestions, onSend }: { suggestions: string[]; onSend: (q: string) => void }) {
+  if (suggestions.length === 0) return null
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {suggestions.map((s, i) => (
+        <button
+          key={i}
+          onClick={() => onSend(s)}
+          className="px-3 py-1.5 text-xs rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function ChatPanel() {
-  const {
-    messages,
-    isStreaming,
-    streamingTimeline,
-    sendMessage,
-    abort,
-  } = useChatStore()
+  const currentSessionId = useChatStore((s) => s.currentSessionId)
+  const streamState = useChatStore((s) =>
+    s.currentSessionId ? s.streamStates.get(s.currentSessionId) : undefined
+  )
+  const messages = useChatStore((s) => s.messages)
+  const sendMessage = useChatStore((s) => s.sendMessage)
+  const abort = useChatStore((s) => s.abort)
+
+  const isStreaming = streamState?.isStreaming ?? false
+  const streamingTimeline = streamState?.streamingTimeline ?? []
+  const streamingContent = streamState?.streamingContent ?? ""
+  const suggestions = streamState?.suggestions ?? []
+
   const [input, setInput] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isAtBottomRef = useRef(true)
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    const { scrollTop, scrollHeight, clientHeight } = el
+    isAtBottomRef.current = scrollHeight - scrollTop - clientHeight < 50
+  }, [])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, streamingTimeline])
+    if (isAtBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [isStreaming, streamingTimeline, messages, streamingContent])
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim()
@@ -155,7 +190,7 @@ export default function ChatPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 md:px-4 py-3 space-y-3">
         {messages.length === 0 && !isStreaming && (
           <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
             Send a message to start chatting
@@ -165,16 +200,16 @@ export default function ChatPanel() {
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+              className={`max-w-[85%] md:max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                 msg.role === "user"
                   ? "bg-blue-600 text-white"
                   : "bg-zinc-800 text-zinc-200"
               }`}
             >
               {msg.role === "assistant" ? (
-                <div className="markdown-body">
+                <div className="group relative markdown-body">
                   <MarkdownContent content={msg.content} />
-                  <div className="mt-1.5 flex justify-end opacity-0 hover:opacity-100 transition-opacity" style={{ marginTop: "4px" }}>
+                  <div className="mt-1.5 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity" style={{ marginTop: "4px" }}>
                     <CopyButton text={msg.content} className="-mr-1.5 -mb-1" />
                   </div>
                 </div>
@@ -184,6 +219,10 @@ export default function ChatPanel() {
             </div>
           </div>
         ))}
+
+        {!isStreaming && suggestions.length > 0 && (
+          <SuggestionButtons suggestions={suggestions} onSend={(q) => sendMessage(q)} />
+        )}
 
         {isStreaming && merged.length === 0 && (
           <div className="flex justify-start">
@@ -199,7 +238,7 @@ export default function ChatPanel() {
           switch (event.type) {
             case "thinking":
               return (
-                <div key={`tl-${i}`} className="mx-auto max-w-[80%] rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 italic">
+                <div key={`tl-${i}`} className="mx-auto max-w-[80%] md:max-w-[80%] rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 italic">
                   <span className="font-medium text-zinc-400">Thinking...</span>
                   <p className="mt-1 whitespace-pre-wrap">{event.content}</p>
                 </div>
@@ -207,10 +246,13 @@ export default function ChatPanel() {
             case "text":
               return (
                 <div key={`tl-${i}`} className="flex justify-start">
-                  <div className="max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
-                    <div className="markdown-body">
+                  <div className="max-w-[85%] md:max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
+                    <div className="group relative markdown-body">
                       <MarkdownContent content={event.content} />
                       <StreamingIndicator />
+                      <div className="mt-1 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <CopyButton text={event.content} className="-mr-1 -mb-0.5" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -232,38 +274,41 @@ export default function ChatPanel() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-zinc-800 p-3">
-        <div className="flex items-end gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 focus-within:border-zinc-500 transition-colors">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKey}
-            placeholder="Type a message..."
-            rows={1}
-            className="flex-1 resize-none bg-transparent text-sm text-zinc-100 placeholder-zinc-600 outline-none max-h-32"
-            style={{ minHeight: "24px" }}
-            onInput={(e) => {
-              const el = e.currentTarget
-              el.style.height = "auto"
-              el.style.height = Math.min(el.scrollHeight, 128) + "px"
-            }}
-          />
-          {isStreaming ? (
-            <button
-              onClick={abort}
-              className="shrink-0 rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-500 transition-colors"
-            >
-              <Square size={16} />
-            </button>
-          ) : (
-            <button
-              onClick={handleSend}
-              disabled={!input.trim()}
-              className="shrink-0 rounded-lg bg-blue-600 p-1.5 text-white hover:bg-blue-500 disabled:opacity-30 disabled:hover:bg-blue-600 transition-colors"
-            >
-              <Send size={16} />
-            </button>
-          )}
+      <div className="border-t border-zinc-800 p-3 md:p-4">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:gap-3">
+          <ModelSelector className="w-full md:w-auto md:min-w-[180px]" />
+          <div className="flex-1 flex items-end gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 focus-within:border-zinc-500 transition-colors">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKey}
+              placeholder="Type a message..."
+              rows={1}
+              className="flex-1 resize-none bg-transparent text-sm text-zinc-100 placeholder-zinc-600 outline-none max-h-32"
+              style={{ minHeight: "24px" }}
+              onInput={(e) => {
+                const el = e.currentTarget
+                el.style.height = "auto"
+                el.style.height = Math.min(el.scrollHeight, 128) + "px"
+              }}
+            />
+            {isStreaming ? (
+              <button
+                onClick={abort}
+                className="shrink-0 rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-500 transition-colors"
+              >
+                <Square size={16} />
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!input.trim()}
+                className="shrink-0 rounded-lg bg-blue-600 p-1.5 text-white hover:bg-blue-500 disabled:opacity-30 disabled:hover:bg-blue-600 transition-colors"
+              >
+                <Send size={16} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

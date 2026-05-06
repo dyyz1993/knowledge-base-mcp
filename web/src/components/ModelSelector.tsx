@@ -1,7 +1,7 @@
 import { Select } from "antd"
 import { useChatStore } from "../stores/chat"
 
-export default function ModelSelector() {
+export default function ModelSelector({ className }: { className?: string }) {
   const { models, currentModel, setModel } = useChatStore()
 
   const nameCounts = models.reduce<Record<string, number>>((acc, m) => {
@@ -36,7 +36,7 @@ export default function ModelSelector() {
         setModel(provider, id)
       }}
       size="small"
-      className="min-w-[180px]"
+      className={`min-w-[180px] ${className || ""}`}
       popupMatchSelectWidth={false}
     />
   )

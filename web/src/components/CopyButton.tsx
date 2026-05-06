@@ -11,8 +11,13 @@ export default function CopyButton({ text, className = "" }: { text: string; cla
   }
 
   return (
-    <button onClick={copy} className={`p-1 rounded hover:bg-zinc-700 transition-colors ${className}`} title="Copy">
-      {copied ? <Check size={14} className="text-green-400" /> : <Copy size={14} className="text-zinc-500" />}
+    <button
+      onClick={copy}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/10 ${className}`}
+      title="复制"
+    >
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+      <span>{copied ? "已复制" : "复制"}</span>
     </button>
   )
 }
