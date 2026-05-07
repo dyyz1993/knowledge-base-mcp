@@ -235,6 +235,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       onDone: () => {
         const finalState = get().streamStates.get(targetSessionId)
         const rawContent = finalState?.streamingContent || ""
+        const thinking = finalState?.streamingThinking || ""
+        const toolCalls = finalState?.streamingToolCalls || []
 
         const closedMatch = rawContent.match(/\[SUGGESTIONS\]\r?\n([\s\S]*?)\[\/SUGGESTIONS\]/)
         const openMatch = !closedMatch ? rawContent.match(/\[SUGGESTIONS\]\r?\n([\s\S]+)$/) : null
@@ -251,8 +253,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
             .filter(Boolean)
         }
 
-        if (cleanContent) {
-          const assistantMsg: Message = { role: "assistant", content: cleanContent, timestamp: Date.now() }
+        let finalContent = cleanContent
+        if (thinking) {
+          finalContent = `[思考: ${thinking}]\n\n${finalContent}`
+        }
+        if (toolCalls.length > 0) {
+          const toolSummary = toolCalls.map((tc) => `[工具: ${tc.name} → ${tc.result || "executing..."}]`).join("\n")
+          finalContent = `${toolSummary}\n\n${finalContent}`
+        }
+
+        if (finalContent) {
+          const assistantMsg: Message = { role: "assistant", content: finalContent, timestamp: Date.now() }
           set((s) => ({ messages: [...s.messages, assistantMsg] }))
         }
 
