@@ -619,6 +619,7 @@ describe("getOutline", () => {
       title: "Outline Doc",
       tags: ["guide"],
       keywords: ["outline"],
+      intent: "T",
     })
   })
 })

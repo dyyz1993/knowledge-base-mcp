@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto"
 import { createServer, IncomingMessage, ServerResponse } from "node:http"
 import { readFileSync, existsSync } from "node:fs"
 import { join, extname } from "node:path"
-import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined } from "./storage/index.js"
+import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines } from "./storage/index.js"
 import { handleChat } from "./chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "./chat/api-models.js"
 import { handleListSessions, handleCreateSession, handleDeleteSession, handleGetMessages, handleRenameSession } from "./chat/api-sessions.js"
@@ -380,6 +380,28 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
     json(res, readDoc(body.id, false))
     return
   }
+  if (url.pathname === "/api/docs/write" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req))
+    const { title, content, tags, keywords, intent, project_description } = body
+    if (!title || !content) {
+      json(res, { error: "title and content are required" }, 400)
+      return
+    }
+    const doc = writeDoc(
+      {
+        title,
+        tags: tags || [],
+        keywords: keywords || [],
+        intent: intent || "",
+        project_description: project_description || "",
+        source_project: "",
+        source_worktree: "",
+      },
+      content,
+    )
+    json(res, doc)
+    return
+  }
   if (url.pathname === "/api/search/semantic" && req.method === "POST") {
     const body = JSON.parse(await readBody(req))
     try {
@@ -409,6 +431,10 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
       return
     }
     json(res, searchDocs(body.query, body.keywords, body.tags, body.limit))
+    return
+  }
+  if (url.pathname === "/api/outlines" && req.method === "GET") {
+    json(res, listAllOutlines())
     return
   }
   if (url.pathname === "/api/outline" && req.method === "GET") {

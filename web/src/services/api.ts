@@ -53,6 +53,27 @@ export interface KBDoc {
   snippet?: string
 }
 
+export interface OutlineProject {
+  project: string
+  name: string
+  doc_count: number
+  updated_at: number
+}
+
+export interface OutlineDoc {
+  id: string
+  title: string
+  tags: string[]
+  keywords: string[]
+  intent: string
+}
+
+export interface Outline {
+  project: string
+  updated_at: number
+  docs: OutlineDoc[]
+}
+
 export interface StreamCallbacks {
   onToken: (delta: string, round: number) => void
   onThinking: (delta: string, round: number) => void
@@ -82,11 +103,6 @@ export async function searchDocs(query: string, keywords?: string[], tags?: stri
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, keywords, tags, limit }),
   })
-  return res.json()
-}
-
-export async function fetchOutline(project: string) {
-  const res = await fetch(`${BASE}/api/outline?project=${encodeURIComponent(project)}`)
   return res.json()
 }
 
@@ -223,15 +239,25 @@ export async function writeKB(params: {
   keywords: string[]
   intent?: string
 }): Promise<{ id: string; title: string; filePath: string }> {
-  const res = await fetch(`${BASE}/api/docs`, {
+  const res = await fetch(`${BASE}/api/docs/write`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title: params.title,
-      content: params.content,
-      tags: params.tags,
-      keywords: params.keywords,
-    }),
+    body: JSON.stringify(params),
   })
+  return res.json()
+}
+
+export async function fetchOutlines(): Promise<OutlineProject[]> {
+  const res = await fetch(`${BASE}/api/outlines`)
+  return res.json()
+}
+
+export async function fetchOutline(project: string): Promise<Outline | null> {
+  const res = await fetch(`${BASE}/api/outline?project=${encodeURIComponent(project)}`)
+  return res.json()
+}
+
+export async function readDoc(id: string): Promise<{ meta: DocMeta; content: string; truncated: boolean } | null> {
+  const res = await fetch(`${BASE}/api/doc/${encodeURIComponent(id)}`)
   return res.json()
 }

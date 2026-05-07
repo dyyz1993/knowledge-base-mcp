@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from "node:fs"
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from "node:fs"
 import { parseFrontmatter, buildFrontmatter } from "./markdown"
 import { tfidfSearch, buildIDF } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
@@ -309,8 +309,30 @@ export function updateOutline(project: string, idx?: IndexFile) {
   const docs = Object.values(idx.documents)
     .filter(d => d.source_project === project)
     .sort((a, b) => b.created_at - a.created_at)
-    .map(d => ({ id: d.id, title: d.title, tags: d.tags, keywords: d.keywords }))
+    .map(d => ({ id: d.id, title: d.title, tags: d.tags, keywords: d.keywords, intent: d.intent }))
 
   const outline = { project, updated_at: Date.now(), docs }
   writeFileSync(`${dir}/${slug}.json`, JSON.stringify(outline, null, 2))
+}
+
+export function listAllOutlines(): { project: string; name: string; doc_count: number; updated_at: number }[] {
+  const dir = `${KNOWLEDGE_DIR}/outlines`
+  if (!existsSync(dir)) return []
+  return readdirSync(dir)
+    .filter(f => f.endsWith(".json"))
+    .map(f => {
+      try {
+        const data = JSON.parse(readFileSync(`${dir}/${f}`, "utf-8"))
+        const parts = data.project.split("/")
+        return {
+          project: data.project,
+          name: parts[parts.length - 1] || data.project,
+          doc_count: data.docs?.length || 0,
+          updated_at: data.updated_at || 0,
+        }
+      } catch {
+        return null
+      }
+    })
+    .filter(Boolean) as { project: string; name: string; doc_count: number; updated_at: number }[]
 }

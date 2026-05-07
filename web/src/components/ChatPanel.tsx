@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
-import { Send, Square, ChevronDown, ChevronRight, Wrench, Loader2 } from "lucide-react"
+import { Send, Square, ChevronDown, ChevronRight, Wrench, Loader2, Star } from "lucide-react"
 import { useChatStore, type TimelineEvent } from "../stores/chat"
 import CopyButton from "./CopyButton"
 import ModelSelector from "./ModelSelector"
@@ -140,6 +140,25 @@ function SuggestionButtons({ suggestions, onSend }: { suggestions: string[]; onS
   )
 }
 
+function StarButton({ messageId, content }: { messageId: string; content: string }) {
+  const addFavorite = useChatStore((s) => s.addFavorite)
+  const favorites = useChatStore((s) => s.favorites)
+  const isFaved = favorites.some((f) => f.messageId === messageId)
+
+  return (
+    <button
+      onClick={() => { if (!isFaved) addFavorite(messageId, content) }}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] hover:bg-white/10 transition-all ${
+        isFaved ? "text-yellow-500 opacity-100" : "opacity-0 group-hover:opacity-100"
+      }`}
+      title="收藏"
+    >
+      <Star size={12} fill={isFaved ? "currentColor" : "none"} />
+      <span>{isFaved ? "已收藏" : "收藏"}</span>
+    </button>
+  )
+}
+
 export default function ChatPanel() {
   const currentSessionId = useChatStore((s) => s.currentSessionId)
   const streamState = useChatStore((s) =>
@@ -209,8 +228,9 @@ export default function ChatPanel() {
               {msg.role === "assistant" ? (
                 <div className="group relative markdown-body">
                   <MarkdownContent content={msg.content} />
-                  <div className="mt-1.5 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity" style={{ marginTop: "4px" }}>
-                    <CopyButton text={msg.content} className="-mr-1.5 -mb-1" />
+                  <div className="mt-1.5 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ marginTop: "4px" }}>
+                    <CopyButton text={msg.content} className="-mb-1" />
+                    <StarButton messageId={String(i)} content={msg.content} />
                   </div>
                 </div>
               ) : (
