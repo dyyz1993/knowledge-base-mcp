@@ -10,6 +10,7 @@ interface MergedEvent {
   type: "thinking" | "text" | "tool_call" | "tool_result"
   round: number
   content: string
+  id?: string
   name?: string
   args?: string
   result?: string

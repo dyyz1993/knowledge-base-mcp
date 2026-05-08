@@ -51,6 +51,12 @@ export interface Favorite {
   createdAt: number
 }
 
+export interface SessionFavorite {
+  sessionId: string
+  note?: string
+  createdAt: number
+}
+
 export interface KBDoc {
   id: string
   title: string
@@ -85,8 +91,8 @@ export interface Outline {
 export interface StreamCallbacks {
   onToken: (delta: string, round: number) => void
   onThinking: (delta: string, round: number) => void
-  onToolCall: (name: string, args: string, round: number) => void
-  onToolResult: (name: string, result: string, round: number) => void
+  onToolCall: (id: string, name: string, args: string, round: number) => void
+  onToolResult: (id: string, name: string, result: string, round: number) => void
   onDone: (messageId: string, round: number) => void
   onError: (error: string) => void
   onSuggestions?: (suggestions: string[]) => void
@@ -161,9 +167,9 @@ export async function streamChat(params: {
         switch (currentEvent) {
           case "token": params.onToken(String(data.delta || ""), round); break
           case "thinking": params.onThinking(String(data.delta || ""), round); break
-          case "tool_call": params.onToolCall(String(data.name || ""), String(data.args || ""), round); break
+          case "tool_call": params.onToolCall(String(data.id || ""), String(data.name || ""), String(data.args || ""), round); break
           case "tool_call_delta": break
-          case "tool_result": params.onToolResult(String(data.name || ""), String(data.content || data.result || ""), round); break
+          case "tool_result": params.onToolResult(String(data.id || ""), String(data.name || ""), String(data.content || data.result || ""), round); break
           case "done": {
             if (data.usage) {
               params.onUsage?.(data.usage as TokenUsage)
@@ -319,5 +325,52 @@ export async function updateConfig(config: Partial<AppConfig>): Promise<AppConfi
 
 export async function reindexEmbeddings(): Promise<{ success: boolean; message: string }> {
   const res = await fetch(`${BASE}/api/embedding/reindex`, { method: "POST" })
+  return res.json()
+}
+
+export async function listSessionFavorites(): Promise<SessionFavorite[]> {
+  const res = await fetch(`${BASE}/api/session-favorites`)
+  if (!res.ok) return []
+  return res.json()
+}
+
+export async function addSessionFavorite(sessionId: string, note?: string): Promise<void> {
+  await fetch(`${BASE}/api/session-favorites`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sessionId, note }),
+  })
+}
+
+export async function removeSessionFavorite(sessionId: string): Promise<void> {
+  await fetch(`${BASE}/api/session-favorites/${sessionId}`, { method: "DELETE" })
+}
+
+export function buildShareUrl(sessionId: string): string {
+  const loc = window.location
+  return `${loc.protocol}//${loc.hostname}:${loc.port}/api/share/${sessionId}`
+}
+
+export async function scanSkills(): Promise<{ total: number; imported: number; skipped: number; errors: string[] }> {
+  const res = await fetch(`${BASE}/api/skills/scan`, { method: "POST" })
+  return res.json()
+}
+
+export async function getSkillPaths(): Promise<{ paths: string[] }> {
+  const res = await fetch(`${BASE}/api/skills/paths`)
+  return res.json()
+}
+
+export async function updateSkillPaths(paths: string[]): Promise<{ ok: boolean }> {
+  const res = await fetch(`${BASE}/api/skills/paths`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ paths }),
+  })
+  return res.json()
+}
+
+export async function getDocKeywords(): Promise<{ keywords: string[]; count: number }> {
+  const res = await fetch(`${BASE}/api/docs/keywords`)
   return res.json()
 }

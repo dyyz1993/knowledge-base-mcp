@@ -373,4 +373,13 @@ export function listAllOutlines(): { project: string; name: string; doc_count: n
     .filter(Boolean) as { project: string; name: string; doc_count: number; updated_at: number }[]
 }
 
+export function getAllKeywords(): { keywords: string[]; count: number } {
+  const idx = readIndex()
+  const kwSet = new Set<string>()
+  for (const doc of Object.values(idx.documents)) {
+    for (const k of doc.keywords) kwSet.add(k)
+  }
+  return { keywords: [...kwSet].sort(), count: kwSet.size }
+}
+
 export { rebuildAllVectors }

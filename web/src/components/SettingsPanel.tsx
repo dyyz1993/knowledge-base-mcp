@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
-import { Drawer, Select, Input, InputNumber, Switch, Slider, Button, message, Divider, Tooltip } from "antd"
-import { Settings, Eye, EyeOff, RefreshCw, Save, Wifi, WifiOff, Loader2, Brain, Search } from "lucide-react"
-import { getConfig, updateConfig, reindexEmbeddings, type AppConfig, type EmbeddingConfig, type SearchConfig } from "../services/api"
+import { Drawer, Select, Input, InputNumber, Switch, Slider, Button, Tag, message, Divider, Tooltip } from "antd"
+import { Settings, Eye, EyeOff, RefreshCw, Save, Wifi, WifiOff, Loader2, Brain, Search, FolderSearch } from "lucide-react"
+import { getConfig, updateConfig, reindexEmbeddings, scanSkills, getSkillPaths, updateSkillPaths, type AppConfig, type EmbeddingConfig, type SearchConfig } from "../services/api"
 
 const PROVIDERS = [
   { value: "siliconflow", label: "SiliconFlow" },
@@ -53,6 +53,10 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   const [reindexing, setReindexing] = useState(false)
   const [showKey, setShowKey] = useState(false)
   const [connected, setConnected] = useState<boolean | null>(null)
+  const [skillPaths, setSkillPaths] = useState<string[]>([])
+  const [newPath, setNewPath] = useState("")
+  const [scanning, setScanning] = useState(false)
+  const [scanResult, setScanResult] = useState<{ total: number; imported: number; skipped: number; errors: string[] } | null>(null)
 
   const loadConfig = useCallback(async () => {
     setLoading(true)
@@ -72,6 +76,13 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   useEffect(() => {
     if (open) loadConfig()
   }, [open, loadConfig])
+
+  useEffect(() => {
+    if (open) {
+      getSkillPaths().then(data => setSkillPaths(data.paths || [])).catch(() => {})
+      setScanResult(null)
+    }
+  }, [open])
 
   const handleSave = async () => {
     setSaving(true)
@@ -140,6 +151,43 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
     semantic: config.search.weights.semantic * 100,
   }
 
+  const handleAddPath = () => {
+    const trimmed = newPath.trim()
+    if (!trimmed) return
+    if (skillPaths.includes(trimmed)) {
+      message.warning("Path already exists")
+      return
+    }
+    const updated = [...skillPaths, trimmed]
+    setSkillPaths(updated)
+    updateSkillPaths(updated).catch(() => message.error("Failed to save paths"))
+    setNewPath("")
+  }
+
+  const handleRemovePath = (path: string) => {
+    const updated = skillPaths.filter(p => p !== path)
+    setSkillPaths(updated)
+    updateSkillPaths(updated).catch(() => message.error("Failed to save paths"))
+  }
+
+  const handleScanSkills = async () => {
+    setScanning(true)
+    setScanResult(null)
+    try {
+      const res = await scanSkills()
+      setScanResult(res)
+      if (res.errors.length > 0) {
+        message.warning(`Scanned: ${res.imported} imported, ${res.skipped} skipped, ${res.errors.length} errors`)
+      } else {
+        message.success(`Scanned: ${res.imported} imported, ${res.skipped} skipped`)
+      }
+    } catch {
+      message.error("Failed to scan skills")
+    } finally {
+      setScanning(false)
+    }
+  }
+
   return (
     <Drawer
       title={
@@ -196,6 +244,84 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
         </div>
       ) : (
         <div className="space-y-5">
+          <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-zinc-300 uppercase tracking-wider">
+              <FolderSearch size={13} className="text-amber-400" />
+              Skill 路径管理
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-zinc-400">Scanned Paths</label>
+              <div className="flex flex-wrap gap-1.5 min-h-[28px]">
+                {skillPaths.length === 0 && (
+                  <span className="text-xs text-zinc-600">No paths configured</span>
+                )}
+                {skillPaths.map(p => (
+                  <Tag
+                    key={p}
+                    closable
+                    onClose={() => handleRemovePath(p)}
+                    style={{ background: "#27272a", border: "1px solid #3f3f46", color: "#a1a1aa" }}
+                  >
+                    {p}
+                  </Tag>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-1.5">
+              <Input
+                size="small"
+                value={newPath}
+                onChange={e => setNewPath(e.target.value)}
+                placeholder="~/path/to/skills"
+                className="flex-1"
+                onPressEnter={handleAddPath}
+              />
+              <Button size="small" onClick={handleAddPath}>
+                Add
+              </Button>
+            </div>
+
+            <Button
+              type="primary"
+              icon={<FolderSearch size={13} />}
+              onClick={handleScanSkills}
+              loading={scanning}
+              block
+              className="flex items-center justify-center gap-1.5"
+            >
+              Scan Skills
+            </Button>
+
+            {scanResult && (
+              <div className="rounded border border-zinc-800 bg-zinc-900/50 p-3 text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400">Total scanned:</span>
+                  <span className="text-zinc-200">{scanResult.total}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-green-400">Imported:</span>
+                  <span className="text-green-300">{scanResult.imported}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-yellow-400">Skipped:</span>
+                  <span className="text-yellow-300">{scanResult.skipped}</span>
+                </div>
+                {scanResult.errors.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-zinc-800">
+                    <span className="text-red-400">Errors:</span>
+                    <ul className="mt-1 space-y-0.5 text-red-300/80 list-disc list-inside">
+                      {scanResult.errors.map((e, i) => (
+                        <li key={i}>{e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
           <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
             <div className="flex items-center gap-2 text-xs font-medium text-zinc-300 uppercase tracking-wider">
               <Brain size={13} className="text-blue-400" />

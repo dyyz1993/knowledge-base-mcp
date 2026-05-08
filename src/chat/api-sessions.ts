@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import * as session from "./session"
 import * as store from "./store-sessions"
+import * as sf from "./store-session-favorites"
 import { json, readBody } from "../http.js"
 
 export async function handleListSessions(_req: IncomingMessage, res: ServerResponse) {
-  json(res, session.list())
+  const sessions = session.list().map(s => ({ ...s, favorited: sf.isSessionFavorited(s.id) }))
+  json(res, sessions)
 }
 
 export async function handleCreateSession(req: IncomingMessage, res: ServerResponse) {

@@ -2,9 +2,28 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import { getConfiguredModels, type ConfiguredModel } from "./api-models"
 import { toolDefinitions, executeTool } from "./tools.js"
 import * as session from "./session"
-import { generateId } from "../storage/index.js"
+import { generateId, getAllKeywords } from "../storage/index.js"
 
-const SYSTEM_PROMPT = `你是知识库助手。知识库位于 ~/.knowledge/，包含 140+ 篇技术文档，涵盖前端、后端、AI、DevOps、架构设计等领域。
+let cachedKeywords: string[] = []
+let keywordsCacheTime = 0
+const KEYWORDS_TTL = 5 * 60 * 1000
+
+function getKeywordsSnapshot(): string[] {
+  const now = Date.now()
+  if (now - keywordsCacheTime > KEYWORDS_TTL) {
+    cachedKeywords = getAllKeywords().keywords
+    keywordsCacheTime = now
+  }
+  return cachedKeywords
+}
+
+function buildSystemPrompt(): string {
+  const kw = getKeywordsSnapshot()
+  const kwSection = kw.length > 0
+    ? `\n## 知识库关键词索引（${kw.length} 个）\n搜索时优先使用这些关键词扩展查询，用户输入可能用别名/缩写，你应该映射到以下标准关键词：\n${kw.slice(0, 200).join("、")}${kw.length > 200 ? `...等${kw.length}个` : ""}\n`
+    : ""
+
+  return `你是知识库助手。知识库位于 ~/.knowledge/，包含 140+ 篇技术文档，涵盖前端、后端、AI、DevOps、架构设计等领域。${kwSection}
 
 ## 重要认知
 
@@ -199,6 +218,7 @@ const SYSTEM_PROMPT = `你是知识库助手。知识库位于 ~/.knowledge/，�
 - 建议必须具体、可操作，不要泛泛而谈
 - 每条建议不超过30个字
 - 如果当前对话已经足够完整，不需要推荐`
+}
 
 function resolveConfiguredModel(provider?: string, modelId?: string): ConfiguredModel | null {
   const configured = getConfiguredModels()
@@ -405,7 +425,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
     }
 
     const chatMessages: ChatMessage[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: buildSystemPrompt() },
       ...restoreChatContext(messages),
     ]
 
@@ -528,7 +548,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
 
       for (const tc of currentToolCalls) {
         const args = parseToolCallArgs(tc.args)
-        send("tool_call", { name: tc.name, args: JSON.stringify(args), round })
+        send("tool_call", { id: tc.id, name: tc.name, args: JSON.stringify(args), round })
 
         session.pushMessage(sess.id, {
           role: "tool_call",
@@ -546,7 +566,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
           result = `Tool error: ${e instanceof Error ? e.message : String(e)}`
         }
 
-        send("tool_result", { name: tc.name, result, round })
+        send("tool_result", { id: tc.id, name: tc.name, result, round })
 
         session.pushMessage(sess.id, {
           role: "tool_result",

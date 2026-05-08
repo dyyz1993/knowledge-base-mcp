@@ -1,25 +1,26 @@
 import { create } from "zustand"
-import type { ModelInfo, SessionInfo, Message, Favorite, KBDoc, TokenUsage } from "../services/api"
+import type { ModelInfo, SessionInfo, Message, Favorite, KBDoc, TokenUsage, SessionFavorite } from "../services/api"
 import * as api from "../services/api"
 
 export interface TimelineEvent {
   type: "thinking" | "text" | "tool_call" | "tool_result"
   round: number
   content: string
+  id?: string
   name?: string
   args?: string
   result?: string
 }
 
 export interface MergedTimelineEvent extends TimelineEvent {
-  id: number
+  _idx: number
 }
 
 export interface SessionStreamState {
   isStreaming: boolean
   streamingContent: string
   streamingThinking: string
-  streamingToolCalls: { name: string; args: string; result: string }[]
+  streamingToolCalls: { id: string; name: string; args: string; result: string }[]
   streamingTimeline: TimelineEvent[]
   abortController: AbortController | null
   suggestions: string[]
@@ -33,6 +34,7 @@ interface ChatState {
   models: ModelInfo[]
   currentModel: { provider: string; id: string } | null
   favorites: Favorite[]
+  sessionFavorites: string[]
   streamStates: Map<string, SessionStreamState>
   kbResults: KBDoc[]
   kbQuery: string
@@ -48,6 +50,9 @@ interface ChatState {
   loadFavorites: () => Promise<void>
   addFavorite: (messageId: string, content: string) => Promise<void>
   removeFavorite: (id: string) => Promise<void>
+  loadSessionFavorites: () => Promise<void>
+  toggleSessionFavorite: (sessionId: string) => Promise<void>
+  renameSessionLocal: (id: string, name: string) => Promise<void>
   searchKB: (query: string) => Promise<void>
   setKBQuery: (q: string) => void
 }
@@ -71,6 +76,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   models: [],
   currentModel: null,
   favorites: [],
+  sessionFavorites: [],
   streamStates: new Map(),
   kbResults: [],
   kbQuery: "",
@@ -217,32 +223,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
           return { streamStates: states }
         })
       },
-      onToolCall: (name, args, round) => {
+      onToolCall: (id, name, args, round) => {
         set((s) => {
           const states = new Map(s.streamStates)
           const state = states.get(targetSessionId)
           if (!state) return s
           states.set(targetSessionId, {
             ...state,
-            streamingToolCalls: [...state.streamingToolCalls, { name, args, result: "" }],
-            streamingTimeline: [...state.streamingTimeline, { type: "tool_call", round, content: "", name, args }],
+            streamingToolCalls: [...state.streamingToolCalls, { id, name, args, result: "" }],
+            streamingTimeline: [...state.streamingTimeline, { type: "tool_call", round, content: "", id, name, args }],
           })
           return { streamStates: states }
         })
       },
-      onToolResult: (name, result, round) => {
+      onToolResult: (id, name, result, round) => {
         set((s) => {
           const states = new Map(s.streamStates)
           const state = states.get(targetSessionId)
           if (!state) return s
 
           const tcs = [...state.streamingToolCalls]
-          const tcIdx = tcs.findIndex((tc) => tc.name === name && !tc.result)
+          const tcIdx = tcs.findIndex((tc) => tc.id === id)
           if (tcIdx >= 0) tcs[tcIdx] = { ...tcs[tcIdx], result }
 
           const timeline = [...state.streamingTimeline]
-          const toolCallIdx = timeline.findLastIndex(
-            (e) => e.type === "tool_call" && e.name === name && !e.result
+          const toolCallIdx = timeline.findIndex(
+            (e) => e.type === "tool_call" && e.id === id
           )
 
           if (toolCallIdx >= 0) {
@@ -358,6 +364,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
   removeFavorite: async (id) => {
     await api.deleteFavorite(id)
     set((s) => ({ favorites: s.favorites.filter((f) => f.id !== id) }))
+  },
+
+  loadSessionFavorites: async () => {
+    const favs = await api.listSessionFavorites()
+    set({ sessionFavorites: favs.map((f) => f.sessionId) })
+  },
+
+  toggleSessionFavorite: async (sessionId) => {
+    const { sessionFavorites } = get()
+    if (sessionFavorites.includes(sessionId)) {
+      await api.removeSessionFavorite(sessionId)
+      set((s) => ({ sessionFavorites: s.sessionFavorites.filter((id) => id !== sessionId) }))
+    } else {
+      await api.addSessionFavorite(sessionId)
+      set((s) => ({ sessionFavorites: [...s.sessionFavorites, sessionId] }))
+    }
+  },
+
+  renameSessionLocal: async (id, name) => {
+    await api.renameSession(id, name)
+    set((s) => ({
+      sessions: s.sessions.map((sess) =>
+        sess.id === id ? { ...sess, name } : sess
+      ),
+    }))
   },
 
   searchKB: async (query) => {

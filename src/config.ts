@@ -21,10 +21,22 @@ export interface SearchConfig {
   weights: { token: number; tfidf: number; semantic: number }
 }
 
+export interface SkillConfig {
+  paths: string[]
+  autoScan: boolean
+}
+
 export interface AppConfig {
   embedding: EmbeddingConfig
   search: SearchConfig
+  skills: SkillConfig
 }
+
+const DEFAULT_SKILL_PATHS = [
+  "~/.agents/skills",
+  "~/.claude/skills",
+  "~/.config/opencode/skills",
+]
 
 const DEFAULT_CONFIG: AppConfig = {
   embedding: {
@@ -41,6 +53,14 @@ const DEFAULT_CONFIG: AppConfig = {
     combinedMinScore: 0.05,
     weights: { token: 0.2, tfidf: 0.3, semantic: 0.5 },
   },
+  skills: {
+    paths: DEFAULT_SKILL_PATHS,
+    autoScan: false,
+  },
+}
+
+function expandPath(p: string): string {
+  return p.startsWith("~/") ? join(homedir(), p.slice(2)) : p
 }
 
 export function loadConfig(): AppConfig {
@@ -57,10 +77,15 @@ export function loadConfig(): AppConfig {
           combinedMinScore: raw.search?.combinedMinScore ?? DEFAULT_CONFIG.search.combinedMinScore,
           weights: { ...DEFAULT_CONFIG.search.weights, ...raw.search?.weights },
         },
+        skills: {
+          ...DEFAULT_CONFIG.skills,
+          ...raw.skills,
+          paths: (raw.skills?.paths || DEFAULT_CONFIG.skills.paths).map(expandPath),
+        },
       }
     }
   } catch {}
-  return { ...DEFAULT_CONFIG }
+  return { ...DEFAULT_CONFIG, skills: { ...DEFAULT_CONFIG.skills, paths: DEFAULT_CONFIG.skills.paths.map(expandPath) } }
 }
 
 export function saveConfig(config: AppConfig): void {

@@ -15,7 +15,7 @@ type Tab = "kb" | "chat"
 
 export default function App() {
   const { docs, current, load, select } = useDocStore()
-  const { loadSessions, loadModels, loadFavorites } = useChatStore()
+  const { loadSessions, loadModels, loadFavorites, loadSessionFavorites } = useChatStore()
   const [tab, setTab] = useState<Tab>("kb")
   const [searchOpen, setSearchOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string>()
@@ -23,7 +23,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => { load() }, [])
-  useEffect(() => { loadSessions(); loadModels(); loadFavorites() }, [])
+  useEffect(() => { loadSessions(); loadModels(); loadFavorites(); loadSessionFavorites() }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -82,8 +82,8 @@ export default function App() {
           <span className="hidden lg:inline-flex text-xs text-zinc-500 truncate max-w-[200px]">{currentSessionName}</span>
         )}
 
-        {tab === "kb" && (
-          <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2">
+          {tab === "kb" && (
             <button
               onClick={() => setSearchOpen(true)}
               className="flex items-center gap-2 px-3 py-1 rounded-md border border-zinc-800 text-xs text-zinc-500 hover:bg-zinc-900 transition-colors"
@@ -94,14 +94,14 @@ export default function App() {
                 <Command size={10} />K
               </kbd>
             </button>
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
-            >
-              <Settings size={14} />
-            </button>
-          </div>
-        )}
+          )}
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+          >
+            <Settings size={14} />
+          </button>
+        </div>
       </header>
 
       {tab === "kb" ? (
@@ -124,21 +124,12 @@ export default function App() {
             fixed top-10 bottom-0 left-0 z-30 w-64 sm:w-56
             lg:translate-x-0 lg:relative lg:top-0 lg:w-56 xl:w-60
             transition-transform duration-200 ease-in-out
-            border-r border-zinc-800 flex flex-col shrink-0 bg-zinc-950
+            border-r border-zinc-800 flex flex-col shrink-0 bg-zinc-950 overflow-hidden
           `}>
             <SessionList />
-            <div className="p-2 border-t border-zinc-800">
-              <button
-                onClick={() => setSettingsOpen(true)}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
-              >
-                <Settings size={13} />
-                <span>Settings</span>
-              </button>
-            </div>
           </aside>
 
-          <main className="flex-1 min-w-0 flex flex-col">
+          <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
             {tab === "chat" && (
               <header className="flex items-center gap-3 p-3 border-b border-zinc-800 lg:hidden shrink-0">
                 <span className="text-sm font-medium truncate">{currentSessionName}</span>

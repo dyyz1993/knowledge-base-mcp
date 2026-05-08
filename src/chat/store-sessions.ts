@@ -9,6 +9,7 @@ export interface ChatSession {
   name: string
   createdAt: number
   model: { provider: string; id: string } | null
+  sharedUrl?: string
 }
 
 export interface ChatMessage {
@@ -60,9 +61,25 @@ export function readSession(id: string): ChatSession | null {
   const firstLine = readFileSync(path, "utf-8").trim().split("\n")[0]
   try {
     const parsed = JSON.parse(firstLine)
-    if (parsed.type === "session") return { id: parsed.id, name: parsed.name, createdAt: parsed.createdAt, model: parsed.model }
+    if (parsed.type === "session") return { id: parsed.id, name: parsed.name, createdAt: parsed.createdAt, model: parsed.model, sharedUrl: parsed.sharedUrl }
   } catch {}
   return null
+}
+
+export function updateSessionSharedUrl(id: string, sharedUrl: string) {
+  ensureBase()
+  const path = sessionPath(id)
+  if (!existsSync(path)) return
+  const lines = readFileSync(path, "utf-8").trim().split("\n").filter(Boolean)
+  if (lines.length === 0) return
+  try {
+    const header = JSON.parse(lines[0])
+    if (header.type === "session") {
+      header.sharedUrl = sharedUrl
+      lines[0] = JSON.stringify(header)
+      writeFileSync(path, lines.join("\n") + "\n")
+    }
+  } catch {}
 }
 
 export function updateSessionName(id: string, name: string) {
@@ -109,7 +126,7 @@ export function listSessions(): (ChatSession & { messageCount: number })[] {
       try {
         const header = JSON.parse(lines[0])
         if (header.type !== "session") return null
-        return { id: header.id, name: header.name, createdAt: header.createdAt, model: header.model, messageCount: lines.length - 1 }
+        return { id: header.id, name: header.name, createdAt: header.createdAt, model: header.model, sharedUrl: header.sharedUrl, messageCount: lines.length - 1 }
       } catch { return null }
     })
     .filter((s): s is ChatSession & { messageCount: number } => s !== null)
