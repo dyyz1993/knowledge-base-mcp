@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdir
 import { parseFrontmatter, buildFrontmatter } from "./markdown"
 import { tfidfSearch, buildIDF } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
-import { loadVectors, saveVectors, rebuildAllVectors } from "../search/vector-store"
+import { loadVectors, indexDoc, rebuildAllVectors } from "../search/vector-store"
 import { loadConfig } from "../config"
 
 const KNOWLEDGE_DIR = process.env.KB_DIR || `${process.env.HOME}/.knowledge`
@@ -226,14 +226,14 @@ export async function searchDocsSemantic(query: string, limit = 10): Promise<(Do
   const missing = docs.filter(d => !vectors[d.id])
   if (missing.length > 0) {
     for (const doc of missing) {
-      vectors[doc.id] = await embed(docToSearchableText(doc))
+      await indexDoc(doc.id, docToSearchableText(doc))
     }
-    saveVectors(vectors)
   }
 
+  const allVectors = loadVectors()
   const docsVecs = docs
-    .filter(d => vectors[d.id])
-    .map(d => ({ meta: d, embedding: vectors[d.id] }))
+    .filter(d => allVectors[d.id])
+    .map(d => ({ meta: d, embedding: allVectors[d.id] }))
 
   return semanticSearch(query, docsVecs, limit)
 }

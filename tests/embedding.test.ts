@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterAll } from "bun:test"
 import { existsSync, rmSync, mkdirSync } from "node:fs"
 import { cosineSimilarityVec, docToSearchableText, semanticSearch, embed } from "../src/search/embedding"
-import { loadVectors, saveVectors, indexDoc, indexAllDocs, getAllEmbeddings } from "../src/search/vector-store"
+import { loadVectors, saveVectors, indexDoc, indexAllDocs, getAllEmbeddings, resetDb } from "../src/search/vector-store"
 import type { DocMeta } from "../src/storage/index"
 import { loadConfig } from "../src/config"
 
@@ -36,6 +36,7 @@ function makeDoc(overrides: Partial<DocMeta> = {}): DocMeta {
 function cleanDir() {
   if (existsSync(testDir)) rmSync(testDir, { recursive: true })
   mkdirSync(testDir, { recursive: true })
+  resetDb()
 }
 
 afterAll(() => {
@@ -141,7 +142,13 @@ describe("vector-store", () => {
     const data = { "doc-1": [0.1, 0.2, 0.3], "doc-2": [0.4, 0.5, 0.6] }
     saveVectors(data)
     const loaded = loadVectors()
-    expect(loaded).toEqual(data)
+    for (const key of Object.keys(data)) {
+      expect(loaded[key]).toBeDefined()
+      expect(loaded[key].length).toBe(data[key].length)
+      for (let i = 0; i < data[key].length; i++) {
+        expect(loaded[key][i]).toBeCloseTo(data[key][i], 5)
+      }
+    }
   })
 
   test("getAllEmbeddings filters docs with cached vectors", () => {
@@ -208,7 +215,10 @@ describe("indexDoc", () => {
     const vec = await indexDoc("test-doc", "React hooks guide")
     expect(vec.length).toBe(getEmbeddingDim())
     const loaded = loadVectors()
-    expect(loaded["test-doc"]).toEqual(vec)
+    expect(loaded["test-doc"]).toBeDefined()
+    for (let i = 0; i < vec.length; i++) {
+      expect(loaded["test-doc"][i]).toBeCloseTo(vec[i], 5)
+    }
   }, 120000)
 })
 

@@ -10,6 +10,7 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http"
 import { readFileSync, existsSync } from "node:fs"
 import { join, extname } from "node:path"
 import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines, rebuildAllVectors } from "./storage/index.js"
+import { getStorageStats } from "./search/vector-store.js"
 import { handleChat } from "./chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "./chat/api-models.js"
 import { handleListSessions, handleCreateSession, handleDeleteSession, handleGetMessages, handleRenameSession } from "./chat/api-sessions.js"
@@ -447,8 +448,11 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
   }
   if (url.pathname === "/api/config" && req.method === "GET") {
     const config = loadConfig()
+    let storage
+    try { storage = getStorageStats() } catch { storage = null }
     json(res, {
       ...config,
+      storage,
       embedding: {
         ...config.embedding,
         apiKey: config.embedding.apiKey ? config.embedding.apiKey.slice(0, 8) + "..." : "",
