@@ -583,7 +583,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
 
       const toolResults = await Promise.all(toolPromises)
       for (const tr of toolResults) {
-        chatMessages.push(tr)
+        chatMessages.push({ role: "tool", ...tr })
       }
 
       assistantContent = ""
