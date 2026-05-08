@@ -1,5 +1,5 @@
 import { searchDocs, readDoc, listDocs, writeDoc, getOutline } from "../storage/index.js"
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync, unlinkSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { execSync } from "node:child_process"
@@ -135,6 +135,37 @@ export const toolDefinitions: OpenAITool[] = [
   {
     type: "function",
     function: {
+      name: "url_fetch",
+      description: "访问指定 URL 并返回页面内容（文本）。支持 GitHub README、博客文章、API 文档等。",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "要访问的 URL" },
+          max_length: { type: "number", description: "返回内容最大字符数（默认 10000）" },
+        },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "git_clone",
+      description: "克隆 Git 仓库到临时目录，返回本地路径。支持 GitHub/GitLab 等仓库 URL。浅克隆（depth=1）节省时间。",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "Git 仓库 URL（https:// 或 git://）" },
+          branch: { type: "string", description: "分支名（可选，默认 main）" },
+          depth: { type: "number", description: "克隆深度（默认 1）" },
+        },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "read_file",
       description: "读取指定路径的文件内容。支持 offset 和 limit 参数控制读取范围。",
       parameters: {
@@ -188,6 +219,40 @@ export const toolDefinitions: OpenAITool[] = [
     },
   },
 ]
+
+function buildTree(lines: string[]): string {
+  const root: Record<string, string[]> = {}
+  for (const line of lines) {
+    const clean = line.replace(/^\.\//, "")
+    if (!clean) continue
+    const parts = clean.split("/")
+    const dir = parts.slice(0, -1).join("/")
+    const file = parts[parts.length - 1]
+    if (!root[dir]) root[dir] = []
+    root[dir].push(file)
+  }
+
+  const result: string[] = []
+  const sortedDirs = Object.keys(root).sort()
+
+  for (const dir of sortedDirs) {
+    if (!dir) {
+      const files = root[""].filter(f => !f.includes(".") || f === ".").sort()
+      result.push(...files.map(f => f))
+      continue
+    }
+    const indent = dir.split("/").map(() => "│   ").join("").slice(0, -4) + "├── "
+    const dirName = dir.split("/").pop() || dir
+    result.push(`${indent}${dirName}/`)
+    const items = (root[dir] || []).sort()
+    for (const item of items) {
+      const itemIndent = dir.split("/").map(() => "│   ").join("")
+      result.push(`${itemIndent}├── ${item}`)
+    }
+  }
+
+  return result.join("\n")
+}
 
 export async function executeTool(name: string, args: Record<string, unknown>): Promise<string> {
   switch (name) {
@@ -335,10 +400,15 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         results.push(lines.join("\n"))
       }
 
-      results.push(`\n## 目录结构`)
+      results.push(`\n## 目录结构（树状）`)
       try {
-        const findOutput = await Bun.$`find ${projectPath} -maxdepth 3 -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -not -path '*/.next/*' -not -path '*/build/*' | head -100`.text()
-        results.push(findOutput)
+        const treeOutput = execSync(
+          `cd "${projectPath}" && find . -maxdepth 4 -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -not -path '*/.next/*' -not -path '*/build/*' -not -path '*/coverage/*' | sort | head -150`,
+          { encoding: "utf-8", timeout: 10000 }
+        )
+        const lines = treeOutput.trim().split("\n")
+        const tree = buildTree(lines)
+        results.push(`${projectName}/\n${tree}`)
       } catch {
         results.push("(无法获取目录结构)")
       }
@@ -382,6 +452,73 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       }
 
       return `📋 项目扫描结果 (${projectName}):\n\n${scanContent}\n\n💡 提示: 如需保存到知识库，可以让我用 kb_write 存储。`
+    }
+    case "url_fetch": {
+      const { url, max_length = 10000 } = args as { url: string; max_length?: number }
+
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        return "URL 必须以 http:// 或 https:// 开头"
+      }
+
+      try {
+        const result = execSync(`curl -sL --max-time 15 "${url}"`, { encoding: "utf-8", timeout: 20000, maxBuffer: 2 * 1024 * 1024 })
+
+        let text = result
+        if (text.includes("<html") || text.includes("<!DOCTYPE")) {
+          text = text
+            .replace(/<script[\s\S]*?<\/script>/gi, "")
+            .replace(/<style[\s\S]*?<\/style>/gi, "")
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<\/p>/gi, "\n")
+            .replace(/<\/h[1-6]>/gi, "\n")
+            .replace(/<\/li>/gi, "\n")
+            .replace(/<\/div>/gi, "\n")
+            .replace(/<[^>]+>/g, "")
+            .replace(/&nbsp;/g, " ")
+            .replace(/&amp;/g, "&")
+            .replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&quot;/g, '"')
+            .replace(/\n{3,}/g, "\n\n")
+            .trim()
+        }
+
+        return text.slice(0, max_length) || "(无内容)"
+      } catch (e: unknown) {
+        return `访问失败: ${e instanceof Error ? e.message : String(e)}`
+      }
+    }
+    case "git_clone": {
+      const { url, branch, depth = 1 } = args as { url: string; branch?: string; depth?: number }
+
+      if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("git://")) {
+        return "URL 必须以 http://, https:// 或 git:// 开头"
+      }
+
+      const repoName = url.split("/").pop()?.replace(".git", "") || "repo"
+      const targetDir = join(tmpdir(), `kb-clone-${repoName}-${Date.now()}`)
+
+      try {
+        let cmd = `git clone --depth=${depth}`
+        if (branch) cmd += ` --branch ${branch}`
+        cmd += ` "${url}" "${targetDir}"`
+
+        execSync(cmd, { encoding: "utf-8", timeout: 120000 })
+
+        const structure = execSync(
+          `cd "${targetDir}" && find . -maxdepth 3 -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' | head -100`,
+          { encoding: "utf-8" }
+        )
+
+        return JSON.stringify({
+          path: targetDir,
+          message: `已克隆到 ${targetDir}`,
+          structure: structure.trim(),
+        })
+      } catch (e: unknown) {
+        try { rmSync(targetDir, { recursive: true }) } catch {}
+        return `克隆失败: ${e instanceof Error ? e.message : String(e)}`
+      }
     }
     case "read_file": {
       const p = String(args.path ?? "")

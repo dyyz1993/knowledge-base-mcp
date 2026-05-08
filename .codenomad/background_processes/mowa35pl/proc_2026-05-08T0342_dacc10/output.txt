@@ -1,0 +1,152 @@
+剩余待处理: 147 篇
+[1/147] 📝 Claude Code Rules 核心机制与源码解析 | f=0 p=1
+[2/147] ⬜ Test KB Entry | f=0 p=0
+[3/147] 📝 Claude Code Marketplace 与插件分发 | f=3 p=1
+[4/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[5/147] ⬜ agent-browser: Proxy Configuration | f=0 p=0
+[6/147] 📝 pi-mono RPC 数据与会话管理 | f=5 p=1
+[7/147] ⬜ Claude Code Team/Swarm 多Agent协作架构完全 | f=0 p=0
+[8/147] ⬜ pi-mono 开发计划与验证报告 | f=0 p=0
+[9/147] ⬜ GitHub CI + 飞书通知 + 分支保护 全栈配置指南 | f=0 p=0
+[10/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[11/147] ⬜ 可拖拽面板宽度调整交互规范 | f=0 p=0
+[12/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[13/147] ⬜ Claude Code plugin.json 完整参考与开发指南 | f=0 p=0
+[14/147] ⬜ session.jsonl 完整结构与规则引擎影响分析 | f=0 p=0
+[15/147] ⬜ xcli-core 自进化引擎与智能建议系统 | f=0 p=0
+[16/147] ⬜ xcli-core 插件开发协议与 API 参考 | f=0 p=0
+[17/147] ⬜ UI自动化爬虫训练方案 - 完整交付文档 | f=0 p=0
+[18/147] 📝 Claude Code 记忆系统完全指南（三）：实战策略与最佳实践 | f=5 p=1
+[19/147] ⬜ pi-coding-agent 插件 RPC 测试完整指南 | f=0 p=0
+[20/147] ⬜ 用户偏好：长耗时任务处理方式 | f=0 p=0
+[21/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[22/147] 📝 agent-browser: Content Capture Work | f=0 p=1
+[23/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[24/147] ⬜ Rules Engine 使用指南与实战用例 | f=0 p=0
+[25/147] ⬜ Claude Code 实战指南与最佳实践 | f=0 p=0
+[26/147] ⬜ agent-browser: Data Extraction Patt | f=0 p=0
+[27/147] ⬜ Claude Code CLI 启动方式、协议与命令深度分析 | f=0 p=0
+[28/147] ⬜ Claude Code Hooks 源码级深度调研报告 | f=0 p=0
+[29/147] 📝 xcli-core 测试覆盖率从 0% 到 91% 的实战经验 | f=5 p=2
+[30/147] ⬜ RpcClient Types & Events Reference  | f=0 p=0
+[31/147] ⬜ Claude Code Hooks 深度实践指南 - 运行时行为与社区 | f=0 p=0
+[32/147] ⬜ requireConfirmation Hook 权限弹窗机制 | f=0 p=0
+[33/147] 📝 xbrowser 命令体系 | f=5 p=1
+[34/147] 📝 Claude Code Agent .md 文件格式与加载机制（一） | f=1 p=1
+[35/147] ⬜ UI自动化爬虫训练方案 - 完整交付文档 v2（700案例） | f=0 p=0
+[36/147] ⬜ mpage + xcli 全能力清单与复刻方案 | f=0 p=0
+[37/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[38/147] 📝 agent-browser: Authentication Patte | f=2 p=1
+[39/147] ⬜ pi-coding-agent Variables 通道 — 架构、生 | f=0 p=0
+[40/147] 📝 MessageList 滚动性能优化记录（剥离清单） | f=4 p=0
+[41/147] 📝 agent-browser: Authenticated Sessio | f=0 p=1
+[42/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[43/147] ⬜ KB修复验证 | f=0 p=0
+[44/147] 📝 agent-browser: Video Recording | f=2 p=1
+[45/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[46/147] 📝 xcli-core 框架架构总览 | f=5 p=2
+[47/147] ⬜ agent-browser: Session & State Mana | f=0 p=0
+[48/147] ⬜ Claude Code CLI 启动参数与运行模式完全指南 | f=0 p=0
+[49/147] ⬜ Vitest monorepo 测试配置模式 | f=0 p=0
+[50/147] ⬜ agent-browser: Browser Automation C | f=0 p=0
+[51/147] ⬜ Bark 推送通知系统 - PRD 与超级APP框架集成方案 | f=0 p=0
+[52/147] 📝 Claude Code 记忆系统完全指南（二）：记忆层级与 Agent | f=2 p=1
+[53/147] 📝 agent-browser: Viewer & Streaming M | f=5 p=1
+[54/147] ⬜ UniqueTitle ABC | f=0 p=0
+[55/147] ⬜ agent-browser: Recording & Replay | f=0 p=0
+[56/147] 📝 agent-browser: Universal Data Extra | f=1 p=1
+[57/147] ⬜ xcli 插件开发全流程策略 — 从 0 到 100% 的实战方法论（ | f=0 p=0
+[58/147] 📝 踩坑记录 & 修复历史 | f=5 p=1
+[59/147] 📝 pi-agent-template: 架构与使用指南 | f=5 p=2
+[60/147] ⬜ pi-mono 完整类型体系与开发指南 | f=0 p=0
+[61/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[62/147] 📝 agent-browser: Form Automation Temp | f=0 p=1
+[63/147] ⬜ Claude Code Hooks 完全指南（三）：事件详解与实战模式 | f=0 p=0
+[64/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[65/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[66/147] 📝 TechStore - product-list-v1 - Selec | f=5 p=3
+[67/147] ⬜ UI自动化爬虫训练 - 36个可直接访问的测试页面清单 | f=0 p=0
+[68/147] ⬜ autoScrollEnabled Flag 严格修改规则 | f=0 p=0
+[69/147] 📝 表单交互五条铁律（14案例实测归纳） | f=0 p=3
+[70/147] 📝 Part4 表单交互案例测试报告 - 14案例验收 | f=5 p=2
+[71/147] ⬜ Claude Code Compaction 完全指南（一）：核心机制 | f=0 p=0
+[72/147] ⬜ agent-browser: Viewer Remote Contro | f=0 p=0
+[73/147] 📝 MessageList 滚动与 SideNav 交互关系完整报告 | f=5 p=1
+[74/147] 📝 测试覆盖率目标与背景任务偏好 (Test Coverage Goal  | f=0 p=1
+[75/147] ⬜ Claude Code Compaction 完全指南（二）：配置、命 | f=0 p=0
+[76/147] 📝 Claude Code Hooks 完全指南（一）：核心机制与源码解析 | f=5 p=1
+[77/147] ⬜ Claude Code Hooks → OpenCode 插件映射分析 | f=0 p=0
+[78/147] ⬜ Claude Code 知识总览 | f=0 p=0
+[79/147] 📝 Worktree Workspace 交互设计文档 | f=5 p=1
+[80/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[81/147] ⬜ pi-mono RPC 扩展开发指南 | f=0 p=0
+[82/147] ⬜ Extension 命名机制与存储最佳实践 | f=0 p=0
+[83/147] ⬜ create-fullstack-scaffold — 全局架构详解 | f=0 p=0
+[84/147] ⬜ Pi Coding Agent Extension Developme | f=0 p=0
+[85/147] 📝 Barrel Export 遍历陷阱：Object.values 混合 | f=5 p=1
+[86/147] 📝 pi-mono RPC 架构与协议总览 | f=3 p=2
+[87/147] ⬜ xbrowser 技术决策记录 | f=0 p=0
+[88/147] 📝 agent-browser: API Interception Tem | f=3 p=1
+[89/147] ⬜ pi-momo-fork Agent 生命周期 | f=0 p=0
+[90/147] ⬜ Claude Code Rules 规则编写指南与模板 | f=0 p=0
+[91/147] ⬜ pi-momo-fork 项目架构 | f=0 p=0
+[92/147] ⬜ agent-browser: Snapshot & Refs Syst | f=0 p=0
+[93/147] 📝 源码深度调研工作流（Source Code Deep Research | f=0 p=1
+[94/147] ⬜ xcli 插件开发最佳实践与禁令 | f=0 p=0
+[95/147] 📝 Claude Code IPC 实战模式与最佳实践 | f=0 p=1
+[96/147] ⬜ TechStore - product-list-v2 - Selec | f=0 p=0
+[97/147] 📝 记忆系统验证测试 | f=3 p=2
+[98/147] ⬜ Auto-Memory 完整架构 & 生命周期文档 | f=0 p=0
+[99/147] ⬜ create-xcli 脚手架完整使用指南 | f=0 p=0
+[100/147] ⬜ xcli-core 公共 API 速查表 | f=0 p=0
+[101/147] ⬜ Agent 更新记录 - 表单交互能力增强（基于14案例实测） | f=0 p=0
+[102/147] 📝 Claude Code 插件能力开发指南 | f=2 p=0
+[103/147] 📝 OpenCode 智能体（Agent）配置完整规范 | f=5 p=0
+[104/147] ⬜ xcli 插件开发全流程策略 — 从 0 到 100% 的实战方法论（ | f=0 p=0
+[105/147] ⬜ Test KB Entry | f=0 p=0
+[106/147] ⬜ @dyyz1993/rpc-core Transport 架构与使用指 | f=0 p=0
+[107/147] ⬜ docker.19930810.xyz - virtual-scrol | f=0 p=0
+[108/147] 📝 create-xcli 模板踩坑与修复记录 | f=3 p=2
+[109/147] 📝 pi-momo-fork Extension 系统 | f=5 p=1
+[110/147] 📝 xbrowser CI/CD 配置 | f=5 p=1
+[111/147] 📝 agent-browser: Network Monitoring & | f=5 p=1
+[112/147] 📝 pi-agent-template: 并行开发与 UI 自动化测试 | f=0 p=1
+[113/147] ⬜ Knowledge Base MCP 服务 | f=0 p=0
+[114/147] ⬜ pi 插件开发实战速查手册 — 从 0 到测试通过 | f=0 p=0
+[115/147] ⬜ Compaction-Manager E2E 测试：如何触发全部 8  | f=0 p=0
+[116/147] ⬜ AI Agent Rules 编写最佳实践（实战总结） | f=0 p=0
+[117/147] 📝 CLI 脚手架完整流程 | f=5 p=1
+[118/147] ⬜ Pi Coding Agent 插件体系架构调研 | f=0 p=0
+[119/147] ⬜ Claude Code 插件系统架构与 Manifest 完整参考 | f=0 p=0
+[120/147] 📝 705动态案例批量测试报告 - 全模板全类别 | f=5 p=1
+[121/147] ⬜ Claude Code Worktree 系统（三）：实战模式与最佳实 | f=0 p=0
+[122/147] 📝 agent-browser 项目知识体系总结 | f=0 p=1
+[123/147] ⬜ Hono Patch 体系 — SSE/WS/Image/SVG/Fi | f=0 p=0
+[124/147] ⬜ UI自动化爬虫训练 - 705个测试页面访问指南（最终版） | f=0 p=0
+[125/147] 📝 KB修复验证 | f=1 p=1
+[126/147] 📝 knowledge-base-mcp session.jsonl 数据 | f=1 p=1
+[127/147] ⬜ RpcClient API Complete Reference (p | f=0 p=0
+[128/147] 📝 Claude Code 记忆系统完全指南（一）：核心机制与源码解析 | f=5 p=1
+[129/147] ⬜ pi-mono RPC 客户端开发指南 | f=0 p=0
+[130/147] ⬜ 用户小明 - 学习 Rust 进展 | f=0 p=0
+[131/147] ⬜ Rules Engine 架构原理与生命周期 | f=0 p=0
+[132/147] ⬜ Claude Code Rules 实战用例与调试 | f=0 p=0
+[133/147] 📝 CodeNomad fork 发布流程记录 | f=5 p=3
+[134/147] 📝 xcli 插件开发与调试策略 — 从 55% 到 100% 的实战方法 | f=1 p=1
+[135/147] ⬜ Claude Code Agent Config and Execut | f=0 p=0
+[136/147] ⬜ Claude Code Compaction 完全指南（三）：实战策略 | f=0 p=0
+[137/147] 📝 RpcClient Use Cases & Code Examples | f=5 p=3
+[138/147] 📝 Claude Code Agent Templates and Bes | f=2 p=1
+[139/147] ⬜ @dyyz1993/xcli-core 框架架构总览 | f=0 p=0
+[140/147] 📝 KB修复验证测试 | f=1 p=0
+[141/147] 📝 消息列表与导航图标条的双向联动 — 交互定义与实现指南 | f=5 p=1
+[142/147] ⬜ xbrowser 测试体系 | f=0 p=0
+[143/147] ⬜ Claude Code Hooks 完整机制调研报告 | f=0 p=0
+[144/147] ⬜ NPX v1.2.0 Test | f=0 p=0
+[145/147] 📝 RPC Handler 注册架构约束规则（三层防护） | f=2 p=1
+[146/147] ⬜ Claude Code 插件安装方式与 Marketplace 系统（ | f=0 p=0
+[147/147] ⬜ agent-browser: Recorder Workflow Te | f=0 p=0
+
+==================================================
+完成: 147 | 失败: 0 | 总计: 147
+费用估算: ~¥0.0000
