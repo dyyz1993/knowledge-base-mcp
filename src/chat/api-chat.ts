@@ -245,6 +245,39 @@ async function* streamResponse(resp: Response): AsyncGenerator<{ type: string; d
   yield { type: "done" }
 }
 
+function sanitizeChatMessages(messages: ChatMessage[]): void {
+  while (messages.length > 0) {
+    const last = messages[messages.length - 1]
+
+    if (last.role === "tool") {
+      const prev = messages.length >= 2 ? messages[messages.length - 2] : null
+      if (prev?.role === "assistant" && prev.tool_calls && prev.tool_calls.length > 0) {
+        const toolIds = new Set(prev.tool_calls.map(tc => tc.id))
+        if (toolIds.has(last.tool_call_id ?? "")) break
+      }
+      messages.pop()
+      continue
+    }
+
+    if (last.role === "assistant" && last.tool_calls && last.tool_calls.length > 0) {
+      const toolCallIds = new Set(last.tool_calls.map(tc => tc.id))
+      const hasResults = messages.some(
+        m => m.role === "tool" && toolCallIds.has(m.tool_call_id ?? ""),
+      )
+      if (!hasResults) {
+        if (last.content || last.reasoning_content) {
+          messages[messages.length - 1] = { ...last, tool_calls: undefined }
+        } else {
+          messages.pop()
+        }
+        continue
+      }
+    }
+
+    break
+  }
+}
+
 function parseToolCallArgs(args: string): Record<string, unknown> {
   try {
     return JSON.parse(args)
@@ -301,6 +334,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
     let totalUsage: TokenUsage = { prompt_tokens: 0, completion_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 }
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      sanitizeChatMessages(chatMessages)
       const resp = await callOpenAI(cfg.baseUrl, cfg.apiKey, cfg.id, chatMessages, toolDefinitions, true)
 
       if (!resp.ok) {
