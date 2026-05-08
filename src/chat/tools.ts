@@ -62,36 +62,38 @@ export const toolDefinitions: OpenAITool[] = [
     type: "function",
     function: {
       name: "kb_write",
-      description: "Save a knowledge document to the knowledge base. Use when user wants to save, store, or record information, summaries, best practices, or any useful knowledge for future reference.",
+      description: "Save a knowledge document to the knowledge base. ALL fields except id are required. Use when user wants to save, store, or record information, summaries, best practices, or any useful knowledge for future reference.",
       parameters: {
         type: "object",
         properties: {
-          title: { type: "string", description: "Document title (concise, descriptive)" },
-          content: { type: "string", description: "Document body in Markdown format" },
+          id: { type: "string", description: "文档ID（可选，传入则更新，不传则新建）" },
+          title: { type: "string", description: "文档标题（必填）" },
+          content: { type: "string", description: "Markdown 正文（必填）" },
           tags: {
             type: "array",
             items: { type: "string" },
-            description: "Tags: tutorial, document, analysis, guide, snippet, best-practice, reference, architecture, troubleshooting, decision",
+            description: "标签分类（必填，如 [\"reference\", \"architecture\"]）",
           },
           keywords: {
             type: "array",
             items: { type: "string" },
-            description: "Keywords for search indexing",
+            description: "搜索关键词（必填，如 [\"retry\", \"timeout\"]）",
           },
-          intent: { type: "string", description: "Why this document was created or its use case" },
-          project_description: { type: "string", description: "Brief description of the project this knowledge belongs to" },
+          intent: { type: "string", description: "文档用途说明（必填）" },
+          project_description: { type: "string", description: "项目简介（必填）" },
+          project_path: { type: "string", description: "项目磁盘绝对路径（必填，如 /Users/xuyingzhou/code/project）" },
           related_projects: {
             type: "array",
             items: { type: "string" },
-            description: "Related project paths or names that this knowledge connects to",
+            description: "关联项目路径或名称（必填）",
           },
           related_files: {
             type: "array",
             items: { type: "string" },
-            description: "Related source file paths for staleness detection",
+            description: "关联源码文件路径（必填，如 [\"src/index.ts\", \"src/chat/api.ts\"]）",
           },
         },
-        required: ["title", "content"],
+        required: ["title", "content", "tags", "keywords", "intent", "project_description", "project_path", "related_projects", "related_files"],
       },
     },
   },
@@ -221,7 +223,7 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       const body = merged.map(r => {
         const tags = Array.isArray(r.tags) ? r.tags.join(", ") : "none"
         const score = typeof r.score === "number" ? r.score.toFixed(2) : "0.00"
-        const proj = r.source_project ? r.source_project.split("/").pop() || "" : ""
+        const proj = r.project_path ? r.project_path.split("/").pop() || "" : (r.source_project ? r.source_project.split("/").pop() || "" : "")
         const projStr = proj ? `, project: ${proj}` : ""
         const matchInfo = Array.isArray(r.matched_by) && r.matched_by.length > 0 ? `, matched: ${r.matched_by.join("+")}` : ""
         const base = `[${r.id ?? "?"}] ${r.title ?? "untitled"} (score: ${score}, tags: ${tags}${projStr}${matchInfo})`
@@ -242,11 +244,12 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       const related = Array.isArray(meta.related_projects) && meta.related_projects.length > 0
         ? `\nRelated Projects: ${meta.related_projects.join(", ")}`
         : ""
+      const projPath = meta.project_path ? `\nProject Path: ${meta.project_path}` : ""
       const lines = doc.content.split("\n")
       const content = lines.length > 200
         ? lines.slice(0, 200).join("\n") + `\n\n...(文档较长，共${lines.length}行，仅显示前200行。可用 read_file("${meta.file_path}") 读取完整文件)`
         : doc.content
-      return `## ${meta.title ?? id}\nTags: ${tags} | Keywords: ${keywords}\nIntent: ${meta.intent ?? "N/A"}${related}\n\n${content}`
+      return `## ${meta.title ?? id}\nTags: ${tags} | Keywords: ${keywords}\nIntent: ${meta.intent ?? "N/A"}${projPath}${related}\n\n${content}`
     }
     case "kb_list": {
       const tag = args.tag ? String(args.tag) : undefined
@@ -263,19 +266,30 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       const title = String(args.title ?? "")
       const content = String(args.content ?? "")
       if (!title || !content) return "title and content are required."
+      const missingFields: string[] = []
+      if (!Array.isArray(args.tags) || args.tags.length === 0) missingFields.push("tags")
+      if (!Array.isArray(args.keywords) || args.keywords.length === 0) missingFields.push("keywords")
+      if (!args.intent) missingFields.push("intent")
+      if (!args.project_description) missingFields.push("project_description")
+      if (!args.project_path) missingFields.push("project_path")
+      if (!Array.isArray(args.related_projects) || args.related_projects.length === 0) missingFields.push("related_projects")
+      if (!Array.isArray(args.related_files) || args.related_files.length === 0) missingFields.push("related_files")
+      if (missingFields.length > 0) return `Missing required fields: ${missingFields.join(", ")}`
       const meta = {
+        id: args.id ? String(args.id) : undefined,
         title,
-        tags: Array.isArray(args.tags) ? args.tags as string[] : [],
-        keywords: Array.isArray(args.keywords) ? args.keywords as string[] : [],
-        intent: String(args.intent ?? ""),
-        project_description: String(args.project_description ?? ""),
-        source_project: "",
+        tags: args.tags as string[],
+        keywords: args.keywords as string[],
+        intent: String(args.intent),
+        project_description: String(args.project_description),
+        project_path: String(args.project_path),
+        source_project: String(args.project_path),
         source_worktree: "",
-        related_projects: Array.isArray(args.related_projects) ? args.related_projects as string[] : undefined,
-        related_files: Array.isArray(args.related_files) ? args.related_files as string[] : undefined,
+        related_projects: args.related_projects as string[],
+        related_files: args.related_files as string[],
       }
       const doc = writeDoc(meta, content)
-      return `✅ Saved to knowledge base:\n  ID: ${doc.id}\n  Title: ${doc.title}\n  Tags: ${doc.tags.join(", ")}\n  Keywords: ${doc.keywords.join(", ")}\n  File: ${doc.file_path}`
+      return `✅ Saved to knowledge base:\n  ID: ${doc.id}\n  Title: ${doc.title}\n  Tags: ${doc.tags.join(", ")}\n  Keywords: ${doc.keywords.join(", ")}\n  Project: ${doc.project_path}\n  File: ${doc.file_path}`
     }
     case "kb_outline": {
       const project = String(args.project ?? "")
@@ -358,8 +372,11 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
           keywords: [projectName, "项目扫描", "project-scan"],
           intent: `项目 ${projectName} 的自动扫描报告`,
           project_description: projectName,
+          project_path: projectPath,
           source_project: projectPath,
           source_worktree: "",
+          related_projects: [],
+          related_files: [],
         }, scanContent)
         return `✅ 项目扫描完成并已存入知识库:\n  ID: ${doc.id}\n  Title: ${doc.title}\n\n${scanContent}`
       }

@@ -14,10 +14,11 @@ export interface DocMeta {
   keywords: string[]
   intent: string
   project_description: string
+  project_path: string
   source_project: string
   source_worktree: string
-  related_projects?: string[]
-  related_files?: string[]
+  related_projects: string[]
+  related_files: string[]
   created_at: number
   updated_at?: number
   file_path: string
@@ -83,7 +84,16 @@ export function writeDoc(
     }
   }
 
-  const doc: DocMeta = { ...meta, id, created_at, updated_at, file_path } as DocMeta
+  const doc: DocMeta = {
+    ...meta,
+    id,
+    created_at,
+    updated_at,
+    file_path,
+    project_path: meta.project_path || meta.source_project || "",
+    related_projects: meta.related_projects || [],
+    related_files: meta.related_files || [],
+  } as DocMeta
 
   const md = buildFrontmatter(doc) + "\n" + content
   writeFileSync(file_path, md)

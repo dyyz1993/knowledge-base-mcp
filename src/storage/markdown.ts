@@ -26,12 +26,14 @@ export function buildFrontmatter(doc: DocMeta): string {
     keywords: doc.keywords,
     intent: doc.intent,
     project_description: doc.project_description,
+    project_path: doc.project_path,
     source_project: doc.source_project,
     source_worktree: doc.source_worktree,
+    related_projects: doc.related_projects,
+    related_files: doc.related_files,
     created_at: doc.created_at,
     file_path: doc.file_path,
   }
-  if (doc.related_files && doc.related_files.length > 0) fields.related_files = doc.related_files
   if (doc.updated_at) fields.updated_at = doc.updated_at
   const lines = ["---"]
   for (const [k, v] of Object.entries(fields)) {
