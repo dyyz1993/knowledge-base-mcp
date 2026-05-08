@@ -70,6 +70,10 @@ function migrateFromJson(): void {
   }
 }
 
+export function initDb(): void {
+  getDb()
+}
+
 export function loadVectors(): Record<string, number[]> {
   const d = getDb()
   const rows = d.query("SELECT doc_id, embedding FROM embeddings").all() as any[]

@@ -17,6 +17,7 @@ export interface EmbeddingConfig {
 export interface SearchConfig {
   mode: "combined" | "tfidf" | "semantic"
   minScore: number
+  combinedMinScore: number
   weights: { token: number; tfidf: number; semantic: number }
 }
 
@@ -37,6 +38,7 @@ const DEFAULT_CONFIG: AppConfig = {
   search: {
     mode: "combined",
     minScore: 5.0,
+    combinedMinScore: 0.05,
     weights: { token: 0.2, tfidf: 0.3, semantic: 0.5 },
   },
 }
@@ -52,6 +54,7 @@ export function loadConfig(): AppConfig {
         search: {
           ...DEFAULT_CONFIG.search,
           ...raw.search,
+          combinedMinScore: raw.search?.combinedMinScore ?? DEFAULT_CONFIG.search.combinedMinScore,
           weights: { ...DEFAULT_CONFIG.search.weights, ...raw.search?.weights },
         },
       }

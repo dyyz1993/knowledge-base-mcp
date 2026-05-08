@@ -10,7 +10,7 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http"
 import { readFileSync, existsSync } from "node:fs"
 import { join, extname } from "node:path"
 import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines, rebuildAllVectors } from "./storage/index.js"
-import { getStorageStats } from "./search/vector-store.js"
+import { getStorageStats, initDb } from "./search/vector-store.js"
 import { handleChat } from "./chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "./chat/api-models.js"
 import { handleListSessions, handleCreateSession, handleDeleteSession, handleGetMessages, handleRenameSession } from "./chat/api-sessions.js"
@@ -582,6 +582,8 @@ function startHttp(port: number) {
 }
 
 async function main() {
+  initDb()
+
   const mode = process.argv.includes("--http") || process.argv.includes("--web") ? "http" : "stdio"
 
   if (mode === "stdio") {

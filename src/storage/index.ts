@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdir
 import { parseFrontmatter, buildFrontmatter } from "./markdown"
 import { tfidfSearch, buildIDF } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
-import { loadVectors, indexDoc, rebuildAllVectors } from "../search/vector-store"
+import { loadVectors, indexDoc, rebuildAllVectors, initDb } from "../search/vector-store"
 import { loadConfig } from "../config"
 
 const KNOWLEDGE_DIR = process.env.KB_DIR || `${process.env.HOME}/.knowledge`
@@ -102,6 +102,9 @@ export function writeDoc(
   idx.documents[id] = doc
   writeIndex(idx)
   updateOutline(doc.source_project, idx)
+
+  indexDoc(id, docToSearchableText(doc)).catch(() => {})
+
   return doc
 }
 
@@ -285,13 +288,20 @@ export async function searchDocsCombined(
     }
   }
 
-  const maxP0 = Math.max(...p0Results.map(r => r.score), 1)
-  addScores(p0Results.map(r => ({ ...r, score: r.score / maxP0 })), weights.token)
-  addScores(p1Results, weights.tfidf)
-  addScores(p2Results, weights.semantic)
+  const normalize = (results: (DocMeta & { score: number })[]): (DocMeta & { score: number })[] => {
+    if (results.length === 0) return results
+    const max = Math.max(...results.map(r => r.score))
+    if (max <= 0) return results
+    return results.map(r => ({ ...r, score: r.score / max }))
+  }
+
+  addScores(normalize(p0Results), weights.token)
+  addScores(normalize(p1Results), weights.tfidf)
+  addScores(normalize(p2Results), weights.semantic)
 
   return Array.from(combined.values())
     .sort((a, b) => b.score - a.score)
+    .filter(r => r.score >= config.search.combinedMinScore)
     .slice(0, limit)
 }
 
