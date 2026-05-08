@@ -193,35 +193,68 @@ export const useChatStore = create<ChatState>((set, get) => ({
       api.renameSession(targetSessionId, name).catch(() => {})
     }
 
+    let textBuffer = ""
+    let textRound = 0
+    let textFlushTimer: ReturnType<typeof setTimeout> | null = null
+    let thinkingBuffer = ""
+    let thinkingRound = 0
+    let thinkingFlushTimer: ReturnType<typeof setTimeout> | null = null
+
+    const flushTextBuffer = () => {
+      if (!textBuffer) return
+      const batch = textBuffer
+      const round = textRound
+      textBuffer = ""
+      textFlushTimer = null
+      set((s) => {
+        const states = new Map(s.streamStates)
+        const state = states.get(targetSessionId)
+        if (!state) return s
+        states.set(targetSessionId, {
+          ...state,
+          streamingContent: state.streamingContent + batch,
+          streamingTimeline: [...state.streamingTimeline, { type: "text", round, content: batch }],
+        })
+        return { streamStates: states }
+      })
+    }
+
+    const flushThinkingBuffer = () => {
+      if (!thinkingBuffer) return
+      const batch = thinkingBuffer
+      const round = thinkingRound
+      thinkingBuffer = ""
+      thinkingFlushTimer = null
+      set((s) => {
+        const states = new Map(s.streamStates)
+        const state = states.get(targetSessionId)
+        if (!state) return s
+        states.set(targetSessionId, {
+          ...state,
+          streamingThinking: state.streamingThinking + batch,
+          streamingTimeline: [...state.streamingTimeline, { type: "thinking", round, content: batch }],
+        })
+        return { streamStates: states }
+      })
+    }
+
     await api.streamChat({
       message: content,
       sessionId: targetSessionId,
       model: currentModel || undefined,
       onToken: (delta, round) => {
-        set((s) => {
-          const states = new Map(s.streamStates)
-          const state = states.get(targetSessionId)
-          if (!state) return s
-          states.set(targetSessionId, {
-            ...state,
-            streamingContent: state.streamingContent + delta,
-            streamingTimeline: [...state.streamingTimeline, { type: "text", round, content: delta }],
-          })
-          return { streamStates: states }
-        })
+        textBuffer += delta
+        textRound = round
+        if (!textFlushTimer) {
+          textFlushTimer = setTimeout(flushTextBuffer, 50)
+        }
       },
       onThinking: (delta, round) => {
-        set((s) => {
-          const states = new Map(s.streamStates)
-          const state = states.get(targetSessionId)
-          if (!state) return s
-          states.set(targetSessionId, {
-            ...state,
-            streamingThinking: state.streamingThinking + delta,
-            streamingTimeline: [...state.streamingTimeline, { type: "thinking", round, content: delta }],
-          })
-          return { streamStates: states }
-        })
+        thinkingBuffer += delta
+        thinkingRound = round
+        if (!thinkingFlushTimer) {
+          thinkingFlushTimer = setTimeout(flushThinkingBuffer, 50)
+        }
       },
       onToolCall: (id, name, args, round) => {
         set((s) => {
@@ -266,6 +299,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
         })
       },
       onDone: () => {
+        if (textFlushTimer) { clearTimeout(textFlushTimer); textFlushTimer = null }
+        if (textBuffer) {
+          const batch = textBuffer
+          const round = textRound
+          textBuffer = ""
+          set((s) => {
+            const states = new Map(s.streamStates)
+            const state = states.get(targetSessionId)
+            if (!state) return s
+            states.set(targetSessionId, {
+              ...state,
+              streamingContent: state.streamingContent + batch,
+              streamingTimeline: [...state.streamingTimeline, { type: "text", round, content: batch }],
+            })
+            return { streamStates: states }
+          })
+        }
+        if (thinkingFlushTimer) { clearTimeout(thinkingFlushTimer); thinkingFlushTimer = null }
+        if (thinkingBuffer) {
+          const batch = thinkingBuffer
+          const round = thinkingRound
+          thinkingBuffer = ""
+          set((s) => {
+            const states = new Map(s.streamStates)
+            const state = states.get(targetSessionId)
+            if (!state) return s
+            states.set(targetSessionId, {
+              ...state,
+              streamingThinking: state.streamingThinking + batch,
+              streamingTimeline: [...state.streamingTimeline, { type: "thinking", round, content: batch }],
+            })
+            return { streamStates: states }
+          })
+        }
         const finalState = get().streamStates.get(targetSessionId)
         const rawContent = finalState?.streamingContent || ""
         const toolCalls = finalState?.streamingToolCalls || []

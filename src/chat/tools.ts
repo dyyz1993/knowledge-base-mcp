@@ -613,6 +613,7 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       const results: string[] = []
       const queue: { url: string; depth: number }[] = [{ url, depth: 0 }]
 
+      let browserSession: Awaited<ReturnType<typeof launchBrowserForScrape>> | null = null
       try {
         while (queue.length > 0 && results.length < limit) {
           const item = queue.shift()!
@@ -624,8 +625,11 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
           let content: string
           let links: string[] = []
           try {
-            const { session } = await launchBrowserForScrape(item.url)
-            const page = session.page
+            if (!browserSession) {
+              browserSession = await launchBrowserForScrape(item.url)
+            }
+            const page = browserSession.session.page
+            await page.goto(item.url, { waitUntil: "domcontentloaded", timeout: 15000 })
 
             const html = await page.content()
             content = html
@@ -648,8 +652,6 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
             links = await page.evaluate(() =>
               Array.from(document.querySelectorAll("a[href]")).map(a => (a as HTMLAnchorElement).href)
             )
-
-            await cleanupBrowser()
           } catch (e: unknown) {
             content = `(抓取失败: ${e instanceof Error ? e.message : String(e)})`
           }
@@ -667,6 +669,8 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         }
       } catch (e: unknown) {
         results.push(`\n爬取中断: ${e instanceof Error ? e.message : String(e)}`)
+      } finally {
+        if (browserSession) await cleanupBrowser()
       }
 
       const combined = results.join("\n")

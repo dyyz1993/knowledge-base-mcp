@@ -34,19 +34,26 @@ function ensureDir(dir: string) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 }
 
+let cachedIndex: IndexFile | null = null
+
 function readIndex(): IndexFile {
+  if (cachedIndex) return cachedIndex
   ensureDir(KNOWLEDGE_DIR)
   try {
     const raw = readFileSync(INDEX_PATH, "utf-8")
-    return JSON.parse(raw) as IndexFile
+    const idx = JSON.parse(raw) as IndexFile
+    cachedIndex = idx
+    return idx
   } catch {
     const idx: IndexFile = { version: 1, documents: {} }
+    cachedIndex = idx
     writeFileSync(INDEX_PATH, JSON.stringify(idx, null, 2))
     return idx
   }
 }
 
 function writeIndex(idx: IndexFile) {
+  cachedIndex = idx
   writeFileSync(INDEX_PATH, JSON.stringify(idx, null, 2))
 }
 

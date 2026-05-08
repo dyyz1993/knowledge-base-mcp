@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs"
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 const BASE_DIR = `${process.env.HOME}/.kb-chat`
@@ -120,13 +120,18 @@ export function listSessions(): (ChatSession & { messageCount: number })[] {
   return readdirSync(SESSIONS_DIR)
     .filter(f => f.endsWith(".jsonl"))
     .map(f => {
-      const content = readFileSync(join(SESSIONS_DIR, f), "utf-8")
-      const lines = content.trim().split("\n").filter(Boolean)
-      if (lines.length === 0) return null
+      const filePath = join(SESSIONS_DIR, f)
       try {
-        const header = JSON.parse(lines[0])
+        const fd = openSync(filePath, "r")
+        const buffer = Buffer.alloc(4096)
+        const bytesRead = readSync(fd, buffer, 0, 4096, 0)
+        closeSync(fd)
+        const firstLine = buffer.toString("utf-8", 0, bytesRead).split("\n")[0]
+        const header = JSON.parse(firstLine)
         if (header.type !== "session") return null
-        return { id: header.id, name: header.name, createdAt: header.createdAt, model: header.model, sharedUrl: header.sharedUrl, messageCount: lines.length - 1 }
+        const fileSize = statSync(filePath).size
+        const estimatedLines = Math.max(1, Math.round(fileSize / 256))
+        return { id: header.id, name: header.name, createdAt: header.createdAt, model: header.model, sharedUrl: header.sharedUrl, messageCount: estimatedLines - 1 }
       } catch { return null }
     })
     .filter((s): s is ChatSession & { messageCount: number } => s !== null)

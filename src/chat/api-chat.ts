@@ -548,7 +548,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
       }
       chatMessages.push(assistantMsg)
 
-      for (const tc of currentToolCalls) {
+      const toolPromises = currentToolCalls.map(async (tc) => {
         const args = parseToolCallArgs(tc.args)
         send("tool_call", { id: tc.id, name: tc.name, args: JSON.stringify(args), round })
 
@@ -578,12 +578,12 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
           round,
         })
 
-        chatMessages.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          name: tc.name,
-          content: result,
-        })
+        return { tool_call_id: tc.id, name: tc.name, content: result }
+      })
+
+      const toolResults = await Promise.all(toolPromises)
+      for (const tr of toolResults) {
+        chatMessages.push(tr)
       }
 
       assistantContent = ""
