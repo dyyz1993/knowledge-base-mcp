@@ -118,7 +118,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
   switchSession: async (id) => {
     set({ currentSessionId: id, messages: [] })
     const msgs = await api.getSessionMessages(id)
-    set({ messages: msgs })
+    const suggestionsMsg = msgs.filter((m) => m.role === "suggestions").slice(-1)[0]
+    let restoredSuggestions: string[] = []
+    if (suggestionsMsg) {
+      try { restoredSuggestions = JSON.parse(suggestionsMsg.content) } catch { /* ignore */ }
+    }
+    set((s) => {
+      const states = new Map(s.streamStates)
+      const prev = states.get(id)
+      states.set(id, { ...(prev || emptyStreamState()), suggestions: restoredSuggestions })
+      return { messages: msgs, streamStates: states }
+    })
   },
 
   loadModels: async () => {
@@ -235,28 +245,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       onDone: () => {
         const finalState = get().streamStates.get(targetSessionId)
         const rawContent = finalState?.streamingContent || ""
-        const thinking = finalState?.streamingThinking || ""
         const toolCalls = finalState?.streamingToolCalls || []
 
-        const closedMatch = rawContent.match(/\[SUGGESTIONS\]\r?\n([\s\S]*?)\[\/SUGGESTIONS\]/)
-        const openMatch = !closedMatch ? rawContent.match(/\[SUGGESTIONS\]\r?\n([\s\S]+)$/) : null
-        const suggestionMatch = closedMatch || openMatch
-        let cleanContent = rawContent
-        let suggestions: string[] = []
-        if (suggestionMatch) {
-          cleanContent = rawContent.replace(suggestionMatch[0], "").trim()
-          suggestions = suggestionMatch[1]
-            .split(/\r?\n/)
-            .map((l) => l.trim())
-            .filter((l) => /^\d+\.\s/.test(l))
-            .map((l) => l.replace(/^\d+\.\s*/, ""))
-            .filter(Boolean)
-        }
+        const cleanContent = rawContent.replace(/\[SUGGESTIONS\][\s\S]*?(?:\[\/SUGGESTIONS\]|$)/, "").trim()
 
         let finalContent = cleanContent
-        if (thinking) {
-          finalContent = `[思考: ${thinking}]\n\n${finalContent}`
-        }
         if (toolCalls.length > 0) {
           const toolSummary = toolCalls.map((tc) => `[工具: ${tc.name} → ${tc.result || "executing..."}]`).join("\n")
           finalContent = `${toolSummary}\n\n${finalContent}`
@@ -269,7 +262,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         set((s) => {
           const states = new Map(s.streamStates)
-          states.set(targetSessionId, { ...emptyStreamState(), suggestions })
+          const prev = states.get(targetSessionId)
+          states.set(targetSessionId, { ...emptyStreamState(), suggestions: prev?.suggestions ?? [] })
+          return { streamStates: states }
+        })
+      },
+      onSuggestions: (suggestions) => {
+        set((s) => {
+          const states = new Map(s.streamStates)
+          const ss = states.get(targetSessionId)
+          if (ss) {
+            states.set(targetSessionId, { ...ss, suggestions })
+          }
           return { streamStates: states }
         })
       },

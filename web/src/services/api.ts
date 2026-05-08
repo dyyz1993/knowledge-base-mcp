@@ -27,12 +27,13 @@ export interface SessionInfo {
 }
 
 export interface Message {
-  role: "user" | "assistant" | "tool_call" | "tool_result"
+  role: "user" | "assistant" | "thinking" | "tool_call" | "tool_result" | "suggestions"
   content: string
   timestamp: number
   model?: string
   name?: string
   args?: string
+  round?: number
 }
 
 export interface Favorite {
@@ -81,6 +82,7 @@ export interface StreamCallbacks {
   onToolResult: (name: string, result: string, round: number) => void
   onDone: (messageId: string, round: number) => void
   onError: (error: string) => void
+  onSuggestions?: (suggestions: string[]) => void
 }
 
 export async function fetchDocs(): Promise<DocMeta[]> {
@@ -155,6 +157,11 @@ export async function streamChat(params: {
           case "tool_call_delta": break
           case "tool_result": params.onToolResult(String(data.name || ""), String(data.content || data.result || ""), round); break
           case "done": params.onDone(String(data.messageId || ""), round); break
+          case "suggestions":
+            if (params.onSuggestions) {
+              try { params.onSuggestions(JSON.parse(String(data.suggestions || data.data || "[]"))) } catch { /* ignore */ }
+            }
+            break
           case "error": params.onError(String(data.error || "Unknown error")); break
         }
         currentEvent = ""

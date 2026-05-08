@@ -1,9 +1,16 @@
 {
   "ui-tester-suggestions": {
-    "id": "ses_2015908d2ffelLFQuVG4VdVuIV",
+    "id": "ses_1fb0a7f0bffeP6LV2zVQFxBTj3",
     "name": "ui-tester-suggestions",
-    "parentID": "ses_2015f1fb5ffePNkPLJVqOKbt2O",
+    "parentID": "ses_1fb0c874fffewtA3lgn4efhedy",
     "status": "running",
-    "createdAt": 1778093848368
+    "createdAt": 1778199658742
+  },
+  "suggestions-ui-test": {
+    "id": "ses_1fb08d4d1ffeHMgW7jQ8MypFNn",
+    "name": "suggestions-ui-test",
+    "parentID": "ses_1fb0c874fffewtA3lgn4efhedy",
+    "status": "running",
+    "createdAt": 1778199767856
   }
 }

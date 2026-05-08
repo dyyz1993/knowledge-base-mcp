@@ -36,12 +36,16 @@ switch_session_flow:
   notes: "Need to determine session index first"
 
 tips:
-  - "fill command on textarea may not trigger React onChange; use type + Enter key dispatch instead"
+  - "fill command on textarea may not trigger React onChange; use type + Enter key dispatch"
   - "AI responses are fast (2-5s), hard to capture loading states"
   - "Sidebar shows session IDs (e.g. Chat 618ea29f), not message content names"
-  - "Model selector is in the header bar (top of chat area), not near input"
+  - "Model selector is [role='combobox'] at left side of input box (rect.x:264 vs input rect.x:461)"
   - "Chat area is the 2nd .flex-1.overflow-y-auto element (index [1])"
   - "Mobile responsive not working - sidebar uses fixed widths (w-56, w-64) with no breakpoint hiding"
   - "Copy buttons on assistant messages use opacity-0 + hover:opacity-100 pattern"
   - "Code blocks have separate copy buttons in the header bar of each code block"
   - "Knowledge base search works - AI calls kb_outline, kb_search, kb_read tools"
+  - "API 429 rate limit may occur: {\"code\":\"1302\",\"message\":\"您的账户已达到速率限制\"}"
+  - "Outline tab (大纲) displays knowledge base documents list with document IDs"
+  - "Session items are div elements (not buttons) with class: 'group flex items-center gap-2 rounded-lg px-2.5 py-2 cursor-pointer'"
+  - "Active session has bg-zinc-800 class; inactive has text-zinc-400 hover classes"

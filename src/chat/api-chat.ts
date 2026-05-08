@@ -66,14 +66,25 @@ const SYSTEM_PROMPT = `你是知识库助手。知识库位于 ~/.knowledge/，�
 - scan_project: 扫描项目目录，提取技术栈、结构、依赖、README 等信息（可自动存入知识库）
 
 ## 回答完成后
-如果用户可能想继续追问，在回答的最后附上推荐话题（最多3个），格式如下：
+根据对话上下文，在回答末尾附上推荐话题（最多3个），格式：
 [SUGGESTIONS]
-1. 第一个推荐问题
-2. 第二个推荐问题
-3. 第三个推荐问题
+1. 推荐问题
+2. 推荐问题
+3. 推荐问题
 [/SUGGESTIONS]
 
-只在与用户问题高度相关的场景下才推荐，不要每次都推荐。`
+建议策略（选择最相关的类型）：
+- 深入型：对当前回答中的某个要点进一步追问（如"详细解释XXX的原理"）
+- 关联型：查看知识库中的相关文档或项目（如"查看XXX相关的沉淀文档"）
+- 行动型：建议执行某个操作（如"把这些发现沉淀到知识库"）
+- 对比型：与其他方案/技术做对比分析
+- 拓展型：探索当前主题的延伸方向
+
+规则：
+- 只在与用户问题高度相关时才推荐，不要每次都推荐
+- 建议必须具体、可操作，不要泛泛而谈
+- 每条建议不超过30个字
+- 如果当前对话已经足够完整，不需要推荐`
 
 function resolveConfiguredModel(provider?: string, modelId?: string): ConfiguredModel | null {
   const configured = getConfiguredModels()
@@ -99,6 +110,7 @@ function parseModelRef(model: unknown): { provider: string; id: string } | null 
 interface ChatMessage {
   role: string
   content: string | null
+  reasoning_content?: string
   tool_calls?: Array<{
     id: string
     type: "function"
@@ -228,7 +240,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
 
     const chatMessages: ChatMessage[] = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...messages.map(m => ({ role: m.role, content: m.content })),
+      ...restoreChatContext(messages),
     ]
 
     let assistantContent = ""
@@ -279,7 +291,42 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
         }
       }
 
+      if (thinkingContent) {
+        session.pushMessage(sess.id, {
+          role: "thinking",
+          content: thinkingContent,
+          timestamp: Date.now(),
+          round,
+        })
+      }
+
       if (finishReason !== "tool_calls" || currentToolCalls.length === 0) {
+        const suggestionsMatch = assistantContent.match(/\[SUGGESTIONS\]\r?\n([\s\S]*?)\[\/SUGGESTIONS\]/)
+          || assistantContent.match(/\[SUGGESTIONS\]\r?\n([\s\S]+)$/)
+
+        if (suggestionsMatch) {
+          const suggestionsText = suggestionsMatch[1]
+          const suggestions = suggestionsText
+            .split(/\r?\n/)
+            .map(l => l.trim())
+            .filter(l => /^\d+\.\s/.test(l) || /^[-•]\s/.test(l))
+            .map(l => l.replace(/^(\d+\.|[-•])\s*/, ""))
+            .filter(s => s.length > 0 && s.length <= 60)
+            .slice(0, 3)
+
+          assistantContent = assistantContent.replace(suggestionsMatch[0], "").trim()
+
+          send("suggestions", suggestions)
+
+          if (suggestions.length > 0) {
+            session.pushMessage(sess.id, {
+              role: "suggestions",
+              content: JSON.stringify(suggestions),
+              timestamp: Date.now(),
+            })
+          }
+        }
+
         send("done", { messageId: generateId(), round })
         break
       }
@@ -287,6 +334,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
       const assistantMsg: ChatMessage = {
         role: "assistant",
         content: assistantContent || null,
+        reasoning_content: thinkingContent || undefined,
         tool_calls: currentToolCalls.map(tc => ({
           id: tc.id,
           type: "function" as const,
@@ -299,6 +347,15 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
         const args = parseToolCallArgs(tc.args)
         send("tool_call", { name: tc.name, args: JSON.stringify(args), round })
 
+        session.pushMessage(sess.id, {
+          role: "tool_call",
+          content: `${tc.name}(${JSON.stringify(args)})`,
+          name: tc.name,
+          args: JSON.stringify(args),
+          timestamp: Date.now(),
+          round,
+        })
+
         let result: string
         try {
           result = await executeTool(tc.name, args)
@@ -307,6 +364,14 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
         }
 
         send("tool_result", { name: tc.name, result, round })
+
+        session.pushMessage(sess.id, {
+          role: "tool_result",
+          content: result,
+          name: tc.name,
+          timestamp: Date.now(),
+          round,
+        })
 
         chatMessages.push({
           role: "tool",
@@ -332,6 +397,70 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
     send("error", { error: msg })
   }
   res.end()
+}
+
+function restoreChatContext(messages: { role: string; content: string; name?: string; args?: string; round?: number; timestamp: number; model?: string }[]): ChatMessage[] {
+  const result: ChatMessage[] = []
+  let pendingToolCalls: Array<{ id: string; name: string; args: string }> = []
+  let pendingAssistantContent = ""
+
+  for (const m of messages) {
+    switch (m.role) {
+      case "user":
+        flushPendingAssistant(result, pendingToolCalls, pendingAssistantContent)
+        pendingToolCalls = []
+        pendingAssistantContent = ""
+        result.push({ role: "user", content: m.content })
+        break
+
+      case "assistant":
+        flushPendingAssistant(result, pendingToolCalls, pendingAssistantContent)
+        pendingToolCalls = []
+        pendingAssistantContent = m.content || ""
+        break
+
+      case "thinking":
+        break
+
+      case "tool_call": {
+        const args = m.args || "{}"
+        const fakeId = m.name ? `tc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : ""
+        pendingToolCalls.push({ id: fakeId, name: m.name || "", args })
+        break
+      }
+
+      case "tool_result": {
+        if (pendingToolCalls.length === 0) break
+        const tc = pendingToolCalls.shift()!
+        result.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          name: tc.name,
+          content: m.content,
+        })
+        break
+      }
+    }
+  }
+  flushPendingAssistant(result, pendingToolCalls, pendingAssistantContent)
+  return result
+}
+
+function flushPendingAssistant(
+  result: ChatMessage[],
+  toolCalls: Array<{ id: string; name: string; args: string }>,
+  content: string,
+) {
+  if (toolCalls.length === 0 && !content) return
+  const msg: ChatMessage = { role: "assistant", content: content || null }
+  if (toolCalls.length > 0) {
+    msg.tool_calls = toolCalls.map(tc => ({
+      id: tc.id,
+      type: "function" as const,
+      function: { name: tc.name, arguments: tc.args },
+    }))
+  }
+  result.push(msg)
 }
 
 async function readBodyJson(req: IncomingMessage): Promise<unknown> {

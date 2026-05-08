@@ -123,15 +123,15 @@ function MarkdownContent({ content }: { content: string }) {
   )
 }
 
-function SuggestionButtons({ suggestions, onSend }: { suggestions: string[]; onSend: (q: string) => void }) {
+function SuggestionButtons({ suggestions, onFill }: { suggestions: string[]; onFill: (text: string) => void }) {
   if (suggestions.length === 0) return null
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {suggestions.map((s, i) => (
         <button
           key={i}
-          onClick={() => onSend(s)}
-          className="px-3 py-1.5 text-xs rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
+          onClick={() => onFill(s)}
+          className="px-3 py-1.5 text-xs rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-pointer"
         >
           {s}
         </button>
@@ -176,6 +176,7 @@ export default function ChatPanel() {
   const [input, setInput] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const isAtBottomRef = useRef(true)
 
   const handleScroll = useCallback(() => {
@@ -205,6 +206,11 @@ export default function ChatPanel() {
     }
   }, [handleSend])
 
+  const handleSuggestionFill = useCallback((text: string) => {
+    setInput(text)
+    inputRef.current?.focus()
+  }, [])
+
   const merged = mergeTimelineEvents(streamingTimeline)
 
   return (
@@ -216,32 +222,66 @@ export default function ChatPanel() {
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div
-              className={`max-w-[85%] md:max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                msg.role === "user"
-                  ? "bg-blue-600 text-white"
-                  : "bg-zinc-800 text-zinc-200"
-              }`}
-            >
-              {msg.role === "assistant" ? (
-                <div className="group relative markdown-body">
-                  <MarkdownContent content={msg.content} />
-                  <div className="mt-1.5 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ marginTop: "4px" }}>
-                    <CopyButton text={msg.content} className="-mb-1" />
-                    <StarButton messageId={String(i)} content={msg.content} />
+        {(() => {
+          const rendered: ReactNode[] = []
+          for (let i = 0; i < messages.length; i++) {
+            const msg = messages[i]
+            if (msg.role === "thinking") {
+              rendered.push(
+                <div key={i} className="mx-auto max-w-[80%] md:max-w-[80%] rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 italic">
+                  <span className="font-medium text-zinc-400">Thinking</span>
+                  <p className="mt-1 whitespace-pre-wrap">{msg.content}</p>
+                </div>
+              )
+            } else if (msg.role === "tool_call") {
+              const nextMsg = messages[i + 1]
+              const result = nextMsg?.role === "tool_result" ? nextMsg.content : ""
+              rendered.push(
+                <ToolCallBlock
+                  key={i}
+                  name={msg.name || ""}
+                  args={msg.args || ""}
+                  result={result}
+                />
+              )
+            } else if (msg.role === "tool_result") {
+              continue
+            } else if (msg.role === "assistant") {
+              rendered.push(
+                <div key={i} className="flex justify-start">
+                  <div className="max-w-[85%] md:max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
+                    <div className="group relative markdown-body">
+                      <MarkdownContent content={msg.content} />
+                      <div className="mt-1.5 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ marginTop: "4px" }}>
+                        <CopyButton text={msg.content} className="-mb-1" />
+                        <StarButton messageId={String(i)} content={msg.content} />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              )}
-            </div>
+              )
+            } else {
+              rendered.push(
+                <div key={i} className="flex justify-end">
+                  <div className="max-w-[85%] md:max-w-[80%] rounded-2xl bg-blue-600 text-white px-4 py-2.5 text-sm leading-relaxed">
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                </div>
+              )
+            }
+          }
+          return rendered
+        })()}
+
+        {isStreaming && streamingContent?.includes("[SUGGESTIONS]") && (
+          <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            正在生成推荐话题...
           </div>
-        ))}
+        )}
 
         {!isStreaming && suggestions.length > 0 && (
-          <SuggestionButtons suggestions={suggestions} onSend={(q) => sendMessage(q)} />
+          <SuggestionButtons suggestions={suggestions} onFill={handleSuggestionFill} />
         )}
 
         {isStreaming && merged.length === 0 && (
@@ -263,20 +303,25 @@ export default function ChatPanel() {
                   <p className="mt-1 whitespace-pre-wrap">{event.content}</p>
                 </div>
               )
-            case "text":
+            case "text": {
+              const displayContent = event.content
+                .replace(/\[SUGGESTIONS\][\s\S]*?(?:\[\/SUGGESTIONS\]|$)/, "")
+                .trim()
+              if (!displayContent) return null
               return (
                 <div key={`tl-${i}`} className="flex justify-start">
                   <div className="max-w-[85%] md:max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
                     <div className="group relative markdown-body">
-                      <MarkdownContent content={event.content} />
+                      <MarkdownContent content={displayContent} />
                       <StreamingIndicator />
                       <div className="mt-1 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                        <CopyButton text={event.content} className="-mr-1 -mb-0.5" />
+                        <CopyButton text={displayContent} className="-mr-1 -mb-0.5" />
                       </div>
                     </div>
                   </div>
                 </div>
               )
+            }
             case "tool_call":
               return (
                 <ToolCallBlock
@@ -299,6 +344,7 @@ export default function ChatPanel() {
           <ModelSelector className="w-full md:w-auto md:min-w-[180px]" />
           <div className="flex-1 flex items-end gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 focus-within:border-zinc-500 transition-colors">
             <textarea
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKey}

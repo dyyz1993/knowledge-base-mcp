@@ -1,0 +1,13 @@
+$ bun run src/index.ts --http --port 19877
+46 |     }
+47 |   }
+48 |   let er;
+49 |   if (args.length > 0)
+50 |     er = args[0];
+51 |     throw er;
+                 ^
+error: Failed to start server. Is port 19877 in use?
+      at emitError (node:events:51:13)
+
+Bun v1.3.11 (macOS arm64)
+error: script "dev" exited with code 1
