@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite"
 import { join } from "node:path"
 import { existsSync, readFileSync, mkdirSync, statSync } from "node:fs"
-import { embed, docToSearchableText } from "./embedding"
+import { embed, embedBatch, docToSearchableText } from "./embedding"
 import type { DocMeta } from "../storage/index"
 
 function getDir() {
@@ -109,21 +109,36 @@ export async function indexDoc(id: string, text: string): Promise<number[]> {
 
 export async function indexAllDocs(docs: DocMeta[]): Promise<number> {
   const d = getDb()
-  let indexed = 0
   const { loadConfig } = await import("../config")
   const config = loadConfig()
 
-  const stmt = d.prepare(
-    "INSERT OR REPLACE INTO embeddings (doc_id, embedding, model, dimensions, updated_at) VALUES (?, ?, ?, ?, ?)",
-  )
-
-  for (const doc of docs) {
+  const newDocs = docs.filter(doc => {
     const existing = d.query("SELECT doc_id FROM embeddings WHERE doc_id = ?").get(doc.id)
-    if (existing) continue
-    const vec = await embed(docToSearchableText(doc))
-    stmt.run(doc.id, encodeVector(vec), config.embedding.model, vec.length, Date.now())
-    indexed++
+    return !existing
+  })
+
+  if (newDocs.length === 0) return 0
+
+  const BATCH_SIZE = 32
+  let indexed = 0
+
+  for (let i = 0; i < newDocs.length; i += BATCH_SIZE) {
+    const batch = newDocs.slice(i, i + BATCH_SIZE)
+    const texts = batch.map(doc => docToSearchableText(doc))
+    const vectors = await embedBatch(texts)
+
+    const stmt = d.prepare(
+      "INSERT OR REPLACE INTO embeddings (doc_id, embedding, model, dimensions, updated_at) VALUES (?, ?, ?, ?, ?)",
+    )
+    const insertMany = d.transaction(() => {
+      for (let j = 0; j < batch.length; j++) {
+        stmt.run(batch[j].id, encodeVector(vectors[j]), config.embedding.model, vectors[j].length, Date.now())
+      }
+    })
+    insertMany()
+    indexed += batch.length
   }
+
   return indexed
 }
 
@@ -141,15 +156,27 @@ export async function rebuildAllVectors(docs: DocMeta[]): Promise<number> {
 
   d.exec("DELETE FROM embeddings")
 
-  const stmt = d.prepare(
-    "INSERT OR REPLACE INTO embeddings (doc_id, embedding, model, dimensions, updated_at) VALUES (?, ?, ?, ?, ?)",
-  )
+  const BATCH_SIZE = 32
+  let count = 0
 
-  for (const doc of docs) {
-    const vec = await embed(docToSearchableText(doc))
-    stmt.run(doc.id, encodeVector(vec), config.embedding.model, vec.length, Date.now())
+  for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+    const batch = docs.slice(i, i + BATCH_SIZE)
+    const texts = batch.map(doc => docToSearchableText(doc))
+    const vectors = await embedBatch(texts)
+
+    const stmt = d.prepare(
+      "INSERT OR REPLACE INTO embeddings (doc_id, embedding, model, dimensions, updated_at) VALUES (?, ?, ?, ?, ?)",
+    )
+    const insertMany = d.transaction(() => {
+      for (let j = 0; j < batch.length; j++) {
+        stmt.run(batch[j].id, encodeVector(vectors[j]), config.embedding.model, vectors[j].length, Date.now())
+        count++
+      }
+    })
+    insertMany()
   }
-  return docs.length
+
+  return count
 }
 
 export function getVectorCount(): number {

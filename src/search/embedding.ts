@@ -80,6 +80,79 @@ export async function embed(text: string): Promise<number[]> {
   return embedLocal(text)
 }
 
+async function embedBatchExternal(texts: string[]): Promise<number[][]> {
+  const config = loadConfig()
+  const url = `${config.embedding.baseUrl}/embeddings`
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${config.embedding.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.embedding.model,
+      input: texts,
+    }),
+  })
+
+  if (!resp.ok) {
+    const err = await resp.text()
+    throw new Error(`Embedding API error: ${resp.status} ${err}`)
+  }
+
+  const data = await resp.json()
+  return data.data
+    .sort((a: any, b: any) => a.index - b.index)
+    .map((d: any) => d.embedding)
+}
+
+async function embedBatchLocal(texts: string[]): Promise<number[][]> {
+  if (!transformersAvailable) {
+    throw new Error("Semantic search unavailable: @huggingface/transformers not installed")
+  }
+
+  const pipe = await loadTransformers()
+  if (!pipe) throw new Error("Semantic search unavailable: @huggingface/transformers not installed")
+
+  if (!embedder) {
+    embedder = await pipe("feature-extraction", "Xenova/paraphrase-multilingual-MiniLM-L12-v2", {
+      dtype: "fp32",
+      local_files_only: true,
+    })
+  }
+
+  const BATCH_SIZE = 32
+  const results: number[][] = []
+
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const batch = texts.slice(i, i + BATCH_SIZE)
+    const outputs = await embedder(batch, { pooling: "mean", normalize: true })
+    for (let j = 0; j < batch.length; j++) {
+      const row = outputs[j as any]
+      results.push(Array.from(row.data) as number[])
+    }
+  }
+
+  return results
+}
+
+export async function embedBatch(texts: string[]): Promise<number[][]> {
+  if (texts.length === 0) return []
+
+  const config = loadConfig()
+
+  if (config.embedding.enabled && config.embedding.apiKey) {
+    try {
+      return await embedBatchExternal(texts)
+    } catch (e) {
+      console.error("External batch embedding failed, falling back to local:", e)
+    }
+  }
+
+  return embedBatchLocal(texts)
+}
+
 export function cosineSimilarityVec(a: number[], b: number[]): number {
   let dot = 0, normA = 0, normB = 0
   for (let i = 0; i < a.length; i++) {
