@@ -12,7 +12,7 @@ export interface ChatSession {
 }
 
 export interface ChatMessage {
-  role: "user" | "assistant" | "thinking" | "tool_call" | "tool_result" | "suggestions"
+  role: "user" | "assistant" | "thinking" | "tool_call" | "tool_result" | "suggestions" | "usage"
   content: string
   timestamp: number
   model?: string
@@ -50,7 +50,7 @@ export function readMessages(id: string): ChatMessage[] {
   const lines = readFileSync(path, "utf-8").trim().split("\n").filter(Boolean)
   return lines.slice(1).map(line => {
     try { return JSON.parse(line) as ChatMessage } catch { return null }
-  }).filter((m): m is ChatMessage => m !== null && m.role && m.content !== undefined && ["user", "assistant", "thinking", "tool_call", "tool_result", "suggestions"].includes(m.role))
+  }).filter((m): m is ChatMessage => m !== null && m.role && m.content !== undefined && ["user", "assistant", "thinking", "tool_call", "tool_result", "suggestions", "usage"].includes(m.role))
 }
 
 export function readSession(id: string): ChatSession | null {

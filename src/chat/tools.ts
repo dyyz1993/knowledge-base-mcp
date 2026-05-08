@@ -1,6 +1,8 @@
 import { searchDocs, readDoc, listDocs, writeDoc, getOutline } from "../storage/index.js"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs"
 import { join } from "node:path"
+import { tmpdir } from "node:os"
+import { execSync } from "node:child_process"
 import { expandQuery } from "./query-expander.js"
 
 export interface OpenAITool {
@@ -132,11 +134,13 @@ export const toolDefinitions: OpenAITool[] = [
     type: "function",
     function: {
       name: "read_file",
-      description: "Read a file from the local filesystem. Use to inspect code, config files, or any text file.",
+      description: "读取指定路径的文件内容。支持 offset 和 limit 参数控制读取范围。",
       parameters: {
         type: "object",
         properties: {
-          path: { type: "string", description: "Absolute file path to read" },
+          path: { type: "string", description: "文件绝对路径" },
+          offset: { type: "number", description: "起始行号（从0开始，可选）" },
+          limit: { type: "number", description: "最大读取行数（默认100，可选）" },
         },
         required: ["path"],
       },
@@ -146,15 +150,38 @@ export const toolDefinitions: OpenAITool[] = [
     type: "function",
     function: {
       name: "grep_search",
-      description: "Search file contents using regex pattern matching (like grep). Use to find specific code patterns, function definitions, or text within files.",
+      description: "在指定目录中搜索匹配正则表达式的文件内容。",
       parameters: {
         type: "object",
         properties: {
-          pattern: { type: "string", description: "Regex pattern to search for" },
-          path: { type: "string", description: "Directory path to search in (default: current directory)" },
-          glob: { type: "string", description: "File glob pattern to filter (e.g. '*.ts', '*.json')" },
+          pattern: { type: "string", description: "正则表达式模式" },
+          path: { type: "string", description: "搜索目录路径" },
+          include: { type: "string", description: "文件名过滤模式（如 *.ts），可选" },
+          max_results: { type: "number", description: "最大结果数（默认20）" },
         },
-        required: ["pattern"],
+        required: ["pattern", "path"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "run_script",
+      description: "执行 Python 或 Bun 脚本（只读操作，如数据分析、文件处理、格式转换）。脚本在沙盒中执行，有 30 秒超时限制。",
+      parameters: {
+        type: "object",
+        properties: {
+          language: {
+            type: "string",
+            enum: ["python", "bun"],
+            description: "脚本语言：python 或 bun",
+          },
+          code: {
+            type: "string",
+            description: "要执行的脚本代码",
+          },
+        },
+        required: ["language", "code"],
       },
     },
   },
@@ -342,12 +369,18 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
     case "read_file": {
       const p = String(args.path ?? "")
       if (!p) return "File path is required."
+      if (p.includes("..")) return "安全限制：路径不允许包含 .."
       if (!existsSync(p)) return `File not found: ${p}`
+      const offset = Number(args.offset) || 0
+      const limit = Number(args.limit) || 100
       try {
-        const content = await Bun.file(p).text()
+        const content = readFileSync(p, "utf-8")
         const lines = content.split("\n")
-        if (lines.length > 200) return lines.slice(0, 200).join("\n") + "\n...(truncated)"
-        return content
+        const sliced = lines.slice(offset, offset + limit)
+        const header = offset > 0
+          ? `(第 ${offset + 1}-${Math.min(offset + limit, lines.length)} 行，共 ${lines.length} 行)\n\n`
+          : `(共 ${lines.length} 行，显示前 ${sliced.length} 行)\n\n`
+        return header + sliced.map((l, i) => `${offset + i + 1}: ${l}`).join("\n")
       } catch (e) {
         return `Error reading file: ${e instanceof Error ? e.message : String(e)}`
       }
@@ -355,20 +388,53 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
     case "grep_search": {
       const pattern = String(args.pattern ?? "")
       if (!pattern) return "Search pattern is required."
-      const dir = args.path ? String(args.path) : "."
-      const glob = args.glob ? String(args.glob) : ""
+      const dir = String(args.path ?? ".")
+      if (dir.includes("..")) return "安全限制：路径不允许包含 .."
+      const include = args.include ? String(args.include) : "*"
+      const maxResults = Number(args.max_results) || 20
       try {
-        const args2 = ["-rn", "--include=*", pattern, dir]
-        if (glob) {
-          args2.splice(2, 1, `--include=${glob}`)
+        const cmd = `grep -rn --include='${include}' -E "${pattern.replace(/"/g, '\\"')}" "${dir}" 2>/dev/null | head -${maxResults}`
+        const result = execSync(cmd, { encoding: "utf-8", timeout: 10000, maxBuffer: 512 * 1024 })
+        if (!result.trim()) return `No matches found for pattern "${pattern}" in ${dir}`
+        return result.trim()
+      } catch (e: unknown) {
+        const err = e as { status?: number; message?: string }
+        if (err.status === 1) return `No matches found for pattern "${pattern}" in ${dir}`
+        return `搜索失败: ${err.message || String(e)}`
+      }
+    }
+    case "run_script": {
+      const language = String((args as { language: string; code: string }).language ?? "")
+      const code = String((args as { language: string; code: string }).code ?? "")
+      if (!language || !code) return "language and code are required."
+
+      const forbidden = /writeFile|writeSync|mkdir|rmdir|unlink|rename|chmod|fork|exec\s*\(|spawn|child_process/
+      if (forbidden.test(code)) return "安全限制：脚本不允许执行写操作或子进程操作"
+
+      try {
+        if (language === "python") {
+          const tmpFile = join(tmpdir(), `kb-script-${Date.now()}.py`)
+          writeFileSync(tmpFile, code, "utf-8")
+          try {
+            const result = execSync(`timeout 30 python3 "${tmpFile}" 2>&1`, { encoding: "utf-8", timeout: 35000, maxBuffer: 1024 * 1024 })
+            return result.slice(0, 5000) || "(脚本执行成功，无输出)"
+          } finally {
+            unlinkSync(tmpFile)
+          }
+        } else {
+          const tmpFile = join(tmpdir(), `kb-script-${Date.now()}.ts`)
+          writeFileSync(tmpFile, code, "utf-8")
+          try {
+            const result = execSync(`timeout 30 bun run "${tmpFile}" 2>&1`, { encoding: "utf-8", timeout: 35000, maxBuffer: 1024 * 1024 })
+            return result.slice(0, 5000) || "(脚本执行成功，无输出)"
+          } finally {
+            unlinkSync(tmpFile)
+          }
         }
-        const proc = Bun.$`grep ${args2}`
-        const out = await proc.text()
-        if (!out.trim()) return `No matches found for pattern "${pattern}" in ${dir}`
-        const lines = out.split("\n")
-        return lines.slice(0, 50).join("\n") + (lines.length > 50 ? "\n...(truncated)" : "")
-      } catch (e) {
-        return `grep error: ${e instanceof Error ? e.message : String(e)}`
+      } catch (e: unknown) {
+        const err = e as { stdout?: string; stderr?: string; message?: string }
+        const output = err.stdout || err.stderr || err.message || String(e)
+        return `脚本执行错误: ${output.slice(0, 2000)}`
       }
     }
     default:

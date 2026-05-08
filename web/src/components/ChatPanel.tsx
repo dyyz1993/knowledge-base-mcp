@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState, useCallback, type ReactNode } from "react"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { Send, Square, ChevronDown, ChevronRight, Wrench, Loader2, Star } from "lucide-react"
 import { useChatStore, type TimelineEvent } from "../stores/chat"
+import type { TokenUsage } from "../services/api"
 import CopyButton from "./CopyButton"
 import ModelSelector from "./ModelSelector"
+import { MarkdownRenderer } from "./MarkdownRenderer"
 
 interface MergedEvent {
   type: "thinking" | "text" | "tool_call" | "tool_result"
@@ -68,37 +66,6 @@ function ToolCallBlock({ name, args, result }: { name: string; args: string; res
   )
 }
 
-function CodeBlock({ children, className }: { children?: ReactNode; className?: string }) {
-  const match = /language-(\w+)/.exec(className || "")
-  const code = String(children).replace(/\n$/, "")
-  const language = match ? match[1] : ""
-
-  if (!className) {
-    return (
-      <code className="rounded bg-zinc-900 px-1.5 py-0.5 text-xs text-zinc-300 font-mono">
-        {children}
-      </code>
-    )
-  }
-
-  return (
-    <div className="relative group my-2 rounded-lg overflow-hidden border border-zinc-700/50">
-      <div className="flex items-center justify-between bg-zinc-800 px-3 py-1 text-xs text-zinc-500 border-b border-zinc-700/50">
-        <span>{language || "code"}</span>
-        <CopyButton text={code} className="opacity-0 group-hover:opacity-100 -mr-1 -mt-0.5" />
-      </div>
-      <SyntaxHighlighter
-        style={oneDark}
-        language={language || "text"}
-        PreTag="div"
-        customStyle={{ margin: 0, borderRadius: 0, fontSize: "13px", background: "#18181b" }}
-      >
-        {code}
-      </SyntaxHighlighter>
-    </div>
-  )
-}
-
 function StreamingIndicator() {
   return (
     <span className="inline-flex gap-1 ml-1">
@@ -109,18 +76,8 @@ function StreamingIndicator() {
   )
 }
 
-const markdownComponents = {
-  code({ children, className }: { children?: ReactNode; className?: string }) {
-    return <CodeBlock className={className}>{children}</CodeBlock>
-  },
-}
-
 function MarkdownContent({ content }: { content: string }) {
-  return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-      {content}
-    </ReactMarkdown>
-  )
+  return <MarkdownRenderer content={content} />
 }
 
 function SuggestionButtons({ suggestions, onFill }: { suggestions: string[]; onFill: (text: string) => void }) {
@@ -159,6 +116,32 @@ function StarButton({ messageId, content }: { messageId: string; content: string
   )
 }
 
+function calculateCost(usage: TokenUsage): number {
+  const OUTPUT_PRICE = 40 / 1_000_000
+  const INPUT_PRICE = OUTPUT_PRICE / 5
+  const CACHE_READ_PRICE = OUTPUT_PRICE / 10
+  const CACHE_WRITE_PRICE = OUTPUT_PRICE
+
+  const outputCost = (usage.completion_tokens || 0) * OUTPUT_PRICE
+  const inputCost = ((usage.prompt_tokens || 0) - (usage.cache_read_tokens || 0) - (usage.cache_write_tokens || 0)) * INPUT_PRICE
+  const cacheReadCost = (usage.cache_read_tokens || 0) * CACHE_READ_PRICE
+  const cacheWriteCost = (usage.cache_write_tokens || 0) * CACHE_WRITE_PRICE
+
+  return outputCost + inputCost + cacheReadCost + cacheWriteCost
+}
+
+function UsageBar({ usage }: { usage: TokenUsage }) {
+  const total = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)
+  const cost = calculateCost(usage)
+  return (
+    <div className="mt-2 flex items-center gap-3 text-[10px] text-zinc-600 select-none">
+      <span>Tokens: {total.toLocaleString()}</span>
+      <span>Cost: ¥{cost.toFixed(4)}</span>
+      {usage.cache_read_tokens > 0 && <span>Cache Hit: {usage.cache_read_tokens.toLocaleString()}</span>}
+    </div>
+  )
+}
+
 export default function ChatPanel() {
   const currentSessionId = useChatStore((s) => s.currentSessionId)
   const streamState = useChatStore((s) =>
@@ -172,6 +155,7 @@ export default function ChatPanel() {
   const streamingTimeline = streamState?.streamingTimeline ?? []
   const streamingContent = streamState?.streamingContent ?? ""
   const suggestions = streamState?.suggestions ?? []
+  const usage = streamState?.usage
 
   const [input, setInput] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -284,6 +268,10 @@ export default function ChatPanel() {
           <SuggestionButtons suggestions={suggestions} onFill={handleSuggestionFill} />
         )}
 
+        {!isStreaming && usage && (
+          <UsageBar usage={usage} />
+        )}
+
         {isStreaming && merged.length === 0 && (
           <div className="flex justify-start">
             <div className="rounded-2xl bg-zinc-800 text-zinc-400 px-4 py-2.5 text-sm flex items-center gap-2">
@@ -332,7 +320,11 @@ export default function ChatPanel() {
                 />
               )
             case "tool_result":
-              return null
+              return (
+                <div key={`tl-${i}`} className="my-1 ml-4 rounded bg-zinc-900/50 px-3 py-1.5 text-xs text-zinc-400 max-h-32 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap">{event.content}</pre>
+                </div>
+              )
           }
         })}
 

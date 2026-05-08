@@ -26,8 +26,15 @@ export interface SessionInfo {
   messageCount: number
 }
 
+export interface TokenUsage {
+  prompt_tokens: number
+  completion_tokens: number
+  cache_read_tokens: number
+  cache_write_tokens: number
+}
+
 export interface Message {
-  role: "user" | "assistant" | "thinking" | "tool_call" | "tool_result" | "suggestions"
+  role: "user" | "assistant" | "thinking" | "tool_call" | "tool_result" | "suggestions" | "usage"
   content: string
   timestamp: number
   model?: string
@@ -83,6 +90,7 @@ export interface StreamCallbacks {
   onDone: (messageId: string, round: number) => void
   onError: (error: string) => void
   onSuggestions?: (suggestions: string[]) => void
+  onUsage?: (usage: TokenUsage) => void
 }
 
 export async function fetchDocs(): Promise<DocMeta[]> {
@@ -156,7 +164,13 @@ export async function streamChat(params: {
           case "tool_call": params.onToolCall(String(data.name || ""), String(data.args || ""), round); break
           case "tool_call_delta": break
           case "tool_result": params.onToolResult(String(data.name || ""), String(data.content || data.result || ""), round); break
-          case "done": params.onDone(String(data.messageId || ""), round); break
+          case "done": {
+            if (data.usage) {
+              params.onUsage?.(data.usage as TokenUsage)
+            }
+            params.onDone(String(data.messageId || ""), round)
+            break
+          }
           case "suggestions":
             if (params.onSuggestions) {
               try { params.onSuggestions(JSON.parse(String(data.suggestions || data.data || "[]"))) } catch { /* ignore */ }

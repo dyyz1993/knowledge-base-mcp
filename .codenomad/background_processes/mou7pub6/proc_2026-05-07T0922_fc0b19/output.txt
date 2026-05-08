@@ -1,6 +1,0 @@
-$ bun run src/index.ts --http --port 19877
-Knowledge Base MCP running on http://localhost:19877
-  StreamableHTTP: http://localhost:19877/mcp
-  SSE (legacy):   http://localhost:19877/sse
-  API:            http://localhost:19877/api/docs
-error: script "dev" was terminated by signal SIGKILL (Forced quit)

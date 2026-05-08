@@ -1,12 +1,10 @@
 import { useState, useCallback, useEffect } from "react"
 import { Search, FileText, Tag, Plus, ChevronDown, ChevronRight, FolderOpen } from "lucide-react"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
 import { Modal, Input, message } from "antd"
 import { useChatStore } from "../stores/chat"
 import { writeKB, fetchOutlines, fetchOutline, readDoc } from "../services/api"
 import type { OutlineProject, OutlineDoc, Outline } from "../services/api"
-import CopyButton from "./CopyButton"
+import { MarkdownRenderer } from "./MarkdownRenderer"
 
 type RightTab = "search" | "outline"
 
@@ -242,7 +240,7 @@ function SearchTab({
                   <div className="text-xs text-zinc-500">Loading...</div>
                 ) : (
                   <div className="markdown-body text-xs text-zinc-300">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{expandedContent}</ReactMarkdown>
+                    <MarkdownRenderer content={expandedContent} />
                   </div>
                 )}
               </div>
@@ -358,7 +356,7 @@ function OutlineTab() {
                   <div className="text-xs text-zinc-500">Loading...</div>
                 ) : (
                   <div className="markdown-body text-xs text-zinc-300">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{expandedContent}</ReactMarkdown>
+                    <MarkdownRenderer content={expandedContent} />
                   </div>
                 )}
               </div>

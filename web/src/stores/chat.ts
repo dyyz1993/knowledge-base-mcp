@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import type { ModelInfo, SessionInfo, Message, Favorite, KBDoc } from "../services/api"
+import type { ModelInfo, SessionInfo, Message, Favorite, KBDoc, TokenUsage } from "../services/api"
 import * as api from "../services/api"
 
 export interface TimelineEvent {
@@ -23,6 +23,7 @@ export interface SessionStreamState {
   streamingTimeline: TimelineEvent[]
   abortController: AbortController | null
   suggestions: string[]
+  usage?: TokenUsage
 }
 
 interface ChatState {
@@ -123,10 +124,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (suggestionsMsg) {
       try { restoredSuggestions = JSON.parse(suggestionsMsg.content) } catch { /* ignore */ }
     }
+    const usageMsg = msgs.filter((m) => m.role === "usage").slice(-1)[0]
+    let restoredUsage: TokenUsage | undefined
+    if (usageMsg) {
+      try { restoredUsage = JSON.parse(usageMsg.content) } catch { /* ignore */ }
+    }
     set((s) => {
       const states = new Map(s.streamStates)
       const prev = states.get(id)
-      states.set(id, { ...(prev || emptyStreamState()), suggestions: restoredSuggestions })
+      states.set(id, { ...(prev || emptyStreamState()), suggestions: restoredSuggestions, usage: restoredUsage })
       return { messages: msgs, streamStates: states }
     })
   },
@@ -231,13 +237,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
           if (!state) return s
 
           const tcs = [...state.streamingToolCalls]
-          const idx = tcs.findIndex((tc) => tc.name === name && !tc.result)
-          if (idx >= 0) tcs[idx] = { ...tcs[idx], result }
+          const tcIdx = tcs.findIndex((tc) => tc.name === name && !tc.result)
+          if (tcIdx >= 0) tcs[tcIdx] = { ...tcs[tcIdx], result }
+
+          const timeline = [...state.streamingTimeline]
+          const toolCallIdx = timeline.findLastIndex(
+            (e) => e.type === "tool_call" && e.name === name && !e.result
+          )
+
+          if (toolCallIdx >= 0) {
+            timeline[toolCallIdx] = { ...timeline[toolCallIdx], result }
+          } else {
+            timeline.push({ type: "tool_result", round, content: result, name })
+          }
 
           states.set(targetSessionId, {
             ...state,
             streamingToolCalls: tcs,
-            streamingTimeline: [...state.streamingTimeline, { type: "tool_result", round, content: result, name }],
+            streamingTimeline: timeline,
           })
           return { streamStates: states }
         })
@@ -246,6 +263,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const finalState = get().streamStates.get(targetSessionId)
         const rawContent = finalState?.streamingContent || ""
         const toolCalls = finalState?.streamingToolCalls || []
+        const finalUsage = finalState?.usage
 
         const cleanContent = rawContent.replace(/\[SUGGESTIONS\][\s\S]*?(?:\[\/SUGGESTIONS\]|$)/, "").trim()
 
@@ -263,7 +281,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((s) => {
           const states = new Map(s.streamStates)
           const prev = states.get(targetSessionId)
-          states.set(targetSessionId, { ...emptyStreamState(), suggestions: prev?.suggestions ?? [] })
+          states.set(targetSessionId, { ...emptyStreamState(), suggestions: prev?.suggestions ?? [], usage: finalUsage })
           return { streamStates: states }
         })
       },
@@ -273,6 +291,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
           const ss = states.get(targetSessionId)
           if (ss) {
             states.set(targetSessionId, { ...ss, suggestions })
+          }
+          return { streamStates: states }
+        })
+      },
+      onUsage: (usage: TokenUsage) => {
+        set((s) => {
+          const states = new Map(s.streamStates)
+          const ss = states.get(targetSessionId)
+          if (ss) {
+            states.set(targetSessionId, { ...ss, usage })
           }
           return { streamStates: states }
         })

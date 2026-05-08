@@ -1,5 +1,0 @@
-
-  VITE v6.4.2  ready in 233 ms
-
-  ➜  Local:   http://localhost:5180/
-  ➜  Network: http://192.168.0.4:5180/
