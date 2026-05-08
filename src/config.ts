@@ -26,10 +26,18 @@ export interface SkillConfig {
   autoScan: boolean
 }
 
+export interface BrowserConfig {
+  cdpEndpoint: string
+  executablePath: string
+  headless: boolean
+  defaultTimeout: number
+}
+
 export interface AppConfig {
   embedding: EmbeddingConfig
   search: SearchConfig
   skills: SkillConfig
+  browser: BrowserConfig
 }
 
 const DEFAULT_SKILL_PATHS = [
@@ -57,6 +65,12 @@ const DEFAULT_CONFIG: AppConfig = {
     paths: DEFAULT_SKILL_PATHS,
     autoScan: false,
   },
+  browser: {
+    cdpEndpoint: "",
+    executablePath: "",
+    headless: true,
+    defaultTimeout: 15000,
+  },
 }
 
 function expandPath(p: string): string {
@@ -82,6 +96,7 @@ export function loadConfig(): AppConfig {
           ...raw.skills,
           paths: (raw.skills?.paths || DEFAULT_CONFIG.skills.paths).map(expandPath),
         },
+        browser: { ...DEFAULT_CONFIG.browser, ...raw.browser },
       }
     }
   } catch {}

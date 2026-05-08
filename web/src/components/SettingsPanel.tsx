@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Drawer, Select, Input, InputNumber, Switch, Slider, Button, Tag, message, Divider, Tooltip } from "antd"
-import { Settings, Eye, EyeOff, RefreshCw, Save, Wifi, WifiOff, Loader2, Brain, Search, FolderSearch } from "lucide-react"
-import { getConfig, updateConfig, reindexEmbeddings, scanSkills, getSkillPaths, updateSkillPaths, type AppConfig, type EmbeddingConfig, type SearchConfig } from "../services/api"
+import { Settings, Eye, EyeOff, RefreshCw, Save, Wifi, WifiOff, Loader2, Brain, Search, FolderSearch, Globe } from "lucide-react"
+import { getConfig, updateConfig, reindexEmbeddings, scanSkills, getSkillPaths, updateSkillPaths, detectBrowser, type AppConfig, type EmbeddingConfig, type SearchConfig } from "../services/api"
 
 const PROVIDERS = [
   { value: "siliconflow", label: "SiliconFlow" },
@@ -46,8 +46,24 @@ const DEFAULT_SEARCH: SearchConfig = {
   weights: { token: 0.2, tfidf: 0.3, semantic: 0.5 },
 }
 
+interface BrowserConfig {
+  cdpEndpoint: string
+  browserPath: string
+  headless: boolean
+  timeout: number
+}
+
+const DEFAULT_BROWSER: BrowserConfig = {
+  cdpEndpoint: "",
+  browserPath: "",
+  headless: true,
+  timeout: 15000,
+}
+
+type FullConfig = AppConfig & { browser?: BrowserConfig }
+
 export default function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [config, setConfig] = useState<AppConfig>({ embedding: { ...DEFAULT_EMBEDDING }, search: { ...DEFAULT_SEARCH } })
+  const [config, setConfig] = useState<FullConfig>({ embedding: { ...DEFAULT_EMBEDDING }, search: { ...DEFAULT_SEARCH }, browser: { ...DEFAULT_BROWSER } })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [reindexing, setReindexing] = useState(false)
@@ -57,14 +73,37 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   const [newPath, setNewPath] = useState("")
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState<{ total: number; imported: number; skipped: number; errors: string[] } | null>(null)
+  const [detecting, setDetecting] = useState(false)
+
+  const updateBrowser = <K extends keyof BrowserConfig>(key: K, value: BrowserConfig[K]) => {
+    setConfig(prev => ({ ...prev, browser: { ...(prev.browser || { ...DEFAULT_BROWSER }), [key]: value } }))
+  }
+
+  const handleDetectBrowser = async () => {
+    setDetecting(true)
+    try {
+      const res = await detectBrowser()
+      if (res.path) {
+        updateBrowser("browserPath", res.path)
+        message.success(`Detected: ${res.path}`)
+      } else {
+        message.warning("No browser detected")
+      }
+    } catch {
+      message.error("Failed to detect browser")
+    } finally {
+      setDetecting(false)
+    }
+  }
 
   const loadConfig = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await getConfig()
+      const data = await getConfig() as FullConfig
       setConfig({
         embedding: { ...DEFAULT_EMBEDDING, ...data.embedding },
         search: { ...DEFAULT_SEARCH, ...data.search, weights: { ...DEFAULT_SEARCH.weights, ...data.search?.weights } },
+        browser: { ...DEFAULT_BROWSER, ...data.browser },
       })
     } catch {
       message.error("Failed to load config")
@@ -87,10 +126,11 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   const handleSave = async () => {
     setSaving(true)
     try {
-      const updated = await updateConfig(config)
+      const updated = await updateConfig(config) as FullConfig
       setConfig({
         embedding: { ...DEFAULT_EMBEDDING, ...updated.embedding },
         search: { ...DEFAULT_SEARCH, ...updated.search, weights: { ...DEFAULT_SEARCH.weights, ...updated.search?.weights } },
+        browser: { ...DEFAULT_BROWSER, ...updated.browser },
       })
       message.success("Configuration saved")
     } catch {
@@ -320,6 +360,68 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                 )}
               </div>
             )}
+          </section>
+
+          <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-zinc-300 uppercase tracking-wider">
+              <Globe size={13} className="text-cyan-400" />
+              Browser 配置
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-zinc-400">CDP 端点</label>
+              <Input
+                size="small"
+                value={config.browser?.cdpEndpoint || ""}
+                onChange={e => updateBrowser("cdpEndpoint", e.target.value)}
+                placeholder="ws://host:port/... 或留空使用本地浏览器"
+              />
+              <span className="text-[11px] text-zinc-600">配置后使用远程浏览器，无需本地安装</span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-zinc-400">浏览器路径</label>
+              <div className="flex gap-1.5">
+                <Input
+                  size="small"
+                  value={config.browser?.browserPath || ""}
+                  onChange={e => updateBrowser("browserPath", e.target.value)}
+                  placeholder="留空自动检测本地 Chrome/Chromium"
+                  className="flex-1"
+                />
+                <Button
+                  size="small"
+                  onClick={handleDetectBrowser}
+                  loading={detecting}
+                >
+                  Detect
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-400">Headless 模式</span>
+                <Switch
+                  size="small"
+                  checked={config.browser?.headless ?? true}
+                  onChange={v => updateBrowser("headless", v)}
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-1">
+                <span className="text-xs text-zinc-400 shrink-0">超时时间</span>
+                <InputNumber
+                  size="small"
+                  min={1000}
+                  max={120000}
+                  step={1000}
+                  value={config.browser?.timeout ?? 15000}
+                  onChange={v => v != null && updateBrowser("timeout", v)}
+                  className="flex-1"
+                  addonAfter="ms"
+                />
+              </div>
+            </div>
           </section>
 
           <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">

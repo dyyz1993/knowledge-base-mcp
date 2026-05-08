@@ -374,3 +374,8 @@ export async function getDocKeywords(): Promise<{ keywords: string[]; count: num
   const res = await fetch(`${BASE}/api/docs/keywords`)
   return res.json()
 }
+
+export async function detectBrowser(): Promise<{ path: string | null }> {
+  const res = await fetch(`${BASE}/api/browser/detect`)
+  return res.json()
+}

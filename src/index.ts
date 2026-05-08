@@ -18,6 +18,7 @@ import { handleListFavorites, handleAddFavorite, handleDeleteFavorite } from "./
 import { handleListSessionFavorites, handleAddSessionFavorite, handleDeleteSessionFavorite } from "./chat/api-session-favorites.js"
 import { handleShareSession } from "./chat/api-share.js"
 import { handleScanSkills, handleGetSkillPaths, handleUpdateSkillPaths } from "./chat/api-skills.js"
+import { handleBrowserDetect } from "./chat/api-browser.js"
 import { loadConfig, saveConfig } from "./config.js"
 import type { AppConfig } from "./config.js"
 
@@ -555,6 +556,7 @@ function startHttp(port: number) {
       if (url.pathname === "/api/skills/scan" && req.method === "POST") return handleScanSkills(req, res)
       if (url.pathname === "/api/skills/paths" && req.method === "GET") return handleGetSkillPaths(req, res)
       if (url.pathname === "/api/skills/paths" && req.method === "PUT") return handleUpdateSkillPaths(req, res)
+      if (url.pathname === "/api/browser/detect" && req.method === "GET") return handleBrowserDetect(req, res)
       if (url.pathname === "/api/docs/keywords" && req.method === "GET") { json(res, getAllKeywords()); return }
       if (url.pathname === "/api/share" && req.method === "OPTIONS") {
         res.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" })

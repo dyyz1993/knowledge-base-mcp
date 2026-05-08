@@ -27,6 +27,8 @@ function buildSystemPrompt(): string {
 
 ## 重要认知
 
+优先使用 browser_scrape 代替 url_fetch。browser_scrape 支持 JS 渲染（SPA），url_fetch 只能用 curl（无法渲染 JS）。
+
 知识库是跨项目的。每篇文档来自不同项目（搜索结果会显示 project 字段），项目之间可能有关联（依赖、fork、共享库等）。当你发现多项目关联时，主动指出这些关系。
 
 ## 行为模式
@@ -87,7 +89,7 @@ function buildSystemPrompt(): string {
 - 明确要求"分析项目"或"沉淀知识库"
 
 #### 第一步：获取项目内容
-- **URL 链接** → 用 url_fetch 抓取内容
+- **URL 链接** → 优先用 browser_scrape 抓取内容（支持 JS 渲染），url_fetch 作为 fallback
 - **GitHub 仓库** → 用 git_clone 克隆到临时目录
 - **本地路径** → 直接用 scan_project 扫描
 
