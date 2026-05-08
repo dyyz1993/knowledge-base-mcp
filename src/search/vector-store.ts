@@ -55,3 +55,12 @@ export function getAllEmbeddings(docs: DocMeta[]): { meta: DocMeta; embedding: n
     .filter(d => vectors[d.id])
     .map(d => ({ meta: d, embedding: vectors[d.id] }))
 }
+
+export async function rebuildAllVectors(docs: DocMeta[]): Promise<number> {
+  const vectors: Record<string, number[]> = {}
+  for (const doc of docs) {
+    vectors[doc.id] = await embed(docToSearchableText(doc))
+  }
+  saveVectors(vectors)
+  return docs.length
+}

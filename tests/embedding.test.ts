@@ -3,6 +3,12 @@ import { existsSync, rmSync, mkdirSync } from "node:fs"
 import { cosineSimilarityVec, docToSearchableText, semanticSearch, embed } from "../src/search/embedding"
 import { loadVectors, saveVectors, indexDoc, indexAllDocs, getAllEmbeddings } from "../src/search/vector-store"
 import type { DocMeta } from "../src/storage/index"
+import { loadConfig } from "../src/config"
+
+function getEmbeddingDim(): number {
+  const config = loadConfig()
+  return config.embedding.dimensions || 1024
+}
 
 const testDir = `/tmp/kb-embed-test-${Math.random().toString(36).slice(2)}`
 
@@ -165,7 +171,7 @@ describe("semanticSearch (integration, needs model)", () => {
     if (!(await checkModel())) return
     const docs = Array.from({ length: 5 }, (_, i) => ({
       meta: makeDoc({ id: `doc-${i}`, title: `Doc ${i}` }),
-      embedding: Array.from({ length: 384 }, () => Math.random()),
+      embedding: Array.from({ length: getEmbeddingDim() }, () => Math.random()),
     }))
     const result = await semanticSearch("test", docs, 3)
     expect(result.length).toBeLessThanOrEqual(3)
@@ -175,7 +181,7 @@ describe("semanticSearch (integration, needs model)", () => {
     if (!(await checkModel())) return
     const docs = Array.from({ length: 5 }, (_, i) => ({
       meta: makeDoc({ id: `doc-${i}`, title: `Doc ${i}` }),
-      embedding: Array.from({ length: 384 }, () => Math.random()),
+      embedding: Array.from({ length: getEmbeddingDim() }, () => Math.random()),
     }))
     const result = await semanticSearch("test", docs)
     for (let i = 1; i < result.length; i++) {
@@ -187,7 +193,7 @@ describe("semanticSearch (integration, needs model)", () => {
     if (!(await checkModel())) return
     const docs = Array.from({ length: 3 }, (_, i) => ({
       meta: makeDoc({ id: `doc-${i}`, title: `Doc ${i}` }),
-      embedding: Array.from({ length: 384 }, () => Math.random()),
+      embedding: Array.from({ length: getEmbeddingDim() }, () => Math.random()),
     }))
     const result = await semanticSearch("react hooks", docs)
     expect(result.length).toBeGreaterThan(0)
@@ -200,7 +206,7 @@ describe("indexDoc", () => {
   test("saves vector to store", async () => {
     if (!(await checkModel())) return
     const vec = await indexDoc("test-doc", "React hooks guide")
-    expect(vec.length).toBe(384)
+    expect(vec.length).toBe(getEmbeddingDim())
     const loaded = loadVectors()
     expect(loaded["test-doc"]).toEqual(vec)
   }, 120000)
@@ -216,7 +222,7 @@ describe("indexAllDocs", () => {
       makeDoc({ id: "new1", title: "New doc one" }),
       makeDoc({ id: "new2", title: "New doc two" }),
     ]
-    saveVectors({ cached: Array.from({ length: 384 }, () => 0.5) })
+    saveVectors({ cached: Array.from({ length: getEmbeddingDim() }, () => 0.5) })
     const count = await indexAllDocs(docs)
     expect(count).toBe(2)
     const loaded = loadVectors()

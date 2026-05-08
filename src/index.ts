@@ -9,11 +9,13 @@ import { randomUUID } from "node:crypto"
 import { createServer, IncomingMessage, ServerResponse } from "node:http"
 import { readFileSync, existsSync } from "node:fs"
 import { join, extname } from "node:path"
-import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines } from "./storage/index.js"
+import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines, rebuildAllVectors } from "./storage/index.js"
 import { handleChat } from "./chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "./chat/api-models.js"
 import { handleListSessions, handleCreateSession, handleDeleteSession, handleGetMessages, handleRenameSession } from "./chat/api-sessions.js"
 import { handleListFavorites, handleAddFavorite, handleDeleteFavorite } from "./chat/api-favorites.js"
+import { loadConfig, saveConfig } from "./config.js"
+import type { AppConfig } from "./config.js"
 
 function registerTools(server: McpServer) {
   server.tool(
@@ -441,6 +443,53 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
     const project = url.searchParams.get("project")
     if (!project) { json(res, { error: "project required" }, 400); return }
     json(res, getOutline(project))
+    return
+  }
+  if (url.pathname === "/api/config" && req.method === "GET") {
+    const config = loadConfig()
+    json(res, {
+      ...config,
+      embedding: {
+        ...config.embedding,
+        apiKey: config.embedding.apiKey ? config.embedding.apiKey.slice(0, 8) + "..." : "",
+      },
+    })
+    return
+  }
+  if (url.pathname === "/api/config" && req.method === "PUT") {
+    const body = JSON.parse(await readBody(req))
+    const current = loadConfig()
+    const update = body
+
+    if (update.embedding?.apiKey?.endsWith("...")) {
+      update.embedding.apiKey = current.embedding.apiKey
+    }
+
+    const merged: AppConfig = {
+      embedding: { ...current.embedding, ...update.embedding },
+      search: {
+        ...current.search,
+        ...update.search,
+        weights: { ...current.search.weights, ...update.search?.weights },
+      },
+    }
+
+    saveConfig(merged)
+    json(res, { success: true })
+    return
+  }
+  if (url.pathname === "/api/embedding/reindex" && req.method === "POST") {
+    try {
+      const docs = listDocs()
+      if (docs.length === 0) {
+        json(res, { success: true, message: "No documents to reindex" })
+        return
+      }
+      const count = await rebuildAllVectors(docs)
+      json(res, { success: true, message: `Reindexed ${count} documents` })
+    } catch (e: any) {
+      json(res, { success: false, error: e.message }, 500)
+    }
     return
   }
   json(res, { error: "Not Found" }, 404)

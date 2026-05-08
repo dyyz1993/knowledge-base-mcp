@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
-import { Search, Command, MessageSquare, Database, Menu } from "lucide-react"
+import { Search, Command, MessageSquare, Database, Menu, Settings } from "lucide-react"
 import { useDocStore } from "./stores/docs"
 import { useChatStore } from "./stores/chat"
 import Sidebar from "./components/Sidebar"
@@ -9,6 +9,7 @@ import SessionList from "./components/SessionList"
 import ChatPanel from "./components/ChatPanel"
 import KBPanel from "./components/KBPanel"
 import FavoriteList from "./components/FavoriteList"
+import SettingsPanel from "./components/SettingsPanel"
 
 type Tab = "kb" | "chat"
 
@@ -19,6 +20,7 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string>()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => { load() }, [])
   useEffect(() => { loadSessions(); loadModels(); loadFavorites() }, [])
@@ -81,16 +83,24 @@ export default function App() {
         )}
 
         {tab === "kb" && (
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="ml-auto flex items-center gap-2 px-3 py-1 rounded-md border border-zinc-800 text-xs text-zinc-500 hover:bg-zinc-900 transition-colors"
-          >
-            <Search size={13} />
-            <span>Search</span>
-            <kbd className="flex items-center gap-0.5 text-[10px] text-zinc-600">
-              <Command size={10} />K
-            </kbd>
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => setSearchOpen(true)}
+              className="flex items-center gap-2 px-3 py-1 rounded-md border border-zinc-800 text-xs text-zinc-500 hover:bg-zinc-900 transition-colors"
+            >
+              <Search size={13} />
+              <span>Search</span>
+              <kbd className="flex items-center gap-0.5 text-[10px] text-zinc-600">
+                <Command size={10} />K
+              </kbd>
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+            >
+              <Settings size={14} />
+            </button>
+          </div>
         )}
       </header>
 
@@ -117,6 +127,15 @@ export default function App() {
             border-r border-zinc-800 flex flex-col shrink-0 bg-zinc-950
           `}>
             <SessionList />
+            <div className="p-2 border-t border-zinc-800">
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
+              >
+                <Settings size={13} />
+                <span>Settings</span>
+              </button>
+            </div>
           </aside>
 
           <main className="flex-1 min-w-0 flex flex-col">
@@ -149,6 +168,8 @@ export default function App() {
           </aside>
         </div>
       )}
+
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   )
 }

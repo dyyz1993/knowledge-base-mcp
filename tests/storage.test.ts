@@ -327,7 +327,7 @@ describe("searchDocs", () => {
   test("matches by keywords with tokenized scoring", () => {
     seedDocs()
     const results = searchDocs("kw-alpha")
-    expect(results.length).toBe(3)
+    expect(results.length).toBe(1)
     expect(results[0].title).toBe("UniqueTitle ABC")
     expect(results[0].score).toBe(13)
   })
@@ -340,12 +340,10 @@ describe("searchDocs", () => {
     expect(results[0].score).toBe(5)
   })
 
-  test("matches by project_description with score=3", () => {
+  test("filters out low-scoring matches (project_description only, score=3)", () => {
     seedDocs()
     const results = searchDocs("uniqueproject")
-    expect(results.length).toBe(1)
-    expect(results[0].title).toBe("UniqueTitle ABC")
-    expect(results[0].score).toBe(3)
+    expect(results.length).toBe(0)
   })
 
   test("matches by tags filter with score=5", () => {
@@ -356,35 +354,33 @@ describe("searchDocs", () => {
     expect(results[0].score).toBe(5)
   })
 
-  test("matches by keywords filter with score=3", () => {
+  test("filters out low-scoring matches (keywords filter only, score=3)", () => {
     seedDocs()
     const results = searchDocs(undefined, ["kw-gamma"])
-    expect(results.length).toBe(1)
-    expect(results[0].title).toBe("ThirdTitle STU")
-    expect(results[0].score).toBe(3)
+    expect(results.length).toBe(0)
   })
 
   test("combined query + tag score", () => {
     seedDocs()
     const results = searchDocs("uniquetitle", undefined, ["tag-alpha"])
     const docA = results.find(r => r.title === "UniqueTitle ABC")
-    const docC = results.find(r => r.title === "ThirdTitle STU")
     expect(docA).toBeDefined()
-    expect(docC).toBeDefined()
     expect(docA!.score).toBe(15) // title(10) + tag(5)
-    expect(docC!.score).toBe(5)  // tag(5) only
   })
 
   test("tag filter matches multiple docs", () => {
     seedDocs()
     const results = searchDocs(undefined, undefined, ["tag-alpha"])
     expect(results.length).toBe(2)
+    for (const r of results) {
+      expect(r.score).toBe(5)
+    }
   })
 
   test("shared keyword matches multiple docs", () => {
     seedDocs()
     const results = searchDocs("kw-shared")
-    expect(results.length).toBe(3)
+    expect(results.length).toBe(2)
     const docA = results.find(r => r.title === "UniqueTitle ABC")
     const docB = results.find(r => r.title === "OtherTitle JKL")
     expect(docA).toBeDefined()

@@ -282,3 +282,42 @@ export async function readDoc(id: string): Promise<{ meta: DocMeta; content: str
   const res = await fetch(`${BASE}/api/doc/${encodeURIComponent(id)}`)
   return res.json()
 }
+
+export interface EmbeddingConfig {
+  provider: "siliconflow" | "local" | "openai" | "custom"
+  baseUrl: string
+  apiKey: string
+  model: string
+  dimensions: number
+  enabled: boolean
+}
+
+export interface SearchConfig {
+  mode: "combined" | "tfidf" | "semantic"
+  minScore: number
+  weights: { token: number; tfidf: number; semantic: number }
+}
+
+export interface AppConfig {
+  embedding: EmbeddingConfig
+  search: SearchConfig
+}
+
+export async function getConfig(): Promise<AppConfig> {
+  const res = await fetch(`${BASE}/api/config`)
+  return res.json()
+}
+
+export async function updateConfig(config: Partial<AppConfig>): Promise<AppConfig> {
+  const res = await fetch(`${BASE}/api/config`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  })
+  return res.json()
+}
+
+export async function reindexEmbeddings(): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`${BASE}/api/embedding/reindex`, { method: "POST" })
+  return res.json()
+}

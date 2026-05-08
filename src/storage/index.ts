@@ -2,7 +2,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdir
 import { parseFrontmatter, buildFrontmatter } from "./markdown"
 import { tfidfSearch, buildIDF } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
-import { loadVectors, saveVectors } from "../search/vector-store"
+import { loadVectors, saveVectors, rebuildAllVectors } from "../search/vector-store"
+import { loadConfig } from "../config"
 
 const KNOWLEDGE_DIR = process.env.KB_DIR || `${process.env.HOME}/.knowledge`
 const INDEX_PATH = `${KNOWLEDGE_DIR}/index.json`
@@ -204,7 +205,8 @@ export function searchDocs(
     if (score > 0) results.push({ ...doc, score, snippet, matched_by })
   }
 
-  return results.sort((a, b) => b.score - a.score).slice(0, limit)
+  const config = loadConfig()
+  return results.sort((a, b) => b.score - a.score).slice(0, limit).filter(r => r.score >= config.search.minScore)
 }
 
 export function searchDocsAdvanced(query: string, limit = 10): (DocMeta & { score: number })[] {
@@ -242,6 +244,21 @@ export async function searchDocsCombined(
   tags?: string[],
   limit = 10,
 ): Promise<(DocMeta & { score: number })[]> {
+  const config = loadConfig()
+  const searchMode = config.search.mode
+  const weights = config.search.weights
+
+  if (searchMode === "tfidf") {
+    const idx = readIndex()
+    const allDocs = Object.values(idx.documents)
+    const idf = buildIDF(allDocs)
+    return tfidfSearch(query, allDocs, idf, limit)
+  }
+
+  if (searchMode === "semantic") {
+    return searchDocsSemantic(query, limit)
+  }
+
   const p0Results = searchDocs(query, keywords, tags, limit * 2)
 
   const idx = readIndex()
@@ -253,7 +270,6 @@ export async function searchDocsCombined(
   try {
     p2Results = await searchDocsSemantic(query, limit * 2)
   } catch {
-    // fallback to P0+P1 if embedding fails
   }
 
   const combined = new Map<string, DocMeta & { score: number }>()
@@ -270,9 +286,9 @@ export async function searchDocsCombined(
   }
 
   const maxP0 = Math.max(...p0Results.map(r => r.score), 1)
-  addScores(p0Results.map(r => ({ ...r, score: r.score / maxP0 })), 0.2)
-  addScores(p1Results, 0.3)
-  addScores(p2Results, 0.5)
+  addScores(p0Results.map(r => ({ ...r, score: r.score / maxP0 })), weights.token)
+  addScores(p1Results, weights.tfidf)
+  addScores(p2Results, weights.semantic)
 
   return Array.from(combined.values())
     .sort((a, b) => b.score - a.score)
@@ -346,3 +362,5 @@ export function listAllOutlines(): { project: string; name: string; doc_count: n
     })
     .filter(Boolean) as { project: string; name: string; doc_count: number; updated_at: number }[]
 }
+
+export { rebuildAllVectors }

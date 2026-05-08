@@ -114,6 +114,53 @@ npx @dyyz1993/kb-mcp --http --port 19877
 }
 ```
 
+## Claude Desktop 配置
+
+### Stdio 模式（推荐本地使用）
+
+编辑 Claude Desktop 配置文件，在 `mcpServers` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "knowledge-base": {
+      "command": "npx",
+      "args": [
+        "@dyyz1993/kb-mcp",
+        "--stdio"
+      ],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+无需手动启动，Claude Desktop 会自动管理进程生命周期。
+
+### SSE 模式（推荐远程服务器）
+
+先启动服务：
+
+```bash
+npx @dyyz1993/kb-mcp --http --web --port 19877
+```
+
+配置：
+
+```json
+{
+  "mcpServers": {
+    "knowledge-base": {
+      "url": "http://localhost:19877/sse",
+      "type": "sse"
+    }
+  }
+}
+```
+
+访问 http://localhost:19877 查看 Web UI 管理界面。
+
+
 ## Web UI
 
 ```bash

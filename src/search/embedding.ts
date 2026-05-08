@@ -3,6 +3,7 @@ import { join } from "node:path"
 import { readFileSync } from "node:fs"
 import { parseFrontmatter } from "../storage/markdown"
 import type { DocMeta } from "../storage/index"
+import { loadConfig } from "../config"
 
 let transformersAvailable = true
 let pipelineFn: any = null
@@ -27,23 +28,56 @@ async function loadTransformers() {
 
 let embedder: any = null
 
-async function getEmbedder() {
+async function embedLocal(text: string): Promise<number[]> {
   const pipe = await loadTransformers()
-  if (!pipe) return null
+  if (!pipe) throw new Error("Semantic search unavailable: @huggingface/transformers not installed")
   if (!embedder) {
     embedder = await pipe("feature-extraction", "Xenova/paraphrase-multilingual-MiniLM-L12-v2", {
       dtype: "fp32",
       local_files_only: true,
     })
   }
-  return embedder
+  const output = await embedder(text, { pooling: "mean", normalize: true })
+  return Array.from(output.data) as number[]
+}
+
+async function embedExternal(text: string): Promise<number[]> {
+  const config = loadConfig()
+  const url = `${config.embedding.baseUrl}/embeddings`
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${config.embedding.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: config.embedding.model,
+      input: text,
+    }),
+  })
+
+  if (!resp.ok) {
+    const err = await resp.text()
+    throw new Error(`Embedding API error: ${resp.status} ${err}`)
+  }
+
+  const data = await resp.json()
+  return data.data[0].embedding
 }
 
 export async function embed(text: string): Promise<number[]> {
-  const pipe = await getEmbedder()
-  if (!pipe) throw new Error("Semantic search unavailable: @huggingface/transformers not installed")
-  const output = await pipe(text, { pooling: "mean", normalize: true })
-  return Array.from(output.data) as number[]
+  const config = loadConfig()
+
+  if (config.embedding.enabled && config.embedding.apiKey) {
+    try {
+      return await embedExternal(text)
+    } catch (e) {
+      console.error("External embedding failed, falling back to local:", e)
+    }
+  }
+
+  return embedLocal(text)
 }
 
 export function cosineSimilarityVec(a: number[], b: number[]): number {
