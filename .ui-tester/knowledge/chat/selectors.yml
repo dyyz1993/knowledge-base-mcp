@@ -1,8 +1,13 @@
 # Module: chat
 # Site: http://localhost:19877
-# Version: 2
-# Last updated: 2026-05-07
-# Updated in round: r2
+# Version: 4
+# Last updated: 2026-05-09
+# Updated in round: r4
+
+chat_tab:
+  chat_tab_button: "button:has-text('Chat')"
+  kb_tab_button: "button:has-text('Knowledge Base')"
+  note: "Tabs are buttons at top of page. Clicking 'Chat' switches to chat mode with session sidebar."
 
 chat_page:
   url: "http://localhost:19877"
@@ -25,6 +30,31 @@ chat_messages:
   code_copy_button: "pre button"
 
 sidebar:
-  session_list_container: "aside .flex-1.overflow-y-auto"
-  session_item: "aside button"
-  session_delete_button: "button.lucide-trash-2"
+  session_list_container: "aside:first-of-type .flex-1.overflow-y-auto"
+  session_item: "div.group.flex.items-center.gap-2.rounded-lg.px-2\\.5.py-2.cursor-pointer"
+  session_item_active: "div.group.flex.items-center.gap-2.rounded-lg.px-2\\.5.py-2.cursor-pointer.bg-zinc-800"
+  session_icon_default: "svg.lucide-message-square"
+  session_icon_favorited: "svg.lucide-star.text-yellow-500.fill-yellow-500"
+  session_delete_button: "button.shrink-0.opacity-0.group-hover\\:opacity-100"
+  session_name_div: "div.flex-1.min-w-0"
+
+context_menu:
+  container: "div.fixed.z-50.bg-zinc-800.border.border-zinc-700.rounded-lg.shadow-xl"
+  note: "Context menu is position:fixed, NOT in accessibility tree. Use eval with getComputedStyle or -s scoped snapshot"
+  favorite_button: "button:has-text('收藏会话')"
+  unfavorite_button: "button:has-text('取消收藏')"
+  rename_button: "button:has-text('重命名')"
+  share_button: "button:has-text('分享')"
+  copy_link_button: "button:has-text('复制链接')"
+  delete_button: "button:has-text('删除')"
+
+rename_input:
+  selector: "input.w-full.bg-zinc-700.text-xs.text-zinc-100.px-1.py-0\\.5.rounded.outline-none"
+  note: "Appears as child of session name div, replaces name text. Submit with Enter key."
+  confirm_key: "Enter"
+
+layout:
+  header: "header.h-10.border-b"
+  left_sidebar: "aside:first-of-type"
+  main_content: "main.flex-1.min-w-0"
+  right_sidebar: "aside:nth-of-type(2)"

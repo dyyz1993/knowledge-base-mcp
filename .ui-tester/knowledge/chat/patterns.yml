@@ -35,6 +35,59 @@ switch_session_flow:
       description: "Click target session item in sidebar"
   notes: "Need to determine session index first"
 
+right_click_session_flow:
+  description: "Right-click on a session item to open context menu"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "const rect = item.getBoundingClientRect(); JSON.stringify({x, y})"
+      description: "Get session item coordinates"
+    - action: mouse
+      selector: "mouse move X Y"
+      description: "Move mouse to session item position"
+    - action: mouse
+      selector: "mouse down right"
+      description: "Press right mouse button"
+    - action: mouse
+      selector: "mouse up right"
+      description: "Release right mouse button (triggers contextmenu)"
+  wait_after: 500
+  expected_result: "Context menu appears as fixed-position div with options"
+  critical_note: "Synthetic DOM dispatchEvent does NOT trigger React context menu. Must use native mouse events via agent-browser mouse commands."
+  context_menu_options:
+    - "收藏会话 / 取消收藏 (Favorite/Unfavorite)"
+    - "重命名 (Rename)"
+    - "分享 (Share)"
+    - "复制链接 (Copy Link)"
+    - "删除 (Delete - red text, separated by divider)"
+
+rename_session_flow:
+  description: "Rename a session via double-click or context menu"
+  steps:
+    - action: dblclick
+      selector: "div.flex-1.min-w-0 (inside session item)"
+      description: "Double-click session name to enter edit mode"
+    - action: fill
+      selector: "input.w-full.bg-zinc-700.text-xs"
+      description: "Fill new name in the rename input"
+    - action: press
+      selector: "Enter"
+      description: "Press Enter to confirm rename"
+  expected_result: "Session name updated, session becomes active"
+  alternative: "Right-click → context menu → click '重命名' also triggers inline rename"
+
+favorite_session_flow:
+  description: "Toggle favorite/star on a session"
+  steps:
+    - action: mouse
+      selector: "mouse move/down/up right on session item"
+      description: "Right-click session to open context menu"
+    - action: click
+      selector: "button:has-text('收藏会话')"
+      description: "Click favorite toggle in context menu"
+  expected_result: "Session icon changes from message-square to star (yellow, filled). Session moves to top of list."
+  notes: "Favorited sessions sort to the top. Context menu label toggles between '收藏会话' and '取消收藏'."
+
 tips:
   - "fill command on textarea may not trigger React onChange; use type + Enter key dispatch"
   - "AI responses are fast (2-5s), hard to capture loading states"
@@ -49,3 +102,12 @@ tips:
   - "Outline tab (大纲) displays knowledge base documents list with document IDs"
   - "Session items are div elements (not buttons) with class: 'group flex items-center gap-2 rounded-lg px-2.5 py-2 cursor-pointer'"
   - "Active session has bg-zinc-800 class; inactive has text-zinc-400 hover classes"
+  - "CRITICAL: Context menu is position:fixed div, NOT in accessibility tree. Use eval to find it or scoped snapshot: -s 'div.fixed.z-50'"
+  - "CRITICAL: Right-click must use agent-browser 'mouse move/down/up right' commands. dispatchEvent with synthetic MouseEvent does NOT trigger React handlers."
+  - "Favorited sessions show yellow filled star icon (lucide-star text-yellow-500 fill-yellow-500) and sort to top"
+  - "Share button ('分享') CONFIRMED non-functional (r4 re-test) - no toast, no modal, no URL change, no DOM mutation observed. No Toaster/sonner component in DOM. Button click just dismisses context menu silently."
+  - "Copy Link button ('复制链接') CONFIRMED silent (r4 re-test) - no toast, no visual feedback. Context menu dismisses after click. Clipboard read returned no content (may be permissions issue or button may be non-functional)."
+  - "Right sidebar 'Favorites' section shows 'No favorites yet' even after favoriting chat sessions (separate KB feature)"
+  - "Chat tab ('Chat') is a button that switches from KB view to chat mode with session sidebar. KB tab is 'Knowledge Base'."
+  - "Message list scrollability confirmed: scrollHeight (3204px) > clientHeight (601px), 22 child elements in test-final2 session"
+  - "To switch to chat mode: click button 'Chat' (snapshot ref, visible as tab at top)"

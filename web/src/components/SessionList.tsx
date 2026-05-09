@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Plus, Trash2, MessageSquare, Loader2, Star, Share2, Pencil, Copy } from "lucide-react"
 import { useChatStore } from "../stores/chat"
+import { buildShareUrl } from "../services/api"
 
 export default function SessionList() {
   const sessions = useChatStore((s) => s.sessions)
@@ -131,7 +132,6 @@ function SessionItem({
   const handleShare = useCallback(async () => {
     setContextMenu(null)
     try {
-      const { buildShareUrl } = await import("../services/api")
       const url = buildShareUrl(session.id)
       await copyText(url)
       setToast("已复制分享链接")
@@ -300,7 +300,6 @@ function SessionContextMenu({
       <button
         onClick={async () => {
           try {
-            const { buildShareUrl } = await import("../services/api")
             const url = buildShareUrl(sessionId)
             try { await navigator.clipboard.writeText(url) } catch {
               const ta = document.createElement("textarea")

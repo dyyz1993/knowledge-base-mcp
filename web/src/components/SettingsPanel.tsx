@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react"
-import { Drawer, Select, Input, InputNumber, Switch, Slider, Button, Tag, message, Divider, Tooltip } from "antd"
+import { Drawer, Select, Input, InputNumber, Switch, Slider, Button, Tag, message, Divider, Tooltip, ConfigProvider, theme } from "antd"
 import { Settings, Eye, EyeOff, RefreshCw, Save, Wifi, WifiOff, Loader2, Brain, Search, FolderSearch, Globe } from "lucide-react"
 import { getConfig, updateConfig, reindexEmbeddings, scanSkills, getSkillPaths, updateSkillPaths, detectBrowser, type AppConfig, type EmbeddingConfig, type SearchConfig } from "../services/api"
 
@@ -229,6 +229,29 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   }
 
   return (
+    <ConfigProvider
+      theme={{
+        algorithm: theme.darkAlgorithm,
+        token: {
+          colorBgContainer: "#27272a",
+          colorBgElevated: "#18181b",
+          colorBorder: "#3f3f46",
+          colorText: "#d4d4d8",
+          colorTextPlaceholder: "#71717a",
+          colorPrimary: "#3b82f6",
+          borderRadius: 6,
+        },
+        components: {
+          Input: { colorBgContainer: "#27272a" },
+          Select: { colorBgContainer: "#27272a", colorBgElevated: "#18181b" },
+          InputNumber: { colorBgContainer: "#27272a" },
+          Switch: { colorPrimary: "#3b82f6", colorPrimaryHover: "#60a5fa" },
+          Button: { colorBgContainer: "#27272a", colorBorder: "#3f3f46" },
+          Tag: { colorBgContainer: "#27272a" },
+          Slider: { trackBg: "#3f3f46" },
+        },
+      }}
+    >
     <Drawer
       title={
         <div className="flex items-center gap-2 text-sm">
@@ -612,5 +635,6 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
         </div>
       )}
     </Drawer>
+    </ConfigProvider>
   )
 }

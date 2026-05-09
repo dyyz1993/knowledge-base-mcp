@@ -1,0 +1,67 @@
+# Module: settings
+# Reusable operation sequences
+
+open_settings_flow:
+  description: "Open settings drawer from Chat tab view"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "document.querySelector('header').querySelectorAll('button')[3].click()"
+      description: "Click gear icon (button index 3 in header) via eval to avoid ref collision"
+    - action: wait
+      value: 800
+      description: "Wait for drawer animation"
+  expected_result: "Ant Design drawer slides in from right (420px wide)"
+  critical_note: "Settings button ref collides with many other buttons on the page. MUST use eval with header button index 3. Note: header has 4 buttons [0]=menu(hidden), [1]=KB tab, [2]=Chat tab, [3]=Settings gear."
+
+detect_browser_flow:
+  description: "Auto-detect local browser path via Detect button"
+  steps:
+    - action: open_settings
+      description: "Open settings drawer first"
+    - action: click
+      selector: "button:has-text('Detect')"
+      description: "Click Detect button in Browser section"
+    - action: wait
+      value: 2000
+      description: "Wait for detection to complete"
+  expected_result: "Browser path input fills with detected path (e.g. /Applications/Chromium.app/Contents/MacOS/Chromium)"
+
+scan_skills_flow:
+  description: "Scan skills from configured paths"
+  steps:
+    - action: open_settings
+      description: "Open settings drawer first"
+    - action: click
+      selector: "button:has-text('Scan Skills')"
+      description: "Click Scan Skills button"
+    - action: wait
+      value: 3000
+      description: "Wait for scan to complete"
+  expected_result: "Scan summary appears below button showing Total scanned, Imported (green), Skipped (yellow)"
+
+close_settings_flow:
+  description: "Close settings drawer"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "document.querySelector('.ant-drawer-close').click()"
+      description: "Click the Ant Design drawer close button"
+  expected_result: "Drawer slides out, main chat view restored"
+
+tips:
+  - "Settings button only visible when Chat tab is active (not on Knowledge Base tab)"
+  - "Settings drawer uses Ant Design component (ant-drawer-* classes)"
+  - "Drawer is position:fixed, width 420px, positioned at right side"
+  - "Scan Skills shows summary: Total scanned, Imported (green), Skipped (yellow)"
+  - "FOUR sections (updated r2): Skill 路径管理, Browser 配置 (NEW), Embedding, Search"
+  - "Browser 配置 section contains: CDP endpoint input, Browser path + Detect button, Headless switch, Timeout spinbutton"
+  - "Detect button auto-fills browser path (/Applications/Chromium.app/Contents/MacOS/Chromium on this system)"
+  - "Headless switch is checked (enabled) by default"
+  - "Timeout default is 15000ms"
+  - "CDP endpoint has a pre-filled WebSocket URL for remote browser"
+  - "Embedding section has toggle switch for enable/disable"
+  - "Action buttons at bottom: Save, Reindex, Test"
+  - "Scanned paths shown as Ant Design tags with X close button to remove"
+  - "CRITICAL: Header button indices changed - Settings is now index 3 (was 2). Menu button added at index 0."
+  - "Browser section uses section.rounded-lg.border CSS class as container"

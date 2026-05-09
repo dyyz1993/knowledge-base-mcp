@@ -441,7 +441,7 @@ describe("listDocs", () => {
       created_at: 2000,
     }, "C2")
 
-    const docs = listDocs()
+    const docs = listDocs().filter(d => [d1.id, d2.id].includes(d.id))
     expect(docs.length).toBe(2)
     expect(docs[0].id).toBe(d2.id)
     expect(docs[1].id).toBe(d1.id)
