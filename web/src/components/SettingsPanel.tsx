@@ -243,15 +243,15 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
       styles={{
         header: { background: "#18181b", borderBottom: "1px solid #27272a" },
         body: { background: "#09090b", padding: "16px" },
+        mask: { background: "rgba(0,0,0,0.6)" },
       }}
       footer={
         <div className="flex items-center gap-2" style={{ background: "#18181b", padding: "12px 16px" }}>
           <Button
-            type="primary"
             icon={<Save size={13} />}
             onClick={handleSave}
             loading={saving}
-            className="flex items-center gap-1.5"
+            className="flex items-center gap-1.5 bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
           >
             Save
           </Button>
@@ -285,8 +285,8 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
       ) : (
         <div className="space-y-5">
           <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-zinc-300 uppercase tracking-wider">
-              <FolderSearch size={13} className="text-amber-400" />
+            <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+              <FolderSearch size={13} className="text-zinc-500" />
               Skill 路径管理
             </div>
 
@@ -324,12 +324,11 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
             </div>
 
             <Button
-              type="primary"
               icon={<FolderSearch size={13} />}
               onClick={handleScanSkills}
               loading={scanning}
               block
-              className="flex items-center justify-center gap-1.5"
+              className="flex items-center justify-center gap-1.5 bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
             >
               Scan Skills
             </Button>
@@ -363,8 +362,8 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
           </section>
 
           <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-zinc-300 uppercase tracking-wider">
-              <Globe size={13} className="text-cyan-400" />
+            <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+              <Globe size={13} className="text-zinc-500" />
               Browser 配置
             </div>
 
@@ -425,8 +424,8 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
           </section>
 
           <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-zinc-300 uppercase tracking-wider">
-              <Brain size={13} className="text-blue-400" />
+            <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+              <Brain size={13} className="text-zinc-500" />
               Embedding
             </div>
 
@@ -537,8 +536,8 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
           </section>
 
           <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
-            <div className="flex items-center gap-2 text-xs font-medium text-zinc-300 uppercase tracking-wider">
-              <Search size={13} className="text-green-400" />
+            <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+              <Search size={13} className="text-zinc-500" />
               Search
             </div>
 
