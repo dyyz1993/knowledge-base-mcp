@@ -172,6 +172,8 @@ npx @dyyz1993/kb-mcp --http --web --port 19877
 
 ## MCP 工具
 
+### 知识库工具
+
 | 工具 | 说明 |
 |---|---|
 | `kb_write` | 保存知识文档，支持标签、关键词、来源项目等元数据 |
@@ -182,6 +184,14 @@ npx @dyyz1993/kb-mcp --http --web --port 19877
 | `kb_delete` | 删除文档，同步更新索引 |
 | `kb_update` | 更新文档正文、标题、标签、关键词 |
 | `kb_outline` | 获取指定项目的文档大纲 |
+
+### 文件访问工具（适用于远程访问）
+
+| 工具 | 说明 |
+|---|---|
+| `file_read` | 通过绝对路径读取文件内容，支持 offset 和 limit 参数 |
+| `file_grep` | 在指定文件中搜索文本内容，支持正则表达式 |
+| `file_exists` | 检查文件或目录是否存在 |
 
 ### kb_write 参数
 
@@ -195,6 +205,35 @@ npx @dyyz1993/kb-mcp --http --web --port 19877
   project_description: string // 当前项目简要描述
   source_project?: string    // 来源项目路径（自动填充）
   source_worktree?: string   // 来源 worktree 路径（自动填充）
+}
+```
+
+### file_read 参数
+
+```typescript
+{
+  path: string           // 文件绝对路径
+  offset?: number        // 起始行号（默认 0）
+  limit?: number         // 读取行数（默认 2000）
+}
+```
+
+### file_grep 参数
+
+```typescript
+{
+  path: string           // 文件绝对路径
+  pattern: string       // 搜索文本或正则表达式
+  case_sensitive?: boolean  // 是否区分大小写（默认 false）
+  regex?: boolean       // 是否使用正则表达式（默认 true）
+}
+```
+
+### file_exists 参数
+
+```typescript
+{
+  path: string           // 文件/目录绝对路径
 }
 ```
 
