@@ -1110,6 +1110,75 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
     }
     return
   }
+  if (url.pathname === "/api/kb-ask" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req))
+    const query = body.query
+    if (!query || typeof query !== "string") {
+      json(res, { error: "Missing or invalid 'query' field" }, 400)
+      return
+    }
+    const hits = searchDocs(query, undefined, undefined, 3)
+    if (hits.length > 0 && hits[0].score >= 40) {
+      const best = hits[0]
+      const full = readDoc(best.id, false)
+      const content = full ? full.content.slice(0, 4000) : ""
+      json(res, {
+        from_kb: true,
+        id: best.id,
+        title: best.title,
+        score: best.score,
+        content,
+        hint: "✅ 从知识库命中",
+      })
+    } else {
+      const miss = recordMiss(query)
+      json(res, {
+        from_kb: false,
+        miss: true,
+        query,
+        suggested_workflow: {
+          step_1_search: `Search the web for "${query}"`,
+          step_2_read: "Read the top results and extract key content",
+          step_3_store: `POST /api/kb-ingest with the extracted content`,
+        },
+        total_misses: miss.total_misses,
+        recurring: miss.recurring,
+        hint: "未命中知识库，建议联网搜索后通过 /api/kb-ingest 入库",
+      })
+    }
+    return
+  }
+  if (url.pathname === "/api/kb-ingest" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req))
+    const { url: docUrl, title, content, tags, keywords } = body
+    if (!title || !content) {
+      json(res, { error: "Missing required fields: title, content" }, 400)
+      return
+    }
+    const autoKeywords = keywords?.length
+      ? keywords
+      : title.split(/[\s\-_\-—–,，、：:]+/).filter((w: string) => w.length >= 2)
+    const finalTags = tags?.length ? tags : ["reference", "web-ingested"]
+    const doc = writeDoc(
+      {
+        title,
+        tags: finalTags,
+        keywords: autoKeywords,
+        intent: `Web-ingested content: ${title.slice(0, 60)}`,
+        project_description: "web-ingest",
+        project_path: "",
+        source_project: "",
+        source_worktree: "",
+        related_projects: [],
+        related_files: docUrl ? [docUrl] : [],
+      },
+      content,
+    )
+    resolveMiss(title)
+    if (docUrl) resolveMiss(docUrl)
+    json(res, { saved: true, id: doc.id, title: doc.title, miss_resolved: true })
+    return
+  }
   json(res, { error: "Not Found" }, 404)
 }
 

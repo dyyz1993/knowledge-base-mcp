@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react"
-import { Search, Command, MessageSquare, Database, Menu, Settings } from "lucide-react"
+import { Search, Command, MessageSquare, Database, Menu, Settings, Sparkles } from "lucide-react"
 import { useDocStore } from "./stores/docs"
 import { useChatStore } from "./stores/chat"
 import Sidebar from "./components/Sidebar"
@@ -10,8 +10,9 @@ import ChatPanel from "./components/ChatPanel"
 import KBPanel from "./components/KBPanel"
 import FavoriteList from "./components/FavoriteList"
 import SettingsPanel from "./components/SettingsPanel"
+import AskPanel from "./components/AskPanel"
 
-type Tab = "kb" | "chat"
+type Tab = "kb" | "ask" | "chat"
 
 export default function App() {
   const { docs, current, load, select } = useDocStore()
@@ -68,6 +69,15 @@ export default function App() {
             Knowledge Base
           </button>
           <button
+            onClick={() => setTab("ask")}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+              tab === "ask" ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <Sparkles size={13} />
+            Ask
+          </button>
+          <button
             onClick={() => setTab("chat")}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
               tab === "chat" ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
@@ -104,7 +114,11 @@ export default function App() {
         </div>
       </header>
 
-      {tab === "kb" ? (
+      {tab === "ask" ? (
+        <div className="flex-1 overflow-hidden">
+          <AskPanel />
+        </div>
+      ) : tab === "kb" ? (
         <div className="flex flex-1 overflow-hidden">
           <Sidebar docs={docs} selectedId={selectedId} onSelect={handleSelect} />
           <DocViewer doc={current} />

@@ -379,3 +379,52 @@ export async function detectBrowser(): Promise<{ path: string | null }> {
   const res = await fetch(`${BASE}/api/browser/detect`)
   return res.json()
 }
+
+export interface AskResult {
+  from_kb: boolean
+  id?: string
+  title?: string
+  score?: number
+  content?: string
+  hint?: string
+  miss?: boolean
+  query?: string
+  suggested_workflow?: {
+    step_1_search: string
+    step_2_read: string
+    step_3_store: string
+  }
+  total_misses?: number
+  recurring?: boolean
+}
+
+export interface IngestResult {
+  saved: boolean
+  id: string
+  title: string
+  miss_resolved: boolean
+}
+
+export async function smartAsk(query: string): Promise<AskResult> {
+  const res = await fetch(`${BASE}/api/kb-ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  })
+  return res.json()
+}
+
+export async function ingestWebContent(params: {
+  url: string
+  title: string
+  content: string
+  tags?: string[]
+  keywords?: string[]
+}): Promise<IngestResult> {
+  const res = await fetch(`${BASE}/api/kb-ingest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  })
+  return res.json()
+}
