@@ -1,4 +1,9 @@
 #!/usr/bin/env bun
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+let _version = "2.23.0"
+try { _version = JSON.parse(readFileSync(join(import.meta.dir, "..", "package.json"), "utf-8")).version } catch {}
+const VERSION = _version
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
@@ -1381,7 +1386,7 @@ function startHttp(port: number) {
         return
       }
       if (url.pathname === "/health") {
-        json(res, { status: "ok", service: "knowledge-base-mcp", version: "2.22.0" })
+        json(res, { status: "ok", service: "knowledge-base-mcp", version: VERSION })
         return
       }
       if (url.pathname === "/api/chat" && req.method === "POST") return handleChat(req, res)
