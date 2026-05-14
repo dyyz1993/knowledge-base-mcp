@@ -1105,6 +1105,16 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
       skills: { ...current.skills, ...update.skills },
       browser: { ...current.browser, ...update.browser },
       webSearch: { ...current.webSearch, ...update.webSearch },
+      searchPipeline: {
+        ...current.searchPipeline,
+        ...update.searchPipeline,
+        sources: {
+          webSearchPrime: { ...current.searchPipeline?.sources?.webSearchPrime, ...update.searchPipeline?.sources?.webSearchPrime },
+          xbrowser: { ...current.searchPipeline?.sources?.xbrowser, ...update.searchPipeline?.sources?.xbrowser },
+          llmDirect: { ...current.searchPipeline?.sources?.llmDirect, ...update.searchPipeline?.sources?.llmDirect },
+          plugin: { ...current.searchPipeline?.sources?.plugin, ...update.searchPipeline?.sources?.plugin },
+        },
+      },
     }
 
     saveConfig(merged)
@@ -1174,15 +1184,35 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
       return
     }
     const webSearch = getMcpWebSearch()
-    if (!webSearch) {
-      json(res, { error: "Web search not configured" }, 503)
-      return
+    if (webSearch) {
+      const result = await webSearch.readUrl(targetUrl)
+      if (result) {
+        json(res, { success: true, ...result })
+        return
+      }
     }
-    const result = await webSearch.readUrl(targetUrl)
-    if (result) {
-      json(res, { success: true, ...result })
-    } else {
-      json(res, { error: "Failed to read URL" }, 500)
+    try {
+      const resp = await fetch(targetUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
+        signal: AbortSignal.timeout(15000),
+      })
+      const html = await resp.text()
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+      const title = titleMatch ? titleMatch[1].trim() : targetUrl
+      const bodyContent = html
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 20000)
+      if (bodyContent.length > 50) {
+        json(res, { success: true, title, content: bodyContent, url: targetUrl })
+        return
+      }
+      json(res, { error: "Failed to extract content" }, 500)
+    } catch (e: unknown) {
+      json(res, { error: `Failed to read URL: ${e instanceof Error ? e.message : "unknown"}` }, 500)
     }
     return
   }
@@ -1476,6 +1506,10 @@ function startHttp(port: number) {
         return
       }
       if (serveWeb) {
+        if (noMcp && (url.pathname === "/mcp" || url.pathname === "/sse" || url.pathname === "/messages")) {
+          json(res, { error: "MCP endpoints disabled (--no-mcp)" }, 404)
+          return
+        }
         const fp = join(webDist, url.pathname === "/" ? "index.html" : url.pathname)
         if (existsSync(fp)) {
           res.writeHead(200, { "Content-Type": mimeTypes[extname(fp)] || "application/octet-stream" })
