@@ -33,11 +33,17 @@ export interface BrowserConfig {
   defaultTimeout: number
 }
 
+export interface WebSearchConfig {
+  apiKey: string
+  enabled: boolean
+}
+
 export interface AppConfig {
   embedding: EmbeddingConfig
   search: SearchConfig
   skills: SkillConfig
   browser: BrowserConfig
+  webSearch: WebSearchConfig
 }
 
 const DEFAULT_SKILL_PATHS = [
@@ -71,6 +77,10 @@ const DEFAULT_CONFIG: AppConfig = {
     headless: true,
     defaultTimeout: 15000,
   },
+  webSearch: {
+    apiKey: "",
+    enabled: true,
+  },
 }
 
 function expandPath(p: string): string {
@@ -97,6 +107,7 @@ export function loadConfig(): AppConfig {
           paths: (raw.skills?.paths || DEFAULT_CONFIG.skills.paths).map(expandPath),
         },
         browser: { ...DEFAULT_CONFIG.browser, ...raw.browser },
+        webSearch: { ...DEFAULT_CONFIG.webSearch, ...raw.webSearch },
       }
     }
   } catch {}

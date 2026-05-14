@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react"
-import { Send, Sparkles, Database, Globe, Save, ChevronDown, ChevronUp, Trash2 } from "lucide-react"
+import { Send, Sparkles, Database, Globe, Save, ChevronDown, ChevronUp, Trash2, ExternalLink, Loader2 } from "lucide-react"
 import { useAskStore } from "../stores/ask"
-import type { AskResult } from "../services/api"
+import { webRead } from "../services/api"
+import type { AskResult, WebSearchItem } from "../services/api"
 export default function AskPanel() {
   const { messages, loading, ask, clear } = useAskStore()
   const [input, setInput] = useState("")
@@ -160,60 +161,91 @@ function ResultCard({ msg, expanded, onToggle }: {
       </div>
       <div className="px-3 py-2 space-y-2">
         <p className="text-xs text-zinc-400">{result.hint}</p>
-        {result.suggested_workflow && (
-          <div className="space-y-1 text-[11px] text-zinc-500">
-            <p className="flex items-center gap-1.5"><span className="text-amber-400 font-mono">1.</span> {result.suggested_workflow.step_1_search}</p>
-            <p className="flex items-center gap-1.5"><span className="text-amber-400 font-mono">2.</span> {result.suggested_workflow.step_2_read}</p>
-            <p className="flex items-center gap-1.5"><span className="text-amber-400 font-mono">3.</span> {result.suggested_workflow.step_3_store}</p>
+        {result.web_results && result.web_results.length > 0 ? (
+          <div className="space-y-1.5">
+            <p className="text-[11px] text-zinc-500">联网搜索结果：</p>
+            {result.web_results.map((item, i) => (
+              <WebResultItem key={i} item={item} query={result.query || ""} />
+            ))}
           </div>
+        ) : (
+          <p className="text-[11px] text-zinc-600">未配置联网搜索，请在设置中填写 Web Search API Key</p>
         )}
-        <div className="pt-2 border-t border-zinc-800">
-          <p className="text-[11px] text-zinc-500 mb-1">找到答案了？粘贴内容存储到知识库：</p>
-          <IngestForm query={result.query || ""} />
-        </div>
       </div>
     </div>
   )
 }
 
-function IngestForm({ query }: { query: string }) {
-  const [title, setTitle] = useState(query)
-  const [content, setContent] = useState("")
-  const [url, setUrl] = useState("")
+function WebResultItem({ item, query }: { item: WebSearchItem; query: string }) {
+  const [reading, setReading] = useState(false)
+  const [detail, setDetail] = useState<string | null>(null)
+  const [showIngest, setShowIngest] = useState(false)
+
+  const handleRead = async () => {
+    if (reading) return
+    setReading(true)
+    try {
+      const result = await webRead(item.link)
+      if (result.success && result.content) {
+        setDetail(result.content)
+        setShowIngest(true)
+      } else {
+        setDetail("抓取失败")
+      }
+    } catch {
+      setDetail("抓取失败")
+    }
+    setReading(false)
+  }
+
+  const handleSave = () => {
+    if (detail && item.title) {
+      useAskStore.getState().ingest(item.link, item.title, detail, ["reference", "web-ingested"])
+      setShowIngest(false)
+      setDetail(null)
+    }
+  }
 
   return (
-    <div className="space-y-1.5">
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="标题"
-        className="w-full text-xs rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
-      />
-      <input
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="来源 URL（选填）"
-        className="w-full text-xs rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
-      />
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder="粘贴内容（Markdown 格式）..."
-        rows={3}
-        className="w-full text-xs rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 resize-none"
-      />
-      <button
-        onClick={() => {
-          if (title.trim() && content.trim()) {
-            useAskStore.getState().ingest(url, title, content, ["reference", "web-ingested"])
-          }
-        }}
-        disabled={!title.trim() || !content.trim()}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-teal-700 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-teal-600 transition-colors"
-      >
-        <Save size={12} />
-        存入知识库
-      </button>
+    <div className="rounded-lg border border-zinc-800 bg-zinc-950 overflow-hidden">
+      <div className="px-2.5 py-1.5">
+        <div className="flex items-start gap-1.5">
+          <a
+            href={item.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-medium text-blue-400 hover:text-blue-300 truncate flex-1"
+          >
+            {item.title}
+          </a>
+          <ExternalLink size={10} className="text-zinc-600 shrink-0 mt-0.5" />
+        </div>
+        <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2">{item.content}</p>
+      </div>
+      <div className="px-2.5 py-1.5 border-t border-zinc-800 flex items-center gap-2">
+        <button
+          onClick={handleRead}
+          disabled={reading}
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+        >
+          {reading ? <Loader2 size={10} className="animate-spin" /> : <Globe size={10} />}
+          {reading ? "抓取中..." : "读取详情"}
+        </button>
+      </div>
+      {detail && (
+        <div className="px-2.5 py-2 border-t border-zinc-800">
+          <div className="text-[10px] text-zinc-400 whitespace-pre-wrap max-h-40 overflow-y-auto">{detail.slice(0, 3000)}</div>
+          {showIngest && (
+            <button
+              onClick={handleSave}
+              className="flex items-center gap-1 px-2 py-1 mt-2 rounded text-[10px] font-medium bg-teal-700 text-white hover:bg-teal-600 transition-colors"
+            >
+              <Save size={10} />
+              存入知识库
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

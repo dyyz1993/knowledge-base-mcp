@@ -380,6 +380,12 @@ export async function detectBrowser(): Promise<{ path: string | null }> {
   return res.json()
 }
 
+export interface WebSearchItem {
+  title: string
+  link: string
+  content: string
+}
+
 export interface AskResult {
   from_kb: boolean
   id?: string
@@ -389,11 +395,7 @@ export interface AskResult {
   hint?: string
   miss?: boolean
   query?: string
-  suggested_workflow?: {
-    step_1_search: string
-    step_2_read: string
-    step_3_store: string
-  }
+  web_results?: WebSearchItem[]
   total_misses?: number
   recurring?: boolean
 }
@@ -425,6 +427,22 @@ export async function ingestWebContent(params: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
+  })
+  return res.json()
+}
+
+export interface WebReadResult {
+  success: boolean
+  title: string
+  content: string
+  url: string
+}
+
+export async function webRead(url: string): Promise<WebReadResult> {
+  const res = await fetch(`${BASE}/api/web-read`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
   })
   return res.json()
 }

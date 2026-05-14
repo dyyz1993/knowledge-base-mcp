@@ -8,6 +8,7 @@ import { z } from "zod"
 import { randomUUID } from "node:crypto"
 import { createServer, IncomingMessage, ServerResponse } from "node:http"
 import { readFileSync, existsSync } from "node:fs"
+import { getMcpWebSearch } from "./search/mcp-web-search.js"
 import { join, extname } from "node:path"
 import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines, rebuildAllVectors, getAllKeywords, listRecentDocs, recordMiss, resolveMiss, getMissStats } from "./storage/index.js"
 import type { DocMeta } from "./storage/index.js"
@@ -1132,19 +1133,42 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
       })
     } else {
       const miss = recordMiss(query)
+      const webSearch = getMcpWebSearch()
+      let webResults: any[] = []
+      if (webSearch) {
+        webResults = await webSearch.search(query, 5)
+      }
       json(res, {
         from_kb: false,
         miss: true,
         query,
-        suggested_workflow: {
-          step_1_search: `Search the web for "${query}"`,
-          step_2_read: "Read the top results and extract key content",
-          step_3_store: `POST /api/kb-ingest with the extracted content`,
-        },
+        web_results: webResults,
         total_misses: miss.total_misses,
         recurring: miss.recurring,
-        hint: "未命中知识库，建议联网搜索后通过 /api/kb-ingest 入库",
+        hint: webResults.length > 0
+          ? "未命中知识库，已联网搜索，点击查看结果"
+          : "未命中知识库，未配置联网搜索（请在设置中配置 Web Search API Key）",
       })
+    }
+    return
+  }
+  if (url.pathname === "/api/web-read" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req))
+    const targetUrl = body.url
+    if (!targetUrl) {
+      json(res, { error: "Missing 'url' field" }, 400)
+      return
+    }
+    const webSearch = getMcpWebSearch()
+    if (!webSearch) {
+      json(res, { error: "Web search not configured" }, 503)
+      return
+    }
+    const result = await webSearch.readUrl(targetUrl)
+    if (result) {
+      json(res, { success: true, ...result })
+    } else {
+      json(res, { error: "Failed to read URL" }, 500)
     }
     return
   }
@@ -1214,7 +1238,7 @@ function startHttp(port: number) {
         return
       }
       if (url.pathname === "/health") {
-        json(res, { status: "ok", service: "knowledge-base-mcp", version: "2.20.1" })
+        json(res, { status: "ok", service: "knowledge-base-mcp", version: "2.21.0" })
         return
       }
       if (url.pathname === "/api/chat" && req.method === "POST") return handleChat(req, res)
