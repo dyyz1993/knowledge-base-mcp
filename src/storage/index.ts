@@ -103,6 +103,7 @@ export function writeDoc(
     related_files: meta.related_files || [],
   } as DocMeta
 
+  ensureDir(KNOWLEDGE_DIR)
   const md = buildFrontmatter(doc) + "\n" + content
   writeFileSync(file_path, md)
 
@@ -321,6 +322,31 @@ export function listDocs(tag?: string, project?: string): DocMeta[] {
   }).sort((a, b) => b.created_at - a.created_at)
 }
 
+export function listRecentDocs(options: {
+  hours?: number
+  since?: number
+  limit?: number
+  include_content?: boolean
+}): { meta: DocMeta; content?: string; snippet: string }[] {
+  const { hours = 24, since, limit = 50, include_content = false } = options
+  const cutoff = since || (Date.now() - hours * 3600_000)
+  const idx = readIndex()
+
+  return Object.values(idx.documents)
+    .filter(d => d.created_at >= cutoff)
+    .sort((a, b) => b.created_at - a.created_at)
+    .slice(0, limit)
+    .map(d => {
+      const fullContent = readDocContent(d.file_path)
+      const snippet = fullContent.length > 300 ? fullContent.slice(0, 300) + "..." : fullContent
+      return {
+        meta: d,
+        ...(include_content ? { content: fullContent } : {}),
+        snippet,
+      }
+    })
+}
+
 export function deleteDoc(id: string): boolean {
   const idx = readIndex()
   const doc = idx.documents[id]
@@ -390,3 +416,67 @@ export function getAllKeywords(): { keywords: string[]; count: number } {
 }
 
 export { rebuildAllVectors }
+
+const MISS_LOG_PATH = `${KNOWLEDGE_DIR}/miss-log.json`
+
+interface MissEntry {
+  query: string
+  timestamp: number
+  resolved: boolean
+}
+
+function readMissLog(): MissEntry[] {
+  try {
+    if (!existsSync(MISS_LOG_PATH)) return []
+    return JSON.parse(readFileSync(MISS_LOG_PATH, "utf-8"))
+  } catch {
+    return []
+  }
+}
+
+function writeMissLog(log: MissEntry[]) {
+  ensureDir(KNOWLEDGE_DIR)
+  writeFileSync(MISS_LOG_PATH, JSON.stringify(log, null, 2))
+}
+
+export function recordMiss(query: string): { total_misses: number; recurring: boolean } {
+  const log = readMissLog()
+  const existing = log.find(e => e.query.toLowerCase() === query.toLowerCase())
+  const recurring = !!existing
+  if (existing) {
+    existing.timestamp = Date.now()
+  } else {
+    log.push({ query, timestamp: Date.now(), resolved: false })
+  }
+  writeMissLog(log)
+  const unresolved = log.filter(e => !e.resolved)
+  return { total_misses: unresolved.length, recurring }
+}
+
+export function resolveMiss(query: string) {
+  const log = readMissLog()
+  const entry = log.find(e => e.query.toLowerCase() === query.toLowerCase())
+  if (entry) {
+    entry.resolved = true
+    writeMissLog(log)
+  }
+}
+
+export function getMissStats(limit = 20): { unresolved: MissEntry[]; top_missed: { query: string; count: number }[] } {
+  const log = readMissLog()
+  const unresolved = log.filter(e => !e.resolved).sort((a, b) => b.timestamp - a.timestamp).slice(0, limit)
+
+  const countMap: Record<string, number> = {}
+  for (const e of log) {
+    if (!e.resolved) {
+      const key = e.query.toLowerCase()
+      countMap[key] = (countMap[key] || 0) + 1
+    }
+  }
+  const topMissed = Object.entries(countMap)
+    .map(([query, count]) => ({ query, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+
+  return { unresolved, top_missed: topMissed }
+}

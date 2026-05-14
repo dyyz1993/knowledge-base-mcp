@@ -4,9 +4,11 @@
 
 ## 功能特性
 
-- **8 个 MCP 工具** — kb_write / kb_read / kb_search / kb_search_semantic / kb_list / kb_delete / kb_update / kb_outline
+- **18 个 MCP 工具** — kb_write / kb_read / kb_search / kb_search_semantic / kb_list / kb_delete / kb_update / kb_outline / kb_recent / kb_ask / kb_ingest_url / kb_ingest_repo / kb_stale_check / kb_auto_link / kb_suggest / file_read / file_grep / file_exists
 - **三层搜索架构** — P0 文本匹配 + P1 TF-IDF + P2 多语言语义向量，加权融合排序
 - **多语言语义搜索** — 基于 `paraphrase-multilingual-MiniLM-L12-v2`，支持 50+ 语言跨语言检索
+- **自进化闭环** — kb_ask miss → Agent 联网搜索 → kb_ingest_url 存储 → 下次秒回
+- **Miss 日志分析** — 记录高频未命中查询，kb_suggest 推荐预抓取主题
 - **双传输模式** — Stdio（本地 MCP 客户端）+ HTTP（StreamableHTTP / SSE / REST API）
 - **Web UI** — Vite 6 + React 18 + Zustand + Tailwind + Ant Design
 
@@ -184,6 +186,18 @@ npx @dyyz1993/kb-mcp --http --web --port 19877
 | `kb_delete` | 删除文档，同步更新索引 |
 | `kb_update` | 更新文档正文、标题、标签、关键词 |
 | `kb_outline` | 获取指定项目的文档大纲 |
+| `kb_recent` | 获取最近插入的文档，支持按时间范围过滤 |
+
+### 自进化工具
+
+| 工具 | 说明 |
+|---|---|
+| `kb_ask` | 智能查询：先搜知识库，miss 时返回结构化 Miss Task 引导 Agent 搜索后存储 |
+| `kb_ingest_url` | 摄入 URL 内容到知识库（Agent 用 web-reader/xbrowser 抓取后调用），自动 resolve miss |
+| `kb_ingest_repo` | 克隆 GitHub 仓库并分析目录结构 + 关键文件，生成知识文档 |
+| `kb_suggest` | 基于 miss 日志分析，推荐应预抓取的高频未命中主题 |
+| `kb_stale_check` | 检查知识库中 related_files 引用的文件是否已变更 |
+| `kb_auto_link` | 自动发现知识库中语义相关的文档，返回关联建议 |
 
 ### 文件访问工具（适用于远程访问）
 
@@ -235,6 +249,93 @@ npx @dyyz1993/kb-mcp --http --web --port 19877
 {
   path: string           // 文件/目录绝对路径
 }
+```
+
+### kb_ask 参数
+
+```typescript
+{
+  query: string                // 自然语言查询
+  max_web_results?: number     // 联网搜索最大结果数（默认 3，当前未使用）
+  auto_save?: boolean          // 是否自动存入知识库（默认 true，当前未使用）
+}
+```
+
+**返回值**：
+- KB 命中：`{ from_kb: true, id, title, score, content, hint }`
+- KB 未命中（Miss）：`{ from_kb: false, miss: true, suggested_workflow, alternative_workflows, hint }`
+
+### kb_ingest_url 参数
+
+```typescript
+{
+  url: string                  // 来源 URL
+  title: string                // 文档标题
+  content: string              // 页面内容（Markdown 格式）
+  tags?: string[]              // 标签（默认 ["reference", "auto-ingested"]）
+  keywords?: string[]          // 关键词（不填则从标题自动提取）
+}
+```
+
+### kb_ingest_repo 参数
+
+```typescript
+{
+  repo: string                 // GitHub 仓库（owner/repo 格式，如 oven-sh/bun）
+  max_files?: number           // 最多读取文件数（默认 20）
+}
+```
+
+### kb_recent 参数
+
+```typescript
+{
+  hours?: number               // 查询最近多少小时（默认 24）
+  limit?: number               // 最大返回数量（默认 50）
+  include_content?: boolean    // 是否返回完整内容（默认 false）
+}
+```
+
+### kb_suggest 参数
+
+```typescript
+{
+  limit?: number               // 返回建议数量（默认 10）
+}
+```
+
+### kb_stale_check 参数
+
+```typescript
+{}  // 无参数，自动检查所有带 related_files 的文档
+```
+
+### kb_auto_link 参数
+
+```typescript
+{
+  doc_id?: string              // 指定文档 ID（不指定则分析最近 10 篇）
+  threshold?: number           // 语义相似度阈值 0-1（默认 0.7）
+}
+```
+
+## 自进化闭环
+
+```
+用户查询 → kb_ask
+  ├── KB 命中（score ≥ 40）→ 直接返回，无需联网
+  └── KB 未命中 → 返回 Miss Task
+        ├── suggested_workflow:
+        │     step_1: web-search-prime(query)
+        │     step_2: web-reader(url)
+        │     step_3: kb_ingest_url(url, title, content)
+        └── alternative_workflows:
+              • GitHub: zread(repo) → kb_ingest_url()
+              • JS 渲染: agent-browser → kb_ingest_url()
+              • 本地项目: kb_ingest_repo(repo_url)
+
+Agent 执行搜索 → kb_ingest_url 存储 → resolveMiss → 下次查询直接命中
+kb_suggest 分析高频 miss → 推荐预抓取主题
 ```
 
 ## REST API

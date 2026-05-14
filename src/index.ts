@@ -9,9 +9,8 @@ import { randomUUID } from "node:crypto"
 import { createServer, IncomingMessage, ServerResponse } from "node:http"
 import { readFileSync, existsSync } from "node:fs"
 import { join, extname } from "node:path"
-import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines, rebuildAllVectors, getAllKeywords } from "./storage/index.js"
-import { webSearch } from "./search/web-search.js"
-import { fetchUrl } from "./search/web-reader.js"
+import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines, rebuildAllVectors, getAllKeywords, listRecentDocs, recordMiss, resolveMiss, getMissStats } from "./storage/index.js"
+import type { DocMeta } from "./storage/index.js"
 import { getStorageStats, initDb } from "./search/vector-store.js"
 import { handleChat } from "./chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "./chat/api-models.js"
@@ -23,6 +22,59 @@ import { handleScanSkills, handleGetSkillPaths, handleUpdateSkillPaths } from ".
 import { handleBrowserDetect } from "./chat/api-browser.js"
 import { loadConfig, saveConfig } from "./config.js"
 import type { AppConfig } from "./config.js"
+
+function scanDir(base: string, prefix: string, depth: number): string {
+  if (depth <= 0) return `${prefix}/...`
+  const dir = prefix ? `${base}/${prefix}` : base
+  try {
+    const items = Bun.readdirSync(dir).sort()
+    const lines: string[] = []
+    const skip = new Set([".git", "node_modules", "dist", ".turbo", ".next", "__pycache__", "target", "vendor"])
+    for (const item of items) {
+      if (item.startsWith(".") || skip.has(item)) continue
+      const fullPath = prefix ? `${prefix}/${item}` : item
+      try {
+        const stat = Bun.statSync(`${base}/${fullPath}`)
+        if (stat.isDirectory()) {
+          lines.push(`${fullPath}/`)
+          if (depth > 1) {
+            const sub = scanDir(base, fullPath, depth - 1)
+            if (sub) lines.push(...sub.split("\n").map(l => `  ${l}`))
+          }
+        } else {
+          lines.push(fullPath)
+        }
+      } catch {}
+    }
+    return lines.join("\n")
+  } catch {
+    return ""
+  }
+}
+
+async function readKeyFiles(base: string, maxFiles: number): Promise<string> {
+  const priorityFiles = [
+    "README.md", "readme.md",
+    "package.json", "Cargo.toml", "go.mod", "pyproject.toml",
+    "tsconfig.json",
+    "src/index.ts", "src/index.js", "src/main.ts", "src/main.js",
+    "lib/index.ts", "lib/index.js",
+    "index.ts", "index.js", "main.ts", "main.js",
+  ]
+  const sections: string[] = []
+  let count = 0
+  for (const pf of priorityFiles) {
+    if (count >= maxFiles) break
+    try {
+      const content = await Bun.file(`${base}/${pf}`).text()
+      if (content) {
+        sections.push(`## ${pf}\n\n\`\`\`\n${content.slice(0, 2000)}${content.length > 2000 ? "\n... truncated" : ""}\n\`\`\``)
+        count++
+      }
+    } catch {}
+  }
+  return sections.join("\n\n")
+}
 
 function registerTools(server: McpServer) {
   server.tool(
@@ -207,6 +259,45 @@ function registerTools(server: McpServer) {
               keywords: d.keywords,
               source_project: d.source_project,
               created_at: d.created_at,
+            })),
+          }, null, 2),
+        }],
+      }
+    },
+  )
+
+  server.tool(
+    "kb_recent",
+    "获取最近插入的知识文档，用于快速回顾和汇总近期工作。支持按时间范围过滤（如最近24/72小时）。",
+    {
+      hours: z.number().default(24).describe("查询最近多少小时内的文档，默认24"),
+      limit: z.number().default(50).describe("最大返回数量，默认50"),
+      include_content: z.boolean().default(false).describe("是否返回完整内容，默认false仅返回摘要"),
+    },
+    async (args) => {
+      const results = listRecentDocs({
+        hours: args.hours,
+        limit: args.limit,
+        include_content: args.include_content,
+      })
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            total: results.length,
+            hours: args.hours,
+            documents: results.map(r => ({
+              id: r.meta.id,
+              title: r.meta.title,
+              intent: r.meta.intent,
+              tags: r.meta.tags,
+              keywords: r.meta.keywords,
+              source_project: r.meta.source_project,
+              project_description: r.meta.project_description,
+              created_at: r.meta.created_at,
+              updated_at: r.meta.updated_at,
+              snippet: r.snippet,
+              ...(r.content ? { content: r.content } : {}),
             })),
           }, null, 2),
         }],
@@ -422,7 +513,7 @@ function registerTools(server: McpServer) {
 
   server.tool(
     "kb_ask",
-    `智能查询：先搜知识库，没命中则联网搜索→抓取→提炼→自动存储。每次查询都可能让知识库增长一份。
+    `智能查询：先搜知识库，没命中则返回 Miss Task 引导 Agent 用外部工具搜索后存储。
 返回 { from_kb: boolean, sources: [...], content: "..." }`,
     {
       query: z.string().describe("自然语言查询"),
@@ -445,74 +536,155 @@ function registerTools(server: McpServer) {
               title: best.title,
               score: best.score,
               content: full ? full.content.slice(0, 4000) : best.snippet || best.intent,
-              hint: "直接从知识库命中，无需联网搜索",
+              hint: "✅ 直接从知识库命中，无需联网搜索",
             }, null, 2),
           }],
         }
       }
 
+      const miss = recordMiss(args.query)
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            from_kb: false,
+            miss: true,
+            query: args.query,
+            miss_stats: { total_unresolved: miss.total_misses, recurring: miss.recurring },
+            suggested_workflow: {
+              step_1_search: `web-search-prime(query="${args.query}")`,
+              step_2_read: "web-reader(url=top_results) — 抓取页面完整内容",
+              step_3_store: "kb_ingest_url(url, title, content) — 存入知识库",
+            },
+            alternative_workflows: {
+              github_repo: "zread(repo='owner/repo') → kb_ingest_url()",
+              js_rendered_page: "agent-browser / xbrowser scrape(url) → kb_ingest_url()",
+              local_project: "kb_ingest_repo(repo_url) → 自动克隆分析存储",
+            },
+            hint: miss.recurring
+              ? `⚠️ 该查询已 miss ${miss.total_misses} 次，建议尽快搜索并存储。`
+              : "知识库未命中。请使用 web-search-prime / web-reader 搜索后，通过 kb_ingest_url 存储。",
+          }, null, 2),
+        }],
+      }
+    },
+  )
+
+  server.tool(
+    "kb_ingest_url",
+    "摄入 URL 内容到知识库。Agent 用 web-reader / xbrowser 抓取后调用此工具存储。存储后自动 resolve miss。",
+    {
+      url: z.string().describe("来源 URL"),
+      title: z.string().describe("文档标题"),
+      content: z.string().describe("页面内容（Markdown 格式）"),
+      tags: z.array(z.string()).optional().default(["reference", "auto-ingested"]).describe("标签"),
+      keywords: z.array(z.string()).optional().describe("关键词（不填则从标题自动提取）"),
+    },
+    async (args) => {
+      const autoKeywords = args.keywords?.length
+        ? args.keywords
+        : args.title.split(/[\s,，、]+/).filter(w => w.length > 1).slice(0, 8)
+
+      const doc = writeDoc(
+        {
+          title: args.title,
+          tags: args.tags,
+          keywords: autoKeywords,
+          intent: `Auto-ingested from ${args.url}`,
+          project_description: "kb_ask pipeline",
+        },
+        args.content,
+      )
+
+      resolveMiss(args.title)
+      if (args.title !== args.url) {
+        resolveMiss(args.url)
+      }
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            saved: true,
+            id: doc.id,
+            title: doc.title,
+            url: args.url,
+            miss_resolved: true,
+            hint: `✅ 已存储（id: ${doc.id}）。下次搜索将直接命中。`,
+          }, null, 2),
+        }],
+      }
+    },
+  )
+
+  server.tool(
+    "kb_ingest_repo",
+    "克隆 GitHub 仓库到临时目录，分析目录结构和关键文件，生成知识文档存入知识库。",
+    {
+      repo: z.string().describe("GitHub 仓库（owner/repo 格式，如 oven-sh/bun）"),
+      max_files: z.number().optional().default(20).describe("最多读取文件数"),
+    },
+    async (args) => {
+      const tmpDir = `/tmp/kb-repo-${Date.now()}`
       try {
-        const searchResults = await webSearch(args.query, args.max_web_results)
-        if (searchResults.length === 0) {
+        const proc = Bun.spawn(["git", "clone", "--depth=1", `https://github.com/${args.repo}.git`, tmpDir], {
+          stdout: "pipe",
+          stderr: "pipe",
+        })
+        const exitCode = await proc.exited
+        if (exitCode !== 0) {
           return {
             content: [{
               type: "text",
-              text: JSON.stringify({
-                from_kb: false,
-                web_results: 0,
-                message: "知识库未命中，联网搜索也无结果",
-              }, null, 2),
+              text: JSON.stringify({ error: "git clone 失败", repo: args.repo }),
             }],
           }
         }
 
-        const fetchTasks = searchResults.slice(0, 2).map(r => fetchUrl(r.url))
-        const pages = await Promise.all(fetchTasks)
-        const validPages = pages.filter((p): p is NonNullable<typeof p> => p !== null)
+        const structure = scanDir(tmpDir, "", 3)
+        const keyFiles = await readKeyFiles(tmpDir, args.max_files)
 
-        const combinedContent = validPages
-          .map(p => `## ${p.title}\n来源: ${p.url}\n\n${p.content}`)
-          .join("\n\n---\n\n")
+        const docContent = `# ${args.repo} 项目分析
 
-        const sourceSummary = searchResults.map(r => `- [${r.title}](${r.url})`).join("\n")
+## 目录结构
 
-        let savedId: string | null = null
-        let savedTitle: string | null = null
-        if (args.auto_save && combinedContent.length > 100) {
-          const keywords = args.query
-            .split(/[\s,，、]+/)
-            .filter(w => w.length > 1)
-            .slice(0, 8)
+\`\`\`
+${structure}
+\`\`\`
 
-          const doc = writeDoc(
-            {
-              title: args.query.slice(0, 80),
-              tags: ["reference", "auto-ingested"],
-              keywords,
-              intent: args.query,
-              project_description: "kb_ask auto-ingested",
-            },
-            combinedContent,
-          )
-          savedId = doc.id
-          savedTitle = doc.title
-        }
+## 关键文件
+
+${keyFiles}
+
+---
+> Auto-generated by kb_ingest_repo
+> Source: https://github.com/${args.repo}
+`
+
+        const doc = writeDoc(
+          {
+            title: `${args.repo} 项目分析`,
+            tags: ["architecture", "reference", "auto-ingested"],
+            keywords: args.repo.split(/[\/\-_.]/).filter(w => w.length > 1),
+            intent: `${args.repo} 仓库的结构分析和关键文件内容`,
+            project_description: "kb_ingest_repo auto-generated",
+          },
+          docContent,
+        )
+
+        resolveMiss(args.repo)
 
         return {
           content: [{
             type: "text",
             text: JSON.stringify({
-              from_kb: false,
-              web_results: searchResults.length,
-              pages_fetched: validPages.length,
-              sources: sourceSummary,
-              content: combinedContent.slice(0, 6000),
-              auto_saved: args.auto_save,
-              saved_id: savedId,
-              saved_title: savedTitle,
-              hint: savedId
-                ? `知识库未命中，已联网搜索并自动存储（id: ${savedId}）。下次查询将直接从知识库命中。`
-                : "知识库未命中，联网搜索完成",
+              saved: true,
+              id: doc.id,
+              title: doc.title,
+              repo: args.repo,
+              files_read: keyFiles.split("## ").length - 1,
+              hint: `✅ 已分析并存储 ${args.repo}`,
             }, null, 2),
           }],
         }
@@ -520,16 +692,198 @@ function registerTools(server: McpServer) {
         return {
           content: [{
             type: "text",
-            text: JSON.stringify({
-              from_kb: false,
-              error: "联网搜索失败",
-              detail: e.message,
-            }, null, 2),
+            text: JSON.stringify({ error: e.message, repo: args.repo }),
           }],
         }
+      } finally {
+        try {
+          Bun.spawn(["rm", "-rf", tmpDir], { stdout: "pipe", stderr: "pipe" })
+        } catch {}
       }
     },
   )
+
+  server.tool(
+    "kb_stale_check",
+    "检查知识库中 related_files 引用的文件是否已变更，返回过期文档列表。",
+    {},
+    async () => {
+      const idx = readFileSync(`${process.env.KB_DIR || `${process.env.HOME}/.knowledge`}/index.json`, "utf-8")
+      const docs = JSON.parse(idx).documents as Record<string, any>
+      const stale: Array<{ id: string; title: string; file: string; doc_updated: number; file_modified: number }> = []
+
+      for (const doc of Object.values(docs)) {
+        if (!doc.related_files?.length) continue
+        for (const f of doc.related_files) {
+          try {
+            const stat = await Bun.file(f).stat()
+            if (stat && stat.mtime && doc.updated_at && stat.mtime.getTime() > doc.updated_at) {
+              stale.push({
+                id: doc.id,
+                title: doc.title,
+                file: f,
+                doc_updated: doc.updated_at,
+                file_modified: stat.mtime.getTime(),
+              })
+            }
+          } catch {}
+        }
+      }
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            total_checked: Object.values(docs).filter((d: any) => d.related_files?.length).length,
+            stale_count: stale.length,
+            stale_docs: stale.slice(0, 20),
+            hint: stale.length > 0
+              ? `发现 ${stale.length} 个过期文档，建议用 file_read 重新读取并 kb_update 更新。`
+              : "✅ 所有关联文件均未过期。",
+          }, null, 2),
+        }],
+      }
+    },
+  )
+
+  server.tool(
+    "kb_auto_link",
+    "自动发现知识库中语义相关的文档，返回关联建议。",
+    {
+      doc_id: z.string().optional().describe("指定文档 ID（不指定则分析最近 10 篇）"),
+      threshold: z.number().optional().default(0.7).describe("语义相似度阈值（0-1）"),
+    },
+    async (args) => {
+      const allDocs = listDocs()
+      const targetDocs = args.doc_id
+        ? allDocs.filter(d => d.id === args.doc_id)
+        : allDocs.sort((a, b) => (b.updated_at || b.created_at) - (a.updated_at || a.created_at)).slice(0, 10)
+
+      const links: Array<{ source: string; source_title: string; target: string; target_title: string; score: number }> = []
+
+      for (const doc of targetDocs) {
+        try {
+          const query = `${doc.title} ${doc.keywords.slice(0, 5).join(" ")}`
+          const results = await searchDocsSemantic(query, 5)
+          for (const r of results) {
+            if (r.id === doc.id) continue
+            if (r.score >= args.threshold) {
+              links.push({
+                source: doc.id,
+                source_title: doc.title,
+                target: r.id,
+                target_title: r.title,
+                score: Math.round(r.score * 1000) / 1000,
+              })
+            }
+          }
+        } catch {}
+      }
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            analyzed: targetDocs.length,
+            links_found: links.length,
+            links: links.slice(0, 20),
+            hint: links.length > 0
+              ? `发现 ${links.length} 对关联文档。可考虑在文档中互相引用。`
+              : "未发现高相似度关联。",
+          }, null, 2),
+        }],
+      }
+    },
+  )
+
+  server.tool(
+    "kb_suggest",
+    "基于 miss 日志分析，推荐应该预抓取的知识主题。",
+    {
+      limit: z.number().optional().default(10).describe("返回建议数量"),
+    },
+    async (args) => {
+      const stats = getMissStats(args.limit)
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            total_unresolved_misses: stats.unresolved.length,
+            suggested_topics: stats.top_missed.map(m => ({
+              query: m.query,
+              miss_count: m.count,
+              urgency: m.count >= 3 ? "high" : m.count >= 2 ? "medium" : "low",
+              suggested_action: `web-search-prime(query="${m.query}") → web-reader → kb_ingest_url`,
+            })),
+            hint: stats.top_missed.length > 0
+              ? `有 ${stats.top_missed.filter(m => m.count >= 2).length} 个高频 miss 话题建议优先处理。`
+              : "暂无高频 miss 话题。",
+          }, null, 2),
+        }],
+      }
+    },
+  )
+}
+
+function renderRecentHtml(
+  results: { meta: DocMeta; content?: string; snippet: string }[],
+  hours: number,
+): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+  const fmtTime = (ms: number) => new Date(ms).toLocaleString("zh-CN", { hour12: false })
+  const items = results.map(r => {
+    const m = r.meta
+    const tagsHtml = m.tags.map(t => `<span class="tag">${esc(t)}</span>`).join("")
+    return `<article class="card">
+  <div class="card-header">
+    <h2><a href="/api/doc/${esc(m.id)}">${esc(m.title)}</a></h2>
+    <time>${fmtTime(m.created_at)}</time>
+  </div>
+  <p class="intent">${esc(m.intent)}</p>
+  <div class="tags">${tagsHtml}</div>
+  <details><summary>摘要</summary><pre class="snippet">${esc(r.snippet)}</pre></details>
+  ${r.content ? `<details open><summary>完整内容</summary><pre class="content">${esc(r.content)}</pre></details>` : ""}
+  <div class="meta-footer">
+    <span>${esc(m.project_description)}</span>
+    ${m.source_project ? `<span class="project">${esc(m.source_project)}</span>` : ""}
+  </div>
+</article>`
+  }).join("\n")
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>最近 ${hours} 小时的知识文档 (${results.length})</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0d1117;color:#c9d1d9;padding:24px;max-width:960px;margin:0 auto}
+h1{margin-bottom:8px;font-size:1.5em;color:#58a6ff}
+.summary{color:#8b949e;margin-bottom:24px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;margin-bottom:16px}
+.card-header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px}
+.card-header h2{font-size:1.15em;color:#58a6ff;word-break:break-all}
+.card-header h2 a{color:inherit;text-decoration:none}
+.card-header h2 a:hover{text-decoration:underline}
+.card-header time{color:#8b949e;font-size:.85em;white-space:nowrap}
+.intent{color:#d2a8ff;font-size:.9em;margin-bottom:8px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tag{background:#1f6feb33;color:#58a6ff;padding:2px 8px;border-radius:12px;font-size:.8em}
+details{margin-top:8px}
+summary{cursor:pointer;color:#8b949e;font-size:.9em;user-select:none}
+summary:hover{color:#c9d1d9}
+pre{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;margin-top:8px;white-space:pre-wrap;word-break:break-word;font-size:.85em;line-height:1.5;max-height:500px;overflow-y:auto}
+.meta-footer{display:flex;justify-content:space-between;color:#8b949e;font-size:.8em;margin-top:10px;border-top:1px solid #30363d;padding-top:8px}
+.project{color:#7ee787}
+</style>
+</head>
+<body>
+<h1>最近 ${hours} 小时的知识文档</h1>
+<p class="summary">共 ${results.length} 条</p>
+${items}
+</body>
+</html>`
 }
 
 const mcp = new McpServer({ name: "knowledge-base", version: "1.0.0" })
@@ -616,6 +970,21 @@ async function handleSSEMessage(req: IncomingMessage, res: ServerResponse, body:
 async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL) {
   if (url.pathname === "/api/docs" && req.method === "GET") {
     json(res, listDocs())
+    return
+  }
+  if (url.pathname === "/api/docs/recent" && req.method === "GET") {
+    const hours = parseInt(url.searchParams.get("hours") || "24", 10)
+    const since = url.searchParams.get("since") ? parseInt(url.searchParams.get("since")!, 10) : undefined
+    const limit = parseInt(url.searchParams.get("limit") || "50", 10)
+    const include_content = url.searchParams.get("include_content") === "true"
+    const format = url.searchParams.get("format") || "json"
+    const results = listRecentDocs({ hours, since, limit, include_content })
+    if (format === "html") {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
+      res.end(renderRecentHtml(results, hours))
+    } else {
+      json(res, results)
+    }
     return
   }
   if (url.pathname.startsWith("/api/doc/") && req.method === "GET") {
