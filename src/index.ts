@@ -1091,6 +1091,9 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
         ...update.search,
         weights: { ...current.search.weights, ...update.search?.weights },
       },
+      skills: { ...current.skills, ...update.skills },
+      browser: { ...current.browser, ...update.browser },
+      webSearch: { ...current.webSearch, ...update.webSearch },
     }
 
     saveConfig(merged)
@@ -1238,7 +1241,7 @@ function startHttp(port: number) {
         return
       }
       if (url.pathname === "/health") {
-        json(res, { status: "ok", service: "knowledge-base-mcp", version: "2.21.0" })
+        json(res, { status: "ok", service: "knowledge-base-mcp", version: "2.22.0" })
         return
       }
       if (url.pathname === "/api/chat" && req.method === "POST") return handleChat(req, res)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { Drawer, Select, Input, InputNumber, Switch, Slider, Button, Tag, message, Divider, Tooltip, ConfigProvider, theme } from "antd"
-import { Settings, Eye, EyeOff, RefreshCw, Save, Wifi, WifiOff, Loader2, Brain, Search, FolderSearch, Globe } from "lucide-react"
+import { Settings, Eye, EyeOff, RefreshCw, Save, Wifi, WifiOff, Loader2, Brain, Search, FolderSearch, Globe, Sparkles } from "lucide-react"
 import { getConfig, updateConfig, reindexEmbeddings, scanSkills, getSkillPaths, updateSkillPaths, detectBrowser, type AppConfig, type EmbeddingConfig, type SearchConfig } from "../services/api"
 
 const PROVIDERS = [
@@ -131,6 +131,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
         embedding: { ...DEFAULT_EMBEDDING, ...updated.embedding },
         search: { ...DEFAULT_SEARCH, ...updated.search, weights: { ...DEFAULT_SEARCH.weights, ...updated.search?.weights } },
         browser: { ...DEFAULT_BROWSER, ...updated.browser },
+        webSearch: updated.webSearch || config.webSearch,
       })
       message.success("Configuration saved")
     } catch {
@@ -443,6 +444,40 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                   addonAfter="ms"
                 />
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+              <Sparkles size={13} className="text-amber-500" />
+              Web Search（联网搜索）
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs text-zinc-400">启用联网搜索</span>
+                <p className="text-[10px] text-zinc-600">Ask Tab 未命中 KB 时自动联网搜索</p>
+              </div>
+              <Switch
+                size="small"
+                checked={config.webSearch?.enabled ?? true}
+                onChange={v => setConfig(prev => ({ ...prev, webSearch: { ...(prev.webSearch || { apiKey: "", enabled: true }), enabled: v } }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-zinc-400">API Key（智谱）</label>
+              <div className="flex gap-1.5">
+                <Input
+                  size="small"
+                  type={showKey ? "text" : "password"}
+                  value={config.webSearch?.apiKey || ""}
+                  onChange={e => setConfig(prev => ({ ...prev, webSearch: { ...(prev.webSearch || { enabled: true }), apiKey: e.target.value } }))}
+                  placeholder="智谱 API Key（用于 web-search-prime / web-reader）"
+                  className="flex-1"
+                />
+              </div>
+              <span className="text-[11px] text-zinc-600">用于 Ask Tab 的联网搜索功能，不填则关闭联网能力</span>
             </div>
           </section>
 

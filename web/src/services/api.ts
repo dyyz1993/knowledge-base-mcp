@@ -304,9 +304,15 @@ export interface SearchConfig {
   weights: { token: number; tfidf: number; semantic: number }
 }
 
+export interface WebSearchConfig {
+  apiKey: string
+  enabled: boolean
+}
+
 export interface AppConfig {
   embedding: EmbeddingConfig
   search: SearchConfig
+  webSearch?: WebSearchConfig
 }
 
 export async function getConfig(): Promise<AppConfig> {
