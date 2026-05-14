@@ -309,10 +309,36 @@ export interface WebSearchConfig {
   enabled: boolean
 }
 
+export interface SearchPipelineConfig {
+  enabled: boolean
+  sources: {
+    webSearchPrime: { enabled: boolean }
+    xbrowser: {
+      enabled: boolean
+      engine: "google" | "bing" | "baidu"
+      cdpEndpoint: string
+      headless: boolean
+      timeout: number
+    }
+    llmDirect: {
+      enabled: boolean
+      baseUrl: string
+      apiKey: string
+      model: string
+    }
+    plugin: {
+      enabled: boolean
+      prompt: string
+    }
+  }
+  maxResults: number
+}
+
 export interface AppConfig {
   embedding: EmbeddingConfig
   search: SearchConfig
   webSearch?: WebSearchConfig
+  searchPipeline?: SearchPipelineConfig
 }
 
 export async function getConfig(): Promise<AppConfig> {
@@ -449,6 +475,71 @@ export async function webRead(url: string): Promise<WebReadResult> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
+  })
+  return res.json()
+}
+
+export interface PipelineSearchResult {
+  title: string
+  url: string
+  snippet: string
+  content?: string
+  source: string
+  sourceType: string
+  qualityScore: number
+}
+
+export interface PipelineSearchResponse {
+  query: string
+  results: PipelineSearchResult[]
+  totalSources: number
+  durationMs: number
+  hint: string
+}
+
+export interface DeepReadResult {
+  success: boolean
+  title: string
+  content: string
+  url: string
+}
+
+export interface SummarizeResult {
+  saved: boolean
+  id: string
+  title: string
+}
+
+export async function askSearch(query: string): Promise<PipelineSearchResponse> {
+  const res = await fetch(`${BASE}/api/ask-search`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  })
+  return res.json()
+}
+
+export async function askDeepRead(url: string): Promise<DeepReadResult> {
+  const res = await fetch(`${BASE}/api/ask-deep-read`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  })
+  return res.json()
+}
+
+export async function askSummarize(params: {
+  query: string
+  title: string
+  content: string
+  url?: string
+  tags?: string[]
+  keywords?: string[]
+}): Promise<SummarizeResult> {
+  const res = await fetch(`${BASE}/api/ask-summarize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
   })
   return res.json()
 }

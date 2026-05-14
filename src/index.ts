@@ -12,6 +12,7 @@ import { getMcpWebSearch } from "./search/mcp-web-search.js"
 import { join, extname } from "node:path"
 import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines, rebuildAllVectors, getAllKeywords, listRecentDocs, recordMiss, resolveMiss, getMissStats } from "./storage/index.js"
 import type { DocMeta } from "./storage/index.js"
+import type { SearchSource } from "./search/types.js"
 import { getStorageStats, initDb } from "./search/vector-store.js"
 import { handleChat } from "./chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "./chat/api-models.js"
@@ -887,8 +888,13 @@ ${items}
 </html>`
 }
 
-const mcp = new McpServer({ name: "knowledge-base", version: "1.0.0" })
-registerTools(mcp)
+const noMcp = process.argv.includes("--no-mcp")
+
+const mcp = noMcp ? null : (() => {
+  const server = new McpServer({ name: "knowledge-base", version: "1.0.0" })
+  registerTools(server)
+  return server
+})()
 
 type StreamableSession = { server: McpServer, transport: StreamableHTTPServerTransport }
 const streamableSessions = new Map<string, StreamableSession>()
@@ -1206,6 +1212,140 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
     json(res, { saved: true, id: doc.id, title: doc.title, miss_resolved: true })
     return
   }
+  if (url.pathname === "/api/ask-search" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req))
+    const query = body.query
+    if (!query) { json(res, { error: "Missing 'query'" }, 400); return }
+
+    const config = loadConfig()
+    if (!config.searchPipeline?.enabled) {
+      json(res, { error: "Search pipeline not enabled" }, 503); return
+    }
+
+    const sources: SearchSource[] = []
+
+    if (config.searchPipeline.sources.webSearchPrime.enabled && config.webSearch.apiKey) {
+      const { WebSearchPrimeSource } = await import("./search/source-web-search-prime.js")
+      sources.push(new WebSearchPrimeSource())
+    }
+
+    if (config.searchPipeline.sources.xbrowser.enabled) {
+      const { XBrowserSource } = await import("./search/source-xbrowser.js")
+      sources.push(new XBrowserSource({
+        enabled: true,
+        engine: config.searchPipeline.sources.xbrowser.engine,
+        cdpEndpoint: config.searchPipeline.sources.xbrowser.cdpEndpoint,
+        headless: config.searchPipeline.sources.xbrowser.headless,
+        timeout: config.searchPipeline.sources.xbrowser.timeout,
+      }))
+    }
+
+    if (config.searchPipeline.sources.llmDirect.enabled) {
+      const { LlmDirectSource } = await import("./search/source-llm-direct.js")
+      sources.push(new LlmDirectSource({
+        enabled: true,
+        baseUrl: config.searchPipeline.sources.llmDirect.baseUrl,
+        apiKey: config.searchPipeline.sources.llmDirect.apiKey,
+        model: config.searchPipeline.sources.llmDirect.model,
+      }))
+    }
+
+    const { SearchPipeline } = await import("./search/search-pipeline.js")
+    const pipeline = new SearchPipeline(sources)
+    const result = await pipeline.search(query, config.searchPipeline.maxResults || 10)
+    json(res, result)
+    return
+  }
+
+  if (url.pathname === "/api/ask-deep-read" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req))
+    const targetUrl = body.url
+    if (!targetUrl) { json(res, { error: "Missing 'url'" }, 400); return }
+
+    const config = loadConfig()
+    const xbrowserEnabled = config.searchPipeline?.sources?.xbrowser?.enabled
+
+    if (xbrowserEnabled) {
+      const { XBrowserCLI } = await import("./search/xbrowser-cli.js")
+      const cli = new XBrowserCLI({
+        enabled: true,
+        engine: config.searchPipeline.sources.xbrowser.engine,
+        cdpEndpoint: config.searchPipeline.sources.xbrowser.cdpEndpoint,
+        headless: config.searchPipeline.sources.xbrowser.headless,
+        timeout: config.searchPipeline.sources.xbrowser.timeout,
+      })
+      const result = await cli.scrape(targetUrl)
+      if (result) {
+        json(res, { success: true, ...result })
+        return
+      }
+    }
+
+    const webSearch = getMcpWebSearch()
+    if (webSearch) {
+      const result = await webSearch.readUrl(targetUrl)
+      if (result) {
+        json(res, { success: true, ...result })
+        return
+      }
+    }
+
+    try {
+      const resp = await fetch(targetUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
+        signal: AbortSignal.timeout(15000),
+      })
+      const html = await resp.text()
+      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+      const title = titleMatch ? titleMatch[1].trim() : targetUrl
+      const bodyContent = html
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 20000)
+      if (bodyContent.length > 50) {
+        json(res, { success: true, title, content: bodyContent, url: targetUrl })
+        return
+      }
+    } catch {}
+
+    json(res, { error: "No deep read source available" }, 503)
+    return
+  }
+
+  if (url.pathname === "/api/ask-summarize" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req))
+    const { query, content, title, url: sourceUrl, tags, keywords } = body
+    if (!content || !title) { json(res, { error: "Missing 'content' or 'title'" }, 400); return }
+
+    const autoKeywords = keywords?.length
+      ? keywords
+      : title.split(/[\s\-_—–,，、：:]+/).filter((w: string) => w.length >= 2)
+    const finalTags = tags?.length ? tags : ["reference", "web-ingested"]
+
+    const doc = writeDoc(
+      {
+        title,
+        tags: finalTags,
+        keywords: autoKeywords,
+        intent: `Research result: ${title.slice(0, 60)}`,
+        project_description: "ask-research",
+        project_path: "",
+        source_project: "",
+        source_worktree: "",
+        related_projects: [],
+        related_files: sourceUrl ? [sourceUrl] : [],
+      },
+      content,
+    )
+    if (query) resolveMiss(query)
+    if (sourceUrl) resolveMiss(sourceUrl)
+    json(res, { saved: true, id: doc.id, title: doc.title })
+    return
+  }
+
   json(res, { error: "Not Found" }, 404)
 }
 
@@ -1226,16 +1366,16 @@ function startHttp(port: number) {
     const url = new URL(req.url!, `http://${req.headers.host}`)
 
     try {
-      if (url.pathname === "/mcp") {
+      if (!noMcp && url.pathname === "/mcp") {
         const body = req.method === "POST" ? JSON.parse(await readBody(req)) : undefined
         await handleStreamableHttp(req, res, body)
         return
       }
-      if (url.pathname === "/sse" && req.method === "GET") {
+      if (!noMcp && url.pathname === "/sse" && req.method === "GET") {
         await handleSSE(req, res)
         return
       }
-      if (url.pathname === "/messages" && req.method === "POST") {
+      if (!noMcp && url.pathname === "/messages" && req.method === "POST") {
         const body = JSON.parse(await readBody(req))
         await handleSSEMessage(req, res, body)
         return
@@ -1296,9 +1436,14 @@ function startHttp(port: number) {
 
   server.listen(port, () => {
     console.log(`Knowledge Base MCP running on http://localhost:${port}`)
-    console.log(`  StreamableHTTP: http://localhost:${port}/mcp`)
-    console.log(`  SSE (legacy):   http://localhost:${port}/sse`)
+    if (!noMcp) {
+      console.log(`  StreamableHTTP: http://localhost:${port}/mcp`)
+      console.log(`  SSE (legacy):   http://localhost:${port}/sse`)
+    }
     console.log(`  API:            http://localhost:${port}/api/docs`)
+    if (noMcp) {
+      console.log(`  MCP endpoints:  disabled (--no-mcp)`)
+    }
     if (serveWeb) {
       console.log(`  Web UI:         http://localhost:${port}`)
     }
@@ -1311,8 +1456,12 @@ async function main() {
   const mode = process.argv.includes("--http") || process.argv.includes("--web") ? "http" : "stdio"
 
   if (mode === "stdio") {
+    if (noMcp) {
+      console.error("Error: --no-mcp cannot be used with stdio mode (MCP is required for stdio)")
+      process.exit(1)
+    }
     const transport = new StdioServerTransport()
-    await mcp.connect(transport)
+    await mcp!.connect(transport)
     console.error("Knowledge Base MCP running on stdio")
   } else {
     const portIdx = process.argv.indexOf("--port")

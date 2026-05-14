@@ -38,12 +38,38 @@ export interface WebSearchConfig {
   enabled: boolean
 }
 
+export interface SearchPipelineConfig {
+  enabled: boolean
+  sources: {
+    webSearchPrime: { enabled: boolean }
+    xbrowser: {
+      enabled: boolean
+      engine: "google" | "bing" | "baidu"
+      cdpEndpoint: string
+      headless: boolean
+      timeout: number
+    }
+    llmDirect: {
+      enabled: boolean
+      baseUrl: string
+      apiKey: string
+      model: string
+    }
+    plugin: {
+      enabled: boolean
+      prompt: string
+    }
+  }
+  maxResults: number
+}
+
 export interface AppConfig {
   embedding: EmbeddingConfig
   search: SearchConfig
   skills: SkillConfig
   browser: BrowserConfig
   webSearch: WebSearchConfig
+  searchPipeline: SearchPipelineConfig
 }
 
 const DEFAULT_SKILL_PATHS = [
@@ -81,6 +107,30 @@ const DEFAULT_CONFIG: AppConfig = {
     apiKey: "",
     enabled: true,
   },
+  searchPipeline: {
+    enabled: true,
+    sources: {
+      webSearchPrime: { enabled: true },
+      xbrowser: {
+        enabled: false,
+        engine: "google",
+        cdpEndpoint: "ws://localhost:9221",
+        headless: true,
+        timeout: 30000,
+      },
+      llmDirect: {
+        enabled: false,
+        baseUrl: "",
+        apiKey: "",
+        model: "",
+      },
+      plugin: {
+        enabled: false,
+        prompt: "",
+      },
+    },
+    maxResults: 10,
+  },
 }
 
 function expandPath(p: string): string {
@@ -108,6 +158,18 @@ export function loadConfig(): AppConfig {
         },
         browser: { ...DEFAULT_CONFIG.browser, ...raw.browser },
         webSearch: { ...DEFAULT_CONFIG.webSearch, ...raw.webSearch },
+        searchPipeline: {
+          ...DEFAULT_CONFIG.searchPipeline,
+          ...raw.searchPipeline,
+          sources: {
+            ...DEFAULT_CONFIG.searchPipeline.sources,
+            ...raw.searchPipeline?.sources,
+            webSearchPrime: { ...DEFAULT_CONFIG.searchPipeline.sources.webSearchPrime, ...raw.searchPipeline?.sources?.webSearchPrime },
+            xbrowser: { ...DEFAULT_CONFIG.searchPipeline.sources.xbrowser, ...raw.searchPipeline?.sources?.xbrowser },
+            llmDirect: { ...DEFAULT_CONFIG.searchPipeline.sources.llmDirect, ...raw.searchPipeline?.sources?.llmDirect },
+            plugin: { ...DEFAULT_CONFIG.searchPipeline.sources.plugin, ...raw.searchPipeline?.sources?.plugin },
+          },
+        },
       }
     }
   } catch {}
