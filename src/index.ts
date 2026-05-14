@@ -10,6 +10,8 @@ import { createServer, IncomingMessage, ServerResponse } from "node:http"
 import { readFileSync, existsSync } from "node:fs"
 import { join, extname } from "node:path"
 import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines, rebuildAllVectors, getAllKeywords } from "./storage/index.js"
+import { webSearch } from "./search/web-search.js"
+import { fetchUrl } from "./search/web-reader.js"
 import { getStorageStats, initDb } from "./search/vector-store.js"
 import { handleChat } from "./chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "./chat/api-models.js"
@@ -417,6 +419,117 @@ function registerTools(server: McpServer) {
       }
     },
   )
+
+  server.tool(
+    "kb_ask",
+    `智能查询：先搜知识库，没命中则联网搜索→抓取→提炼→自动存储。每次查询都可能让知识库增长一份。
+返回 { from_kb: boolean, sources: [...], content: "..." }`,
+    {
+      query: z.string().describe("自然语言查询"),
+      max_web_results: z.number().optional().default(3).describe("联网搜索最大结果数（默认 3）"),
+      auto_save: z.boolean().optional().default(true).describe("是否自动存入知识库（默认 true）"),
+    },
+    async (args) => {
+      const kbResults = searchDocs(args.query, undefined, undefined, 3)
+      const highScoreHits = kbResults.filter(r => r.score >= 40)
+
+      if (highScoreHits.length > 0) {
+        const best = highScoreHits[0]
+        const full = readDoc(best.id, false)
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              from_kb: true,
+              id: best.id,
+              title: best.title,
+              score: best.score,
+              content: full ? full.content.slice(0, 4000) : best.snippet || best.intent,
+              hint: "直接从知识库命中，无需联网搜索",
+            }, null, 2),
+          }],
+        }
+      }
+
+      try {
+        const searchResults = await webSearch(args.query, args.max_web_results)
+        if (searchResults.length === 0) {
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                from_kb: false,
+                web_results: 0,
+                message: "知识库未命中，联网搜索也无结果",
+              }, null, 2),
+            }],
+          }
+        }
+
+        const fetchTasks = searchResults.slice(0, 2).map(r => fetchUrl(r.url))
+        const pages = await Promise.all(fetchTasks)
+        const validPages = pages.filter((p): p is NonNullable<typeof p> => p !== null)
+
+        const combinedContent = validPages
+          .map(p => `## ${p.title}\n来源: ${p.url}\n\n${p.content}`)
+          .join("\n\n---\n\n")
+
+        const sourceSummary = searchResults.map(r => `- [${r.title}](${r.url})`).join("\n")
+
+        let savedId: string | null = null
+        let savedTitle: string | null = null
+        if (args.auto_save && combinedContent.length > 100) {
+          const keywords = args.query
+            .split(/[\s,，、]+/)
+            .filter(w => w.length > 1)
+            .slice(0, 8)
+
+          const doc = writeDoc(
+            {
+              title: args.query.slice(0, 80),
+              tags: ["reference", "auto-ingested"],
+              keywords,
+              intent: args.query,
+              project_description: "kb_ask auto-ingested",
+            },
+            combinedContent,
+          )
+          savedId = doc.id
+          savedTitle = doc.title
+        }
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              from_kb: false,
+              web_results: searchResults.length,
+              pages_fetched: validPages.length,
+              sources: sourceSummary,
+              content: combinedContent.slice(0, 6000),
+              auto_saved: args.auto_save,
+              saved_id: savedId,
+              saved_title: savedTitle,
+              hint: savedId
+                ? `知识库未命中，已联网搜索并自动存储（id: ${savedId}）。下次查询将直接从知识库命中。`
+                : "知识库未命中，联网搜索完成",
+            }, null, 2),
+          }],
+        }
+      } catch (e: any) {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              from_kb: false,
+              error: "联网搜索失败",
+              detail: e.message,
+            }, null, 2),
+          }],
+        }
+      }
+    },
+  )
 }
 
 const mcp = new McpServer({ name: "knowledge-base", version: "1.0.0" })
@@ -430,7 +543,7 @@ const sseSessions = new Map<string, SSESession>()
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on("data", chunk => chunks.push(chunk))
+    req.on("data", chunk => chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk))
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")))
     req.on("error", reject)
   })
