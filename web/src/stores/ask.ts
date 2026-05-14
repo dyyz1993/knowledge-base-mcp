@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { smartAsk, ingestWebContent, askSearch, type AskResult, type PipelineSearchResponse } from "../services/api"
+import { useChatStore } from "./chat"
 
 interface Message {
   id: string
@@ -22,6 +23,10 @@ interface AskState {
 }
 
 let msgId = 0
+
+function getModel() {
+  return useChatStore.getState().currentModel
+}
 
 export const useAskStore = create<AskState>((set) => ({
   messages: [],
@@ -49,7 +54,7 @@ export const useAskStore = create<AskState>((set) => ({
         set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
       } else {
         try {
-          const searchResult = await askSearch(query)
+          const searchResult = await askSearch(query, getModel() || undefined)
           const systemMsg: Message = {
             id: `msg-${++msgId}`,
             role: "system",
@@ -91,7 +96,7 @@ export const useAskStore = create<AskState>((set) => ({
     set((s) => ({ messages: [...s.messages, userMsg], loading: true }))
 
     try {
-      const searchResult = await askSearch(query)
+      const searchResult = await askSearch(query, getModel() || undefined)
       const systemMsg: Message = {
         id: `msg-${++msgId}`,
         role: "system",
@@ -157,7 +162,7 @@ export const useAskStore = create<AskState>((set) => ({
   generateWorkKey: async (query, results) => {
     try {
       const { askWorkKey } = await import("../services/api")
-      const result = await askWorkKey(query, results)
+      const result = await askWorkKey(query, results, getModel() || undefined)
       const msg: Message = {
         id: `msg-${++msgId}`,
         role: "system",

@@ -20,7 +20,7 @@ import type { DocMeta } from "./storage/index.js"
 import type { SearchSource } from "./search/types.js"
 import { getStorageStats, initDb } from "./search/vector-store.js"
 import { handleChat } from "./chat/api-chat.js"
-import { handleGetModels, handleSetModel } from "./chat/api-models.js"
+import { handleGetModels, handleSetModel, getConfiguredModels } from "./chat/api-models.js"
 import { handleListSessions, handleCreateSession, handleDeleteSession, handleGetMessages, handleRenameSession } from "./chat/api-sessions.js"
 import { handleListFavorites, handleAddFavorite, handleDeleteFavorite } from "./chat/api-favorites.js"
 import { handleListSessionFavorites, handleAddSessionFavorite, handleDeleteSessionFavorite } from "./chat/api-session-favorites.js"
@@ -1257,6 +1257,16 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
       json(res, { error: "Search pipeline not enabled" }, 503); return
     }
 
+    const modelSpec = body.model as { provider: string; id: string } | undefined
+    let resolvedModel: { baseUrl: string; apiKey: string; id: string } | null = null
+    if (modelSpec) {
+      const configured = getConfiguredModels()
+      const found = configured.find(m => m.provider === modelSpec.provider && m.id === modelSpec.id)
+      if (found?.apiKey && found?.baseUrl) {
+        resolvedModel = { baseUrl: found.baseUrl, apiKey: found.apiKey, id: found.id }
+      }
+    }
+
     const sources: SearchSource[] = []
 
     if (config.searchPipeline.sources.webSearchPrime.enabled && config.webSearch.apiKey) {
@@ -1275,13 +1285,13 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
       }))
     }
 
-    if (config.searchPipeline.sources.llmDirect.enabled) {
+    if (config.searchPipeline.sources.llmDirect.enabled || resolvedModel) {
       const { LlmDirectSource } = await import("./search/source-llm-direct.js")
       sources.push(new LlmDirectSource({
         enabled: true,
-        baseUrl: config.searchPipeline.sources.llmDirect.baseUrl,
-        apiKey: config.searchPipeline.sources.llmDirect.apiKey,
-        model: config.searchPipeline.sources.llmDirect.model,
+        baseUrl: resolvedModel?.baseUrl || config.searchPipeline.sources.llmDirect.baseUrl,
+        apiKey: resolvedModel?.apiKey || config.searchPipeline.sources.llmDirect.apiKey,
+        model: resolvedModel?.id || config.searchPipeline.sources.llmDirect.model,
       }))
     }
 
@@ -1405,7 +1415,40 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
       qualityScore: r.qualityScore,
     }))
 
-    const content = `# ${query}\n\n## 大纲\n${outline}\n\n## 关键信息\n${keyPoints.map((p: string, i: number) => `${i + 1}. ${p}`).join("\n")}\n\n## 来源\n${sources.map((s: { title: string; url: string; source: string; qualityScore: number }) => `- [${s.title}](${s.url}) (${s.source}, 评分: ${s.qualityScore})`).join("\n")}`
+    let content = `# ${query}\n\n## 大纲\n${outline}\n\n## 关键信息\n${keyPoints.map((p: string, i: number) => `${i + 1}. ${p}`).join("\n")}\n\n## 来源\n${sources.map((s: { title: string; url: string; source: string; qualityScore: number }) => `- [${s.title}](${s.url}) (${s.source}, 评分: ${s.qualityScore})`).join("\n")}`
+
+    const modelSpec = body.model as { provider: string; id: string } | undefined
+    if (modelSpec) {
+      const configured = getConfiguredModels()
+      const found = configured.find(m => m.provider === modelSpec.provider && m.id === modelSpec.id)
+      if (found?.apiKey && found?.baseUrl) {
+        try {
+          const llmResp = await fetch(`${found.baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${found.apiKey}`,
+            },
+            body: JSON.stringify({
+              model: found.id,
+              messages: [
+                { role: "system", content: "你是一个研究助手。根据提供的搜索结果，生成一份结构化的研究报告。报告包含：1. 概述（2-3句话）2. 核心要点（3-5条）3. 技术细节 4. 参考来源。使用 Markdown 格式，中文回答。" },
+                { role: "user", content: `查询: ${query}\n\n搜索结果:\n${topResults.map((r: { title: string; snippet: string; url: string }) => `- ${r.title}: ${r.snippet}\n  ${r.url}`).join("\n")}` },
+              ],
+              max_tokens: 2000,
+              temperature: 0.3,
+            }),
+            signal: AbortSignal.timeout(30000),
+          })
+          const llmData = await llmResp.json() as Record<string, unknown>
+          const choices = llmData.choices as Array<{ message: { content: string } }> | undefined
+          const llmContent = choices?.[0]?.message?.content
+          if (llmContent) {
+            content = `# ${query}\n\n${llmContent}\n\n## 来源\n${sources.map((s: { title: string; url: string; source: string; qualityScore: number }) => `- [${s.title}](${s.url}) (${s.source}, 评分: ${s.qualityScore})`).join("\n")}`
+          }
+        } catch {}
+      }
+    }
 
     const autoKeywords = query.split(/[\s\-_—–,，、：:]+/).filter((w: string) => w.length >= 2)
 

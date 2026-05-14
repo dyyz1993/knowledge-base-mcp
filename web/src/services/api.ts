@@ -510,11 +510,11 @@ export interface SummarizeResult {
   title: string
 }
 
-export async function askSearch(query: string): Promise<PipelineSearchResponse> {
+export async function askSearch(query: string, model?: { provider: string; id: string }): Promise<PipelineSearchResponse> {
   const res = await fetch(`${BASE}/api/ask-search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, model }),
   })
   return res.json()
 }
@@ -538,11 +538,11 @@ export interface WorkKeyResult {
   content: string
 }
 
-export async function askWorkKey(query: string, results: PipelineSearchResult[]): Promise<WorkKeyResult> {
+export async function askWorkKey(query: string, results: PipelineSearchResult[], model?: { provider: string; id: string }): Promise<WorkKeyResult> {
   const res = await fetch(`${BASE}/api/ask-work-key`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, results }),
+    body: JSON.stringify({ query, results, model }),
   })
   return res.json()
 }

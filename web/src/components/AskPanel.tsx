@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from "react"
 import { Send, Sparkles, Database, Globe, Save, ChevronDown, ChevronUp, Trash2, ExternalLink, Loader2, Search, BookOpen, Key } from "lucide-react"
 import { useAskStore } from "../stores/ask"
+import { useChatStore } from "../stores/chat"
 import { webRead, askDeepRead } from "../services/api"
 import type { AskResult, WebSearchItem, PipelineSearchResponse, PipelineSearchResult } from "../services/api"
 
 export default function AskPanel() {
   const { messages, loading, ask, clear } = useAskStore()
+  const { models, currentModel, setModel: setChatModel } = useChatStore()
   const [input, setInput] = useState("")
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -43,6 +45,26 @@ export default function AskPanel() {
         <div className="flex items-center gap-2">
           <Sparkles size={16} className="text-amber-400" />
           <span className="text-sm font-medium">智能问答</span>
+          {models.length > 0 && (
+            <select
+              value={currentModel ? `${currentModel.provider}|${currentModel.id}` : ""}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val) {
+                  const idx = val.indexOf("|")
+                  setChatModel(val.slice(0, idx), val.slice(idx + 1))
+                }
+              }}
+              className="ml-2 text-[10px] bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-400 focus:outline-none"
+            >
+              <option value="">默认模型</option>
+              {models.map((m) => (
+                <option key={`${m.provider}|${m.id}`} value={`${m.provider}|${m.id}`}>
+                  {m.name || m.id}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         {messages.length > 0 && (
           <button onClick={clear} className="p-1 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800">
