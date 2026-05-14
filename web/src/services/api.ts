@@ -528,6 +528,25 @@ export async function askDeepRead(url: string): Promise<DeepReadResult> {
   return res.json()
 }
 
+export interface WorkKeyResult {
+  saved: boolean
+  id: string
+  title: string
+  outline: string
+  keyPoints: string[]
+  sources: Array<{ title: string; url: string; source: string; qualityScore: number }>
+  content: string
+}
+
+export async function askWorkKey(query: string, results: PipelineSearchResult[]): Promise<WorkKeyResult> {
+  const res = await fetch(`${BASE}/api/ask-work-key`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, results }),
+  })
+  return res.json()
+}
+
 export async function askSummarize(params: {
   query: string
   title: string

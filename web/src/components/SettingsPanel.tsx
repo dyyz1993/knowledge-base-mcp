@@ -332,7 +332,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
         </div>
       }
       placement="right"
-      width={420}
+      width={typeof window !== 'undefined' && window.innerWidth < 640 ? window.innerWidth : 420}
       open={open}
       onClose={onClose}
       styles={{

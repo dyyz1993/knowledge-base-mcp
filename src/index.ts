@@ -1351,6 +1351,63 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
     return
   }
 
+  if (url.pathname === "/api/ask-work-key" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req))
+    const { query, results } = body
+    if (!query || !results || !Array.isArray(results)) {
+      json(res, { error: "Missing 'query' or 'results'" }, 400)
+      return
+    }
+
+    const topResults = results.slice(0, 5)
+    const outline = topResults.map((r: { title: string; sourceType: string }) =>
+      `- ${r.title} [${r.sourceType}]`
+    ).join("\n")
+
+    const keyPoints = topResults.map((r: { snippet: string }) =>
+      r.snippet.slice(0, 200)
+    ).filter((s: string) => s.length > 20)
+
+    const sources = topResults.map((r: { title: string; url: string; source: string; qualityScore: number }) => ({
+      title: r.title,
+      url: r.url,
+      source: r.source,
+      qualityScore: r.qualityScore,
+    }))
+
+    const content = `# ${query}\n\n## 大纲\n${outline}\n\n## 关键信息\n${keyPoints.map((p: string, i: number) => `${i + 1}. ${p}`).join("\n")}\n\n## 来源\n${sources.map((s: { title: string; url: string; source: string; qualityScore: number }) => `- [${s.title}](${s.url}) (${s.source}, 评分: ${s.qualityScore})`).join("\n")}`
+
+    const autoKeywords = query.split(/[\s\-_—–,，、：:]+/).filter((w: string) => w.length >= 2)
+
+    const doc = writeDoc(
+      {
+        title: `Work Key: ${query}`,
+        tags: ["reference", "web-ingested", "work-key"],
+        keywords: autoKeywords,
+        intent: `Research work key: ${query}`,
+        project_description: "ask-research",
+        project_path: "",
+        source_project: "",
+        source_worktree: "",
+        related_projects: [],
+        related_files: sources.filter((s: { url: string }) => s.url).map((s: { url: string }) => s.url),
+      },
+      content,
+    )
+    resolveMiss(query)
+
+    json(res, {
+      saved: true,
+      id: doc.id,
+      title: doc.title,
+      outline,
+      keyPoints,
+      sources,
+      content,
+    })
+    return
+  }
+
   json(res, { error: "Not Found" }, 404)
 }
 

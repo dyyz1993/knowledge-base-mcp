@@ -17,6 +17,7 @@ interface AskState {
   search: (query: string) => Promise<void>
   ingest: (url: string, title: string, content: string, tags?: string[]) => Promise<void>
   ingestFromSearch: (query: string, title: string, content: string, url?: string) => Promise<void>
+  generateWorkKey: (query: string, results: import("../services/api").PipelineSearchResult[]) => Promise<void>
   clear: () => void
 }
 
@@ -147,6 +148,28 @@ export const useAskStore = create<AskState>((set) => ({
         id: `msg-${++msgId}`,
         role: "system",
         content: "沉淀失败",
+        timestamp: Date.now(),
+      }
+      set((s) => ({ messages: [...s.messages, msg] }))
+    }
+  },
+
+  generateWorkKey: async (query, results) => {
+    try {
+      const { askWorkKey } = await import("../services/api")
+      const result = await askWorkKey(query, results)
+      const msg: Message = {
+        id: `msg-${++msgId}`,
+        role: "system",
+        content: `Work Key 已生成: ${result.title} (id: ${result.id})`,
+        timestamp: Date.now(),
+      }
+      set((s) => ({ messages: [...s.messages, msg] }))
+    } catch {
+      const msg: Message = {
+        id: `msg-${++msgId}`,
+        role: "system",
+        content: "Work Key 生成失败",
         timestamp: Date.now(),
       }
       set((s) => ({ messages: [...s.messages, msg] }))

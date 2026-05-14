@@ -54,7 +54,7 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col bg-zinc-950 text-zinc-100">
       <header className="h-10 border-b border-zinc-800 flex items-center px-3 md:px-4 shrink-0 bg-zinc-950 gap-2">
-        {tab === "chat" && (
+        {(tab === "chat" || tab === "kb") && (
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="lg:hidden shrink-0 p-1 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
@@ -126,8 +126,22 @@ export default function App() {
           <AskPanel />
         </div>
       ) : tab === "kb" ? (
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar docs={docs} selectedId={selectedId} onSelect={handleSelect} />
+        <div className="flex flex-1 overflow-hidden relative">
+          {sidebarOpen && tab === "kb" && (
+            <div
+              className="fixed inset-0 top-10 z-20 bg-black/50 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+          <aside className={`
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+            fixed top-10 bottom-0 left-0 z-30 w-64
+            lg:translate-x-0 lg:relative lg:top-0 lg:w-72
+            transition-transform duration-200 ease-in-out
+            border-r border-zinc-800 flex flex-col shrink-0 bg-zinc-950 overflow-hidden
+          `}>
+            <Sidebar docs={docs} selectedId={selectedId} onSelect={(id) => { handleSelect(id); if (window.innerWidth < 1024) setSidebarOpen(false) }} />
+          </aside>
           <DocViewer doc={current} />
           <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} onSelect={handleSelect} />
         </div>

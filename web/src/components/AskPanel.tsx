@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { Send, Sparkles, Database, Globe, Save, ChevronDown, ChevronUp, Trash2, ExternalLink, Loader2, Search, BookOpen } from "lucide-react"
+import { Send, Sparkles, Database, Globe, Save, ChevronDown, ChevronUp, Trash2, ExternalLink, Loader2, Search, BookOpen, Key } from "lucide-react"
 import { useAskStore } from "../stores/ask"
 import { webRead, askDeepRead } from "../services/api"
 import type { AskResult, WebSearchItem, PipelineSearchResponse, PipelineSearchResult } from "../services/api"
@@ -65,7 +65,7 @@ export default function AskPanel() {
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             {msg.role === "user" ? (
-              <div className="max-w-[85%] px-3 py-2 rounded-xl bg-blue-900/30 border border-blue-800/50 text-sm">
+              <div className="max-w-[95%] md:max-w-[85%] px-3 py-2 rounded-xl bg-blue-900/30 border border-blue-800/50 text-sm">
                 {msg.content}
               </div>
             ) : (
@@ -125,17 +125,18 @@ function ResultCard({ msg, expanded, onToggle }: {
         onIngest={(query, title, content, url) =>
           useAskStore.getState().ingestFromSearch(query, title, content, url)
         }
+        onGenerateWorkKey={(query, results) => useAskStore.getState().generateWorkKey(query, results)}
       />
     )
   }
 
   if (!result) {
-    return <div className="max-w-[85%] px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm">{msg.content}</div>
+    return <div className="max-w-[95%] md:max-w-[85%] px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-sm">{msg.content}</div>
   }
 
   if (result.from_kb) {
     return (
-      <div className="max-w-[85%] w-full rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-emerald-500 overflow-hidden">
+      <div className="max-w-[95%] md:max-w-[85%] w-full rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-emerald-500 overflow-hidden">
         <div className="px-3 py-2 flex items-center gap-2 border-b border-zinc-800">
           <Database size={13} className="text-emerald-400" />
           <span className="text-xs font-medium text-emerald-400">知识库命中</span>
@@ -164,7 +165,7 @@ function ResultCard({ msg, expanded, onToggle }: {
   }
 
   return (
-    <div className="max-w-[85%] w-full rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-amber-500 overflow-hidden">
+    <div className="max-w-[95%] md:max-w-[85%] w-full rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-amber-500 overflow-hidden">
       <div className="px-3 py-2 flex items-center gap-2 border-b border-zinc-800">
         <Globe size={13} className="text-amber-400" />
         <span className="text-xs font-medium text-amber-400">未命中知识库</span>
@@ -189,18 +190,26 @@ function ResultCard({ msg, expanded, onToggle }: {
   )
 }
 
-function PipelineResultsCard({ searchResult, onIngest }: {
+function PipelineResultsCard({ searchResult, onIngest, onGenerateWorkKey }: {
   searchResult: PipelineSearchResponse
   onIngest: (query: string, title: string, content: string, url?: string) => void
+  onGenerateWorkKey: (query: string, results: PipelineSearchResult[]) => void
 }) {
   return (
     <div className="max-w-[85%] w-full rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-blue-500 overflow-hidden">
       <div className="px-3 py-2 flex items-center gap-2 border-b border-zinc-800">
         <Search size={13} className="text-blue-400" />
         <span className="text-xs font-medium text-blue-400">多源搜索</span>
-        <span className="text-[10px] text-zinc-500 ml-auto">
+        <span className="text-[10px] text-zinc-500">
           {searchResult.totalSources} 来源 · {searchResult.results.length} 结果 · {(searchResult.durationMs / 1000).toFixed(1)}s
         </span>
+        <button
+          onClick={() => onGenerateWorkKey(searchResult.query, searchResult.results)}
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-violet-800/50 text-violet-300 hover:bg-violet-700/50 transition-colors ml-auto"
+        >
+          <Key size={10} />
+          生成 Work Key
+        </button>
       </div>
       <div className="px-3 py-2 space-y-2">
         {searchResult.results.map((item, i) => (
@@ -278,15 +287,18 @@ function PipelineResultItem({ item, query, onIngest }: {
         <div className="flex items-center gap-2 mt-1.5">
           <span className="text-[9px] text-zinc-600">{sourceName}</span>
           {item.qualityScore > 0 && (
-            <div className="flex items-center gap-1 flex-1">
-              <div className="flex-1 h-1 rounded-full bg-zinc-800 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-zinc-600 to-emerald-400"
-                  style={{ width: `${item.qualityScore}%` }}
-                />
+            <>
+              <div className="hidden sm:flex items-center gap-1 flex-1">
+                <div className="flex-1 h-1 rounded-full bg-zinc-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-zinc-600 to-emerald-400"
+                    style={{ width: `${item.qualityScore}%` }}
+                  />
+                </div>
+                <span className="text-[9px] text-zinc-500">{item.qualityScore}</span>
               </div>
-              <span className="text-[9px] text-zinc-500">{item.qualityScore}</span>
-            </div>
+              <span className="sm:hidden text-[9px] text-zinc-500">{item.qualityScore}</span>
+            </>
           )}
         </div>
       </div>
