@@ -1214,7 +1214,7 @@ function startHttp(port: number) {
         return
       }
       if (url.pathname === "/health") {
-        json(res, { status: "ok", service: "knowledge-base-mcp" })
+        json(res, { status: "ok", service: "knowledge-base-mcp", version: "2.20.1" })
         return
       }
       if (url.pathname === "/api/chat" && req.method === "POST") return handleChat(req, res)

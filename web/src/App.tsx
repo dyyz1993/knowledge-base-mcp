@@ -22,9 +22,13 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string>()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [version, setVersion] = useState("")
 
   useEffect(() => { load() }, [])
   useEffect(() => { loadSessions(); loadModels(); loadFavorites(); loadSessionFavorites() }, [])
+  useEffect(() => {
+    fetch("/health").then(r => r.json()).then(d => setVersion(d.version || "")).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -104,6 +108,9 @@ export default function App() {
                 <Command size={10} />K
               </kbd>
             </button>
+          )}
+          {version && (
+            <span className="text-[10px] text-zinc-600 font-mono">v{version}</span>
           )}
           <button
             onClick={() => setSettingsOpen(true)}
