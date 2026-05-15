@@ -1,5 +1,10 @@
 import type { SearchResult, SourceType } from "./types"
 
+function log(level: string, msg: string) {
+  const ts = new Date().toISOString().substring(11, 19)
+  console.log(`[${ts}] [aggregator] [${level}] ${msg}`)
+}
+
 const OFFICIAL_DOMAINS: Record<string, string[]> = {
   react: ["react.dev", "legacy.reactjs.org"],
   vue: ["vuejs.org", "v3.vuejs.org"],
@@ -56,6 +61,8 @@ export function aggregateResults(
   query: string,
   maxResults = 10,
 ): SearchResult[] {
+  log("INFO", `Input: ${allResults.length} results | Query: "${query}"`)
+
   const byUrl = new Map<string, SearchResult>()
   const urlCount = new Map<string, number>()
 
@@ -69,11 +76,28 @@ export function aggregateResults(
     }
   }
 
+  const dupesRemoved = allResults.length - byUrl.size
+  if (dupesRemoved > 0) {
+    log("INFO", `Dedup: ${allResults.length} -> ${byUrl.size} (removed ${dupesRemoved} duplicates)`)
+  }
+
+  const crossSourceEntries = Array.from(urlCount.entries()).filter(([, c]) => c > 1)
+  if (crossSourceEntries.length > 0) {
+    log("DEBUG", `Cross-validated (${crossSourceEntries.length}): ${crossSourceEntries.map(([url, c]) => `${url.substring(0, 40)} x${c}`).join(", ")}`)
+  }
+
   const scored = Array.from(byUrl.values()).map(r => ({
     ...r,
     qualityScore: computeScore(r, query, urlCount.get(r.url || r.title) || 1),
   }))
 
   scored.sort((a, b) => b.qualityScore - a.qualityScore)
-  return scored.slice(0, maxResults)
+  const top = scored.slice(0, maxResults)
+
+  log("INFO", `Scored: top ${top.length} results`)
+  for (const r of top) {
+    log("DEBUG", `  [${r.qualityScore}pts] [${r.source}] [${r.sourceType}] ${r.title?.substring(0, 50)}`)
+  }
+
+  return top
 }

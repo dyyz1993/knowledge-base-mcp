@@ -70,12 +70,22 @@ async function runCommand(
     ),
   ])
 
+  const stdout = await new Response(proc.stdout).text()
+  const stderr = await new Response(proc.stderr).text()
+
   if (exitCode === null || exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text()
     throw new Error(`xbrowser exited with code ${exitCode}: ${stderr}`)
   }
 
-  return new Response(proc.stdout).text()
+  if (stderr.trim()) {
+    console.log(`[xbrowser-cli] stderr: ${stderr.trim().substring(0, 200)}`)
+  }
+
+  if (!stdout.trim()) {
+    throw new Error(`xbrowser returned empty stdout. stderr: ${stderr.substring(0, 200)}`)
+  }
+
+  return stdout
 }
 
 function parseJsonOutput<T>(raw: string): T {
@@ -106,7 +116,7 @@ export class XBrowserCLI {
     this.config = config
   }
 
-  async search(query: string, limit = 5): Promise<SearchResult[]> {
+  async search(query: string, limit = 10): Promise<SearchResult[]> {
     if (!this.config.enabled) return []
 
     try {
@@ -117,16 +127,43 @@ export class XBrowserCLI {
         this.config.engine,
         "--limit",
         String(limit),
-        "--json",
+        "--format",
+        "json",
         ...buildBaseArgs(this.config),
       ]
 
       const raw = await runCommand(args, this.config.timeout)
-      const parsed = parseJsonOutput<unknown>(raw)
 
-      if (!Array.isArray(parsed)) return []
+      let parsed: unknown
+      try {
+        parsed = parseJsonOutput<unknown>(raw)
+      } catch (e) {
+        console.log(`[xbrowser-cli] parseJson failed engine=${this.config.engine} query="${query}": ${(e as Error).message}, raw(${raw.length}): ${raw.substring(0, 200)}`)
+        return []
+      }
 
-      return parsed
+      let items: unknown[]
+      if (Array.isArray(parsed)) {
+        items = parsed
+      } else if (typeof parsed === "object" && parsed !== null) {
+        const obj = parsed as Record<string, unknown>
+        if (Array.isArray(obj.results)) {
+          items = obj.results
+        } else if (obj.data && typeof obj.data === "object" && !Array.isArray(obj.data)) {
+          const inner = obj.data as Record<string, unknown>
+          items = Array.isArray(inner.results) ? inner.results : []
+        } else if (Array.isArray(obj.data)) {
+          items = obj.data
+        } else {
+          console.log(`[xbrowser-cli] Object response has no results/data keys: ${JSON.stringify(Object.keys(obj))}`)
+          return []
+        }
+      } else {
+        console.log(`[xbrowser-cli] Unexpected parsed type: ${typeof parsed}`)
+        return []
+      }
+
+      const mapped = items
         .map((item: unknown): SearchResult | null => {
           if (typeof item !== "object" || item === null) return null
           const obj = item as Record<string, unknown>
@@ -137,6 +174,9 @@ export class XBrowserCLI {
           }
         })
         .filter((r): r is SearchResult => r !== null && r.url !== "")
+
+      console.log(`[xbrowser-cli] search("${query}") engine=${this.config.engine}: items=${items.length} mapped=${mapped.length}`)
+      return mapped
     } catch {
       return []
     }

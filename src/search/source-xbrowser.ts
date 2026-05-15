@@ -26,7 +26,10 @@ class XBrowserEngineSource implements SearchSource {
 
   async search(query: string): Promise<SearchResult[]> {
     try {
-      const results = await this.cli.search(query, 5)
+      const t0 = Date.now()
+      const results = await this.cli.search(query, 10)
+      const ms = Date.now() - t0
+      console.log(`[search] [xbrowser-${this.engineName}] Query: "${query}" -> ${results.length} results in ${ms}ms`)
       return results.map(r => ({
         title: r.title,
         url: r.url,
@@ -35,7 +38,8 @@ class XBrowserEngineSource implements SearchSource {
         sourceType: "unknown" as const,
         qualityScore: 0,
       }))
-    } catch {
+    } catch (err) {
+      console.log(`[search] [xbrowser-${this.engineName}] ERROR for "${query}": ${err instanceof Error ? err.message : err}`)
       return []
     }
   }

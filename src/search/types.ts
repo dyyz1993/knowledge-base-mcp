@@ -12,12 +12,20 @@ export interface SearchResult {
   rawContent?: string
 }
 
+export interface SourceTiming {
+  name: string
+  ms: number
+  count: number
+  error?: string
+}
+
 export interface AggregatedResult {
   query: string
   results: SearchResult[]
   totalSources: number
   durationMs: number
   hint: string
+  sourceTimings?: SourceTiming[]
 }
 
 export interface SearchSource {
