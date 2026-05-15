@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { Drawer, Select, Input, InputNumber, Switch, Slider, Button, Tag, message, Divider, Tooltip, ConfigProvider, theme } from "antd"
 import { Settings, Eye, EyeOff, RefreshCw, Save, Wifi, WifiOff, Loader2, Brain, Search, FolderSearch, Globe, Sparkles, Layers } from "lucide-react"
-import { getConfig, updateConfig, reindexEmbeddings, scanSkills, getSkillPaths, updateSkillPaths, detectBrowser, type AppConfig, type EmbeddingConfig, type SearchConfig, type SearchPipelineConfig } from "../services/api"
+import { getConfig, updateConfig, reindexEmbeddings, scanSkills, getSkillPaths, updateSkillPaths, detectBrowser, type AppConfig, type EmbeddingConfig, type SearchConfig, type SearchPipelineConfig, type XBrowserEngine } from "../services/api"
 
 const PROVIDERS = [
   { value: "siliconflow", label: "SiliconFlow" },
@@ -60,6 +60,13 @@ const DEFAULT_BROWSER: BrowserConfig = {
   timeout: 15000,
 }
 
+const XBrowserEngineOptions: { value: XBrowserEngine; label: string }[] = [
+  { value: "bing", label: "Bing" },
+  { value: "google", label: "Google" },
+  { value: "baidu", label: "Baidu" },
+  { value: "duckduckgo", label: "DuckDuckGo" },
+]
+
 const DEFAULT_SEARCH_PIPELINE: SearchPipelineConfig = {
   enabled: true,
   sources: {
@@ -67,6 +74,7 @@ const DEFAULT_SEARCH_PIPELINE: SearchPipelineConfig = {
     xbrowser: {
       enabled: false,
       engine: "google",
+      engines: ["bing"],
       cdpEndpoint: "ws://localhost:9221",
       headless: true,
       timeout: 30000,
@@ -779,18 +787,34 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[11px] text-zinc-500">搜索引擎</label>
-                  <Select
-                    value={sp.sources.xbrowser.engine}
-                    options={[
-                      { value: "google", label: "Google" },
-                      { value: "bing", label: "Bing" },
-                      { value: "baidu", label: "Baidu" },
-                    ]}
-                    onChange={v => updateSPSource("xbrowser", { engine: v })}
-                    className="w-full"
-                    size="small"
-                  />
+                  <label className="text-[11px] text-zinc-500">搜索引擎（多选）</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {XBrowserEngineOptions.map(opt => {
+                      const checked = (sp.sources.xbrowser.engines || []).includes(opt.value)
+                      return (
+                        <Tag
+                          key={opt.value}
+                          style={{
+                            background: checked ? "#1f6feb33" : "#27272a",
+                            border: checked ? "1px solid #3b82f6" : "1px solid #3f3f46",
+                            color: checked ? "#60a5fa" : "#a1a1aa",
+                            cursor: "pointer",
+                            userSelect: "none",
+                          }}
+                          onClick={() => {
+                            const current = sp.sources.xbrowser.engines || []
+                            const next = checked
+                              ? current.filter((e: XBrowserEngine) => e !== opt.value)
+                              : [...current, opt.value]
+                            updateSPSource("xbrowser", { engines: next.length > 0 ? next : ["bing"] })
+                          }}
+                        >
+                          {opt.label}
+                        </Tag>
+                      )
+                    })}
+                  </div>
+                  <span className="text-[10px] text-zinc-600">已选 {(sp.sources.xbrowser.engines || []).length} 个引擎，每个引擎独立并行搜索</span>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[11px] text-zinc-500">CDP Endpoint</label>

@@ -1,6 +1,8 @@
+export type XBrowserEngine = "google" | "bing" | "baidu" | "duckduckgo"
+
 export interface XBrowserConfig {
   enabled: boolean
-  engine: "google" | "bing" | "baidu"
+  engine: XBrowserEngine
   cdpEndpoint: string
   headless: boolean
   timeout: number

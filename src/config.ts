@@ -38,13 +38,16 @@ export interface WebSearchConfig {
   enabled: boolean
 }
 
+export type XBrowserEngine = "google" | "bing" | "baidu" | "duckduckgo"
+
 export interface SearchPipelineConfig {
   enabled: boolean
   sources: {
     webSearchPrime: { enabled: boolean }
     xbrowser: {
       enabled: boolean
-      engine: "google" | "bing" | "baidu"
+      engine: XBrowserEngine
+      engines: XBrowserEngine[]
       cdpEndpoint: string
       headless: boolean
       timeout: number
@@ -114,6 +117,7 @@ const DEFAULT_CONFIG: AppConfig = {
       xbrowser: {
         enabled: false,
         engine: "google",
+        engines: ["bing"] as XBrowserEngine[],
         cdpEndpoint: "ws://localhost:9221",
         headless: true,
         timeout: 30000,

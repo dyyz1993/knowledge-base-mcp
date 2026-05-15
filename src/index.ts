@@ -1275,14 +1275,18 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
     }
 
     if (config.searchPipeline.sources.xbrowser.enabled) {
-      const { XBrowserSource } = await import("./search/source-xbrowser.js")
-      sources.push(new XBrowserSource({
+      const { createXBrowserSources } = await import("./search/source-xbrowser.js")
+      const engines = config.searchPipeline.sources.xbrowser.engines?.length
+        ? config.searchPipeline.sources.xbrowser.engines
+        : [config.searchPipeline.sources.xbrowser.engine]
+      const xbrowserSources = createXBrowserSources({
         enabled: true,
         engine: config.searchPipeline.sources.xbrowser.engine,
         cdpEndpoint: config.searchPipeline.sources.xbrowser.cdpEndpoint,
         headless: config.searchPipeline.sources.xbrowser.headless,
         timeout: config.searchPipeline.sources.xbrowser.timeout,
-      }))
+      }, engines)
+      sources.push(...xbrowserSources)
     }
 
     if (config.searchPipeline.sources.llmDirect.enabled || resolvedModel) {
