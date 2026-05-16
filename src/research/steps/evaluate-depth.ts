@@ -2,14 +2,15 @@ import type { DepthEvaluation, DeepReadItem, StepDecision } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
 
 function extractJson(text: string): string | null {
-  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
+  if (!text || !text.trim()) return null
+  let cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
   try {
     JSON.parse(cleaned)
     return cleaned
   } catch {}
-
   let depth = 0
   let start = -1
+  let lastValid: string | null = null
   for (let i = 0; i < cleaned.length; i++) {
     if (cleaned[i] === "{") {
       if (depth === 0) start = i
@@ -20,12 +21,20 @@ function extractJson(text: string): string | null {
         const candidate = cleaned.slice(start, i + 1)
         try {
           JSON.parse(candidate)
-          return candidate
+          lastValid = candidate
         } catch {}
       }
     }
   }
-  return null
+  if (!lastValid && cleaned.includes("{")) {
+    const braceStart = cleaned.indexOf("{")
+    const partial = cleaned.slice(braceStart)
+    const fixed = partial.replace(/[,]\s*([}\]])/g, "$1").replace(/\}\s*$/, "}")
+    if (fixed.startsWith("{")) {
+      try { JSON.parse(fixed); lastValid = fixed } catch {}
+    }
+  }
+  return lastValid
 }
 
 export async function evaluateDepth(
@@ -74,6 +83,7 @@ Now evaluate. Return ONLY the JSON object:
     ],
     0.2,
     1000,
+    60000,
   )
 
   const jsonStr = extractJson(raw)
@@ -97,8 +107,8 @@ Now evaluate. Return ONLY the JSON object:
   return {
     qualityScore: 5,
     coverageScore: 5,
-    decision: "done",
-    reason: `evaluation parse failed (raw: ${raw.slice(0, 100)})`,
+    decision: "continue",
+    reason: `evaluation parse failed (raw: ${raw ? raw.slice(0, 100) : "(empty)"})`,
     nextTargets: [],
     updatedOutline: outline,
   }

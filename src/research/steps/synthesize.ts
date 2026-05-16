@@ -9,10 +9,14 @@ export async function synthesize(
   qualityScore: number,
   coverageScore: number,
 ): Promise<{ text: string; isFallback: boolean }> {
-  const contentSections = deepReadResults
+  const successfulResults = deepReadResults.filter(r => r.success)
+  const maxTotalChars = 20000
+  const perItem = Math.min(4000, Math.floor(maxTotalChars / Math.max(successfulResults.length, 1)))
+  
+  const contentSections = successfulResults
     .map(
       (result, index) =>
-        `## [${index + 1}] ${result.title} (${result.url})\n\n${result.content.slice(0, 4000)}`,
+        `## [${index + 1}] ${result.title} (${result.url})\n\n${result.content.slice(0, perItem)}`,
     )
     .join("\n\n---\n\n")
 
