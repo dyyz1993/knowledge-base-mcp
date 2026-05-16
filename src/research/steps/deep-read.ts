@@ -1,6 +1,31 @@
 import type { DeepReadItem } from "../types"
 import type { SearchResult } from "../../search/types"
 
+const SEARCH_ENGINE_REDIRECT_PATTERNS = [
+  /^https?:\/\/www\.baidu\.com\/link\?/i,
+  /^https?:\/\/www\.bing\.com\/.*\/search/i,
+  /^https?:\/\/www\.google\.com\/url\?/i,
+  /^https?:\/\/duckduckgo\.com\/l\?/i,
+]
+
+function isSearchEngineRedirect(url: string): boolean {
+  return SEARCH_ENGINE_REDIRECT_PATTERNS.some((p) => p.test(url))
+}
+
+async function resolveRedirect(url: string): Promise<string> {
+  if (!isSearchEngineRedirect(url)) return url
+  try {
+    const resp = await fetch(url, {
+      redirect: "follow",
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
+      signal: AbortSignal.timeout(5000),
+    })
+    return resp.url || url
+  } catch {
+    return url
+  }
+}
+
 export async function deepReadUrls(
   results: SearchResult[],
   config: {
@@ -17,6 +42,12 @@ export async function deepReadUrls(
       content: "",
       success: false,
       source: "failed",
+    }
+
+    if (isSearchEngineRedirect(item.url)) {
+      const resolved = await resolveRedirect(item.url)
+      if (resolved === item.url) return base
+      item = { ...item, url: resolved }
     }
 
     try {
@@ -61,6 +92,7 @@ export async function deepReadUrls(
       const timeout = setTimeout(() => controller.abort(), 15000)
 
       const resp = await fetch(item.url, {
+        redirect: "follow",
         headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
         signal: controller.signal,
       })
@@ -81,7 +113,7 @@ export async function deepReadUrls(
       if (bodyContent.length > 50) {
         return {
           title,
-          url: item.url,
+          url: resp.url || item.url,
           content: bodyContent,
           success: true,
           source: "fetch",
