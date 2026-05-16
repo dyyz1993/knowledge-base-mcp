@@ -52,7 +52,7 @@ export async function deepReadUrls(
 
     try {
       if (config.xbrowserEnabled) {
-        const args = ["scrape", "--url", item.url, "--format", "json"]
+        const args = ["scrape", item.url, "--json"]
         if (config.xbrowserCdp) {
           args.push("--cdp", config.xbrowserCdp)
         }
@@ -60,9 +60,10 @@ export async function deepReadUrls(
           args.push("--headless")
         }
 
-        const proc = Bun.spawn(["xbrowser", ...args], {
+        const xbrowserBin = process.env.XBROWSER_PATH || "xbrowser"
+        const proc = Bun.spawn([xbrowserBin, ...args], {
           stdout: "pipe",
-          stderr: "pipe",
+          stderr: "ignore",
           env: { ...process.env },
         })
 
@@ -75,12 +76,21 @@ export async function deepReadUrls(
 
         if (exitCode === 0) {
           const output = await new Response(proc.stdout).text()
-          const parsed = JSON.parse(output)
-          if (parsed?.content) {
+          const jsonMatch = output.match(/\{[\s\S]*"success"[\s\S]*\}/)
+          if (!jsonMatch) return { ...base }
+          let parsed: Record<string, unknown>
+          try {
+            parsed = JSON.parse(jsonMatch[0])
+          } catch {
+            return { ...base }
+          }
+          const data = parsed?.data as Record<string, unknown> | undefined
+          const content = data?.content || parsed?.content || ""
+          if (content && String(content).length > 50) {
             return {
-              title: parsed.title || item.title,
+              title: (data?.title as string) || item.title,
               url: item.url,
-              content: parsed.content,
+              content: String(content),
               success: true,
               source: "xbrowser",
             }
