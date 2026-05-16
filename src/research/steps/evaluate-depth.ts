@@ -67,10 +67,10 @@ ${outline || "(none)"}
 MODE: ${mode}${warningSection}
 
 Example response:
-{"qualityScore":7,"coverageScore":6,"decision":"continue","reason":"Good overview but missing API details","nextTargets":["https://example.com/docs/api"],"updatedOutline":"## Topic\\n### 1. Overview\\n### 2. API"}
+{"qualityScore":7,"coverageScore":6,"decision":"continue","reason":"Good overview but missing API details","nextTargets":["https://example.com/docs/api"],"updatedOutline":"## Topic\\n### 1. Overview\\n### 2. API","missingTopics":["API reference","code examples"]}
 
 Now evaluate. Return ONLY the JSON object:
-{"qualityScore":0-10,"coverageScore":0-10,"decision":"done|need_sitemap|need_github|need_more_search|continue","reason":"...","nextTargets":[],"updatedOutline":"..."}`
+{"qualityScore":0-10,"coverageScore":0-10,"decision":"done|need_sitemap|need_github|need_more_search|continue","reason":"...","nextTargets":[],"updatedOutline":"...","missingTopics":["topic1","topic2"]}`
 
   const raw = await callLlm(
     largeModel,
@@ -100,6 +100,7 @@ Now evaluate. Return ONLY the JSON object:
         reason: String(parsed.reason || ""),
         nextTargets: Array.isArray(parsed.nextTargets) ? parsed.nextTargets.map(String) : [],
         updatedOutline: String(parsed.updatedOutline || outline),
+        missingTopics: Array.isArray(parsed.missingTopics) ? parsed.missingTopics.map(String) : [],
       }
     } catch {}
   }
@@ -111,5 +112,6 @@ Now evaluate. Return ONLY the JSON object:
     reason: `evaluation parse failed (raw: ${raw ? raw.slice(0, 100) : "(empty)"})`,
     nextTargets: [],
     updatedOutline: outline,
+    missingTopics: [],
   }
 }

@@ -136,5 +136,70 @@ export async function deepReadUrls(
     }
   })
 
-  return Promise.all(readPromises)
+  const settled = await Promise.all(readPromises)
+
+  const retried = settled.map(async (item, idx) => {
+    if (item.success) return item
+    const original = results[idx]
+    const cached = await tryCacheFallback(original.url, original.title)
+    return cached || item
+  })
+
+  return Promise.all(retried)
+}
+
+const ANTI_CRAWL_DOMAINS = [
+  "juejin.cn", "zhihu.com", "reddit.com", "stackoverflow.com",
+  "segmentfault.com", "medium.com", "dev.to",
+]
+
+function needsCacheFallback(url: string): boolean {
+  return ANTI_CRAWL_DOMAINS.some(d => url.includes(d))
+}
+
+async function tryCacheFallback(url: string, fallbackTitle: string): Promise<DeepReadItem | null> {
+  if (!needsCacheFallback(url)) return null
+
+  const cacheUrls = [
+    `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}`,
+    `https://web.archive.org/web/2024/${url}`,
+  ]
+
+  for (const cacheUrl of cacheUrls) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      const resp = await fetch(cacheUrl, {
+        redirect: "follow",
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+
+      if (!resp.ok) continue
+
+      const html = await resp.text()
+      const bodyContent = html
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 20000)
+
+      if (bodyContent.length > 200) {
+        return {
+          title: fallbackTitle,
+          url,
+          content: bodyContent,
+          success: true,
+          source: "cache",
+        }
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return null
 }

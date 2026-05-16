@@ -39,12 +39,12 @@ export const STEP_COSTS: Record<StepName, StepCost> = {
 }
 
 export const MODE_BUDGETS: Record<ResearchMode, { maxSteps: number; maxCost: number }> = {
-  quick: { maxSteps: 5, maxCost: 8 },
+  quick: { maxSteps: 7, maxCost: 12 },
   standard: { maxSteps: 12, maxCost: 20 },
   deep: { maxSteps: 25, maxCost: 40 },
 }
 
-export const QUICK_FLOW: StepName[] = ["analyze_query", "search", "filter_results", "evaluate", "synthesize"]
+export const QUICK_FLOW: StepName[] = ["analyze_query", "search", "filter_results", "evaluate", "deep_read", "synthesize"]
 export const STANDARD_FLOW: StepName[] = [
   "analyze_query", "search", "filter_results", "evaluate",
   "deep_read", "evaluate_depth", "synthesize",
@@ -85,6 +85,7 @@ export interface DepthEvaluation {
   reason: string
   nextTargets: string[]
   updatedOutline: string
+  missingTopics: string[]
 }
 
 export interface SitemapCheck {

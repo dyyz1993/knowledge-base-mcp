@@ -40,6 +40,8 @@ export class ResearchAgent {
   private outline = ""
   private qualityScore = 0
   private coverageScore = 0
+  private missingTopics: string[] = []
+  private loopCount = 0
 
   constructor(
     request: ResearchRequest,
@@ -103,11 +105,19 @@ export class ResearchAgent {
         }
 
         if (decision === "need_more_search") {
-          i = this.findStepIndex(flow, "analyze_query")
-          if (i >= 0) {
-            this.phaseLog.push("looping back: re-searching with new keywords")
-            i++
-            continue
+          this.loopCount++
+          if (this.loopCount > 2) {
+            this.phaseLog.push("max loops reached, proceeding to synthesize")
+          } else {
+            i = this.findStepIndex(flow, "analyze_query")
+            if (i >= 0) {
+              const gapInfo = this.missingTopics.length
+                ? ` (targeting: ${this.missingTopics.slice(0, 3).join(", ")})`
+                : ""
+              this.phaseLog.push(`looping back: re-searching with gap keywords${gapInfo}`)
+              i++
+              continue
+            }
           }
         }
       } catch (e) {
@@ -218,9 +228,15 @@ export class ResearchAgent {
       (p) => p.step === "analyze_query" && p.status === "done",
     )?.output as { subQueries?: string[] } | undefined
 
-    const queries = analyzeOutput?.subQueries?.length
-      ? analyzeOutput.subQueries.slice(0, 5)
-      : [this.query]
+    let queries: string[]
+    if (this.missingTopics.length > 0 && this.loopCount > 0) {
+      queries = this.missingTopics.slice(0, 5).map(t => `${this.query} ${t}`)
+      this.phaseLog.push(`gap-driven search: targeting [${this.missingTopics.join(", ")}]`)
+    } else {
+      queries = analyzeOutput?.subQueries?.length
+        ? analyzeOutput.subQueries.slice(0, 5)
+        : [this.query]
+    }
 
     const allResults: SearchResult[] = []
     for (const q of queries) {
@@ -286,8 +302,12 @@ export class ResearchAgent {
   private async stepDeepRead(): Promise<null> {
     if (this.selectedForRead.length === 0) return null
 
+    const urlsToRead = this.mode === "quick"
+      ? this.selectedForRead.slice(0, 3)
+      : this.selectedForRead
+
     const config = loadConfig()
-    const deepResults = await deepReadUrls(this.selectedForRead, {
+    const deepResults = await deepReadUrls(urlsToRead, {
       xbrowserEnabled: config.searchPipeline?.sources.xbrowser.enabled ?? false,
       xbrowserCdp: config.searchPipeline?.sources.xbrowser.cdpEndpoint,
       xbrowserHeadless: config.searchPipeline?.sources.xbrowser.headless,
@@ -314,9 +334,15 @@ export class ResearchAgent {
     if (result.updatedOutline) {
       this.outline = result.updatedOutline
     }
+    if (result.missingTopics?.length) {
+      this.missingTopics = result.missingTopics
+    }
 
+    const gapInfo = result.missingTopics?.length
+      ? ` (missing: ${result.missingTopics.join(", ")})`
+      : ""
     this.phaseLog.push(
-      `depth-eval: quality=${result.qualityScore}/10, coverage=${result.coverageScore}/10, decision=${result.decision}`,
+      `depth-eval: quality=${result.qualityScore}/10, coverage=${result.coverageScore}/10, decision=${result.decision}${gapInfo}`,
     )
     this.emit("evaluate_depth", "done", result)
 
@@ -428,11 +454,72 @@ export class ResearchAgent {
     this.onProgress(progress)
   }
 
+  private calibrateScore(summary: string, drResults: DeepReadItem[]): { quality: number; coverage: number } {
+    const len = summary.length
+    const drSuccess = drResults.filter(r => r.success).length
+    const drTotal = drResults.length
+    const drRate = drTotal > 0 ? drSuccess / drTotal : 0
+    const hasHeadings = (summary.match(/^#{1,3}\s/gm) || []).length
+    const hasCode = summary.includes("```")
+    const hasTable = summary.includes("|") && summary.includes("---")
+    const hasCitations = (summary.match(/\[\d+\]/g) || []).length >= 3
+
+    let quality = 3
+    let coverage = 3
+
+    if (len > 500) quality += 1
+    if (len > 1500) quality += 1
+    if (len > 3000) quality += 1
+    if (len > 6000) quality += 1
+    if (drRate >= 0.8) quality += 1
+    if (drRate >= 1.0 && drTotal >= 5) quality += 1
+    if (hasHeadings >= 4) coverage += 1
+    if (hasCode) coverage += 1
+    if (hasTable) coverage += 1
+    if (hasCitations) coverage += 1
+    if (drTotal >= 5 && drRate >= 0.7) coverage += 1
+    if (drRate >= 1.0 && drTotal >= 4) coverage += 1
+    if (len < 800) { quality = Math.min(quality, 4); coverage = Math.min(coverage, 3) }
+
+    return {
+      quality: Math.min(10, quality),
+      coverage: Math.min(10, coverage),
+    }
+  }
+
+  private appendReferences(summary: string): string {
+    const allSources = [
+      ...this.deepReadResults.filter(r => r.success).map((r, i) => ({
+        idx: i + 1, title: r.title, url: r.url,
+      })),
+      ...this.collectedSearchResults.slice(0, 5).map((r, i) => ({
+        idx: this.deepReadResults.filter(d => d.success).length + i + 1,
+        title: r.title, url: r.url,
+      })),
+    ]
+
+    if (allSources.length === 0) return summary
+    if (summary.includes("## 参考资料") || summary.includes("## References")) return summary
+
+    const refLines = allSources.slice(0, 10).map(s => `- [${s.idx}] [${s.title}](${s.url})`)
+    return `${summary}\n\n---\n\n## 参考资料\n\n${refLines.join("\n")}`
+  }
+
   private buildResult(summary: string, fallback: boolean): ResearchResult {
+    const enrichedSummary = this.appendReferences(summary)
+    const calibrated = this.calibrateScore(enrichedSummary, this.deepReadResults)
+    const useSystemScore = this.qualityScore > 0 && !fallback
+    const quality = useSystemScore
+      ? Math.round((this.qualityScore + calibrated.quality) / 2)
+      : calibrated.quality
+    const coverage = useSystemScore
+      ? Math.round((this.coverageScore + calibrated.coverage) / 2)
+      : calibrated.coverage
+
     return {
       query: this.query,
       mode: this.mode,
-      summary,
+      summary: enrichedSummary,
       summaryFallback: fallback,
       outline: this.outline,
       sources: this.deepReadResults
@@ -451,8 +538,8 @@ export class ResearchAgent {
       phaseLog: this.phaseLog,
       durationMs: Date.now() - this.startTime,
       totalSteps: this.progressLog.filter((p) => p.status === "done").length,
-      finalQualityScore: this.qualityScore,
-      finalCoverageScore: this.coverageScore,
+      finalQualityScore: quality,
+      finalCoverageScore: coverage,
     }
   }
 }
