@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { smartAsk, ingestWebContent, askSearch, type AskResult, type PipelineSearchResponse } from "../services/api"
+import { smartAsk, ingestWebContent, askSearch, askResearch, agentResearch, type AskResult, type PipelineSearchResponse, type ResearchResult, type AgentResearchResult, type AgentResearchProgress, type ResearchMode } from "../services/api"
 import { useChatStore } from "./chat"
 
 interface Message {
@@ -8,6 +8,9 @@ interface Message {
   content: string
   result?: AskResult
   searchResult?: PipelineSearchResponse
+  researchResult?: ResearchResult
+  agentResearchResult?: AgentResearchResult
+  agentResearchProgress?: AgentResearchProgress[]
   timestamp: number
 }
 
@@ -16,6 +19,8 @@ interface AskState {
   loading: boolean
   ask: (query: string) => Promise<void>
   search: (query: string) => Promise<void>
+  research: (query: string) => Promise<void>
+  agentResearchAction: (query: string, mode: ResearchMode) => Promise<void>
   ingest: (url: string, title: string, content: string, tags?: string[]) => Promise<void>
   ingestFromSearch: (query: string, title: string, content: string, url?: string) => Promise<void>
   generateWorkKey: (query: string, results: import("../services/api").PipelineSearchResult[]) => Promise<void>
@@ -116,6 +121,36 @@ export const useAskStore = create<AskState>((set) => ({
     }
   },
 
+  research: async (query) => {
+    const userMsg: Message = {
+      id: `msg-${++msgId}`,
+      role: "user",
+      content: `🔬 ${query}`,
+      timestamp: Date.now(),
+    }
+    set((s) => ({ messages: [...s.messages, userMsg], loading: true }))
+
+    try {
+      const researchResult = await askResearch(query, getModel() || undefined)
+      const systemMsg: Message = {
+        id: `msg-${++msgId}`,
+        role: "system",
+        content: researchResult.summary || "深度研究完成",
+        researchResult,
+        timestamp: Date.now(),
+      }
+      set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
+    } catch {
+      const errorMsg: Message = {
+        id: `msg-${++msgId}`,
+        role: "system",
+        content: "深度研究失败，请重试",
+        timestamp: Date.now(),
+      }
+      set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
+    }
+  },
+
   ingest: async (url, title, content, tags) => {
     try {
       const result = await ingestWebContent({ url, title, content, tags })
@@ -178,6 +213,72 @@ export const useAskStore = create<AskState>((set) => ({
         timestamp: Date.now(),
       }
       set((s) => ({ messages: [...s.messages, msg] }))
+    }
+  },
+
+  agentResearchAction: async (query, mode) => {
+    const userMsg: Message = {
+      id: `msg-${++msgId}`,
+      role: "user",
+      content: `🔬 ${query}`,
+      timestamp: Date.now(),
+    }
+    const progressMsgId = `msg-${++msgId}`
+    const progressMsg: Message = {
+      id: progressMsgId,
+      role: "system",
+      content: "Agent 研究中...",
+      agentResearchProgress: [],
+      timestamp: Date.now(),
+    }
+    set((s) => ({ messages: [...s.messages, userMsg, progressMsg], loading: true }))
+
+    try {
+      const model = getModel() || undefined
+      const result = await agentResearch(
+        query,
+        mode,
+        model,
+        undefined,
+        (progress) => {
+          set((s) => {
+            const msgs = [...s.messages]
+            const idx = msgs.findIndex((m) => m.id === progressMsgId)
+            if (idx >= 0) {
+              const existing = msgs[idx].agentResearchProgress || []
+              msgs[idx] = {
+                ...msgs[idx],
+                agentResearchProgress: [...existing, progress],
+                content: `Agent 研究中... ${progress.step} ${progress.status}`,
+              }
+            }
+            return { messages: msgs }
+          })
+        },
+      )
+
+      set((s) => {
+        const msgs = [...s.messages]
+        const idx = msgs.findIndex((m) => m.id === progressMsgId)
+        if (idx >= 0) {
+          msgs[idx] = {
+            ...msgs[idx],
+            agentResearchResult: result,
+            agentResearchProgress: msgs[idx].agentResearchProgress,
+            content: result.summary || "Agent 研究完成",
+          }
+        }
+        return { messages: msgs, loading: false }
+      })
+    } catch {
+      set((s) => {
+        const msgs = [...s.messages]
+        const idx = msgs.findIndex((m) => m.id === progressMsgId)
+        if (idx >= 0) {
+          msgs[idx] = { ...msgs[idx], content: "Agent 研究失败，请重试" }
+        }
+        return { messages: msgs, loading: false }
+      })
     }
   },
 

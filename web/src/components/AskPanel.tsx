@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from "react"
-import { Send, Sparkles, Database, Globe, Save, ChevronDown, ChevronUp, Trash2, ExternalLink, Loader2, Search, BookOpen, Key } from "lucide-react"
+import { Send, Sparkles, Database, Globe, Save, ChevronDown, ChevronUp, Trash2, ExternalLink, Loader2, Search, BookOpen, Key, FlaskConical, CheckCircle2, XCircle, Circle, Loader, Zap, Brain, Cpu } from "lucide-react"
 import { useAskStore } from "../stores/ask"
 import { useChatStore } from "../stores/chat"
 import { webRead, askDeepRead } from "../services/api"
-import type { AskResult, WebSearchItem, PipelineSearchResponse, PipelineSearchResult } from "../services/api"
+import type { AskResult, WebSearchItem, PipelineSearchResponse, PipelineSearchResult, ResearchResult, AgentResearchResult, AgentResearchProgress, ResearchMode } from "../services/api"
 
 export default function AskPanel() {
-  const { messages, loading, ask, clear } = useAskStore()
+  const { messages, loading, ask, research, agentResearchAction, clear } = useAskStore()
   const { models, currentModel, setModel: setChatModel } = useChatStore()
   const [input, setInput] = useState("")
+  const [researchMode, setResearchMode] = useState<ResearchMode>("standard")
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -120,6 +121,42 @@ export default function AskPanel() {
             rows={1}
             className="flex-1 resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 max-h-24"
           />
+          <div className="shrink-0 flex flex-col gap-1">
+            <div className="flex gap-1">
+              <button
+                onClick={() => setResearchMode("quick")}
+                className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "quick" ? "bg-amber-900/50 text-amber-300" : "bg-zinc-800 text-zinc-500"}`}
+                title="快速 (5步)"
+              >
+                <Zap size={10} />
+              </button>
+              <button
+                onClick={() => setResearchMode("standard")}
+                className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "standard" ? "bg-purple-900/50 text-purple-300" : "bg-zinc-800 text-zinc-500"}`}
+                title="标准 (12步)"
+              >
+                <Brain size={10} />
+              </button>
+              <button
+                onClick={() => setResearchMode("deep")}
+                className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "deep" ? "bg-blue-900/50 text-blue-300" : "bg-zinc-800 text-zinc-500"}`}
+                title="深度 (25步)"
+              >
+                <Cpu size={10} />
+              </button>
+            </div>
+            <button
+              onClick={() => {
+                const q = input.trim()
+                if (q && !loading) { setInput(""); agentResearchAction(q, researchMode) }
+              }}
+              disabled={!input.trim() || loading}
+              className="p-2 rounded-lg bg-purple-700 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-purple-600 transition-colors"
+              title="Agent 深度研究"
+            >
+              <FlaskConical size={16} />
+            </button>
+          </div>
           <button
             onClick={handleSubmit}
             disabled={!input.trim() || loading}
@@ -134,11 +171,19 @@ export default function AskPanel() {
 }
 
 function ResultCard({ msg, expanded, onToggle }: {
-  msg: { id: string; content: string; result?: AskResult; searchResult?: PipelineSearchResponse }
+  msg: { id: string; content: string; result?: AskResult; searchResult?: PipelineSearchResponse; researchResult?: ResearchResult; agentResearchResult?: AgentResearchResult; agentResearchProgress?: AgentResearchProgress[] }
   expanded: boolean
   onToggle: () => void
 }) {
   const result = msg.result
+
+  if (msg.agentResearchResult || (msg.agentResearchProgress && msg.agentResearchProgress.length > 0)) {
+    return <AgentResearchCard result={msg.agentResearchResult} progress={msg.agentResearchProgress} />
+  }
+
+  if (msg.researchResult) {
+    return <ResearchResultCard researchResult={msg.researchResult} />
+  }
 
   if (msg.searchResult) {
     return (
@@ -208,6 +253,205 @@ function ResultCard({ msg, expanded, onToggle }: {
           <p className="text-[11px] text-zinc-600">未配置联网搜索，请在设置中填写 Web Search API Key</p>
         )}
       </div>
+    </div>
+  )
+}
+
+function ResearchResultCard({ researchResult }: { researchResult: ResearchResult }) {
+  const [showSources, setShowSources] = useState(false)
+
+  return (
+    <div className="max-w-[85%] w-full rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-purple-500 overflow-hidden">
+      <div className="px-3 py-2 flex items-center gap-2 border-b border-zinc-800">
+        <FlaskConical size={13} className="text-purple-400" />
+        <span className="text-xs font-medium text-purple-400">深度研究</span>
+        <span className="text-[10px] text-zinc-500">
+          {researchResult.searchResults.length} 搜索 · {researchResult.evaluatedCount} 筛选 · {researchResult.deepReadCount} 深读 · {(researchResult.durationMs / 1000).toFixed(1)}s
+        </span>
+      </div>
+      {researchResult.summary ? (
+        <div className="px-3 py-3">
+          {researchResult.summaryFallback && (
+            <div className="mb-2 px-2 py-1 rounded bg-amber-900/30 border border-amber-700/30 text-[10px] text-amber-400">
+              LLM 总结失败，以下为深读内容摘要（仅供参考）
+            </div>
+          )}
+          <div className="text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed">{researchResult.summary}</div>
+          {researchResult.sources.length > 0 && (
+            <div className="mt-3 pt-2 border-t border-zinc-800">
+              <button
+                onClick={() => setShowSources(!showSources)}
+                className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300"
+              >
+                {showSources ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                参考来源 ({researchResult.sources.length})
+              </button>
+              {showSources && (
+                <div className="mt-2 space-y-1">
+                  {researchResult.sources.map((s, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-zinc-500">[{i + 1}]</span>
+                      <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-400 hover:text-blue-300 truncate">
+                        {s.title}
+                      </a>
+                      <ExternalLink size={8} className="text-zinc-600 shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="px-3 py-2 space-y-2">
+          <p className="text-xs text-zinc-400">未配置 LLM 模型，仅返回搜索结果</p>
+          {researchResult.searchResults.slice(0, 10).map((item, i) => (
+            <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1.5">
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-400 hover:text-blue-300 truncate block">
+                {item.title}
+              </a>
+              <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2">{item.snippet}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {researchResult.phaseLog.length > 0 && (
+        <div className="px-3 py-1.5 border-t border-zinc-800">
+          <p className="text-[9px] text-zinc-600">{researchResult.phaseLog.join(" → ")}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const STEP_LABELS: Record<string, string> = {
+  analyze_query: "分析查询",
+  search: "搜索",
+  filter_results: "筛选结果",
+  evaluate: "评估选取",
+  deep_read: "深度阅读",
+  check_sitemap: "检查站点地图",
+  follow_paths: "跟进路径",
+  evaluate_depth: "质量评估",
+  check_github: "检查 GitHub",
+  clone_index: "克隆索引",
+  code_search: "代码搜索",
+  synthesize: "总结生成",
+}
+
+function AgentResearchCard({ result, progress }: {
+  result?: AgentResearchResult
+  progress?: AgentResearchProgress[]
+}) {
+  const [showSources, setShowSources] = useState(false)
+  const [showOutline, setShowOutline] = useState(false)
+
+  const steps = progress || []
+  const latestPerStep = new Map<string, AgentResearchProgress>()
+  for (const s of steps) {
+    latestPerStep.set(s.step, s)
+  }
+  const uniqueSteps = Array.from(latestPerStep.values()).sort((a, b) => a.timestamp - b.timestamp)
+
+  const isComplete = !!result
+  const budget = steps.length > 0 ? steps[steps.length - 1].budget : null
+  const pct = budget ? Math.round((budget.usedCost / budget.maxCost) * 100) : 0
+  const modeLabel = budget?.mode === "quick" ? "快速" : budget?.mode === "deep" ? "深度" : "标准"
+  const modeColor = budget?.mode === "quick" ? "amber" : budget?.mode === "deep" ? "blue" : "purple"
+
+  return (
+    <div className="max-w-[85%] w-full rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-violet-500 overflow-hidden">
+      <div className="px-3 py-2 flex items-center gap-2 border-b border-zinc-800">
+        <FlaskConical size={13} className="text-violet-400" />
+        <span className="text-xs font-medium text-violet-400">Agent 研究</span>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded bg-${modeColor}-900/30 text-${modeColor}-400`}>{modeLabel}</span>
+        {isComplete && (
+          <span className="text-[10px] text-zinc-500">
+            {result.totalSteps} 步 · {(result.durationMs / 1000).toFixed(1)}s · 质量 {result.finalQualityScore}/10
+          </span>
+        )}
+      </div>
+
+      <div className="px-3 py-2">
+        <div className="w-full bg-zinc-800 rounded-full h-1.5 mb-2">
+          <div
+            className="bg-violet-500 h-1.5 rounded-full transition-all duration-500"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {uniqueSteps.map((s) => (
+            <span
+              key={s.step}
+              className="flex items-center gap-0.5 text-[9px]"
+              title={`${STEP_LABELS[s.step] || s.step}: ${s.status}`}
+            >
+              {s.status === "done" && <CheckCircle2 size={9} className="text-emerald-400" />}
+              {s.status === "running" && <Loader size={9} className="text-violet-400 animate-spin" />}
+              {s.status === "failed" && <XCircle size={9} className="text-red-400" />}
+              {s.status === "skipped" && <Circle size={9} className="text-zinc-600" />}
+              <span className={s.status === "done" ? "text-zinc-400" : s.status === "running" ? "text-violet-300" : "text-zinc-600"}>
+                {STEP_LABELS[s.step] || s.step}
+              </span>
+            </span>
+          ))}
+          {!isComplete && steps.length > 0 && steps[steps.length - 1].status === "running" && (
+            <span className="flex items-center gap-0.5 text-[9px] text-zinc-500">
+              <Loader size={9} className="animate-spin" />
+              进行中...
+            </span>
+          )}
+        </div>
+      </div>
+
+      {isComplete && result.summary && (
+        <div className="px-3 py-3 border-t border-zinc-800">
+          {result.summaryFallback && (
+            <div className="mb-2 px-2 py-1 rounded bg-amber-900/30 border border-amber-700/30 text-[10px] text-amber-400">
+              LLM 总结失败，以下为深读内容摘要（仅供参考）
+            </div>
+          )}
+          <div className="text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">{result.summary}</div>
+
+          {result.outline && (
+            <div className="mt-2">
+              <button onClick={() => setShowOutline(!showOutline)} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300">
+                {showOutline ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                大纲
+              </button>
+              {showOutline && (
+                <div className="mt-1 p-2 rounded bg-zinc-950 text-[10px] text-zinc-400 whitespace-pre-wrap">{result.outline}</div>
+              )}
+            </div>
+          )}
+
+          {result.sources.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-zinc-800">
+              <button onClick={() => setShowSources(!showSources)} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300">
+                {showSources ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                参考来源 ({result.sources.length})
+              </button>
+              {showSources && (
+                <div className="mt-1 space-y-0.5">
+                  {result.sources.map((s, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-zinc-500">[{i + 1}]</span>
+                      <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-400 hover:text-blue-300 truncate">{s.title}</a>
+                      <ExternalLink size={8} className="text-zinc-600 shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {isComplete && result.phaseLog.length > 0 && (
+        <div className="px-3 py-1.5 border-t border-zinc-800">
+          <p className="text-[9px] text-zinc-600">{result.phaseLog.join(" → ")}</p>
+        </div>
+      )}
     </div>
   )
 }

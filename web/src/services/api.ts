@@ -550,6 +550,120 @@ export async function askWorkKey(query: string, results: PipelineSearchResult[],
   return res.json()
 }
 
+export interface ResearchResult {
+  query: string
+  searchResults: PipelineSearchResult[]
+  evaluatedCount: number
+  deepReadCount: number
+  summary: string | null
+  summaryFallback?: boolean
+  sources: Array<{ title: string; url: string }>
+  durationMs: number
+  phaseLog: string[]
+}
+
+export async function askResearch(query: string, model?: { provider: string; id: string }): Promise<ResearchResult> {
+  const res = await fetch(`${BASE}/api/ask-research`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, model }),
+  })
+  return res.json()
+}
+
+export type ResearchMode = "quick" | "standard" | "deep"
+export type StepName = "analyze_query" | "search" | "filter_results" | "evaluate" | "deep_read" | "check_sitemap" | "follow_paths" | "evaluate_depth" | "check_github" | "clone_index" | "code_search" | "synthesize"
+
+export interface AgentResearchProgress {
+  step: StepName
+  status: "pending" | "running" | "done" | "skipped" | "failed"
+  budget: { mode: string; usedSteps: number; maxSteps: number; usedCost: number; maxCost: number }
+  output?: unknown
+  timestamp: number
+}
+
+export interface AgentResearchResult {
+  query: string
+  mode: ResearchMode
+  summary: string
+  summaryFallback: boolean
+  outline: string
+  sources: Array<{ title: string; url: string }>
+  searchResults: PipelineSearchResult[]
+  deepReadResults: Array<{ title: string; url: string; content: string; success: boolean; source: string }>
+  progressLog: AgentResearchProgress[]
+  phaseLog: string[]
+  durationMs: number
+  totalSteps: number
+  finalQualityScore: number
+  finalCoverageScore: number
+}
+
+export function agentResearch(
+  query: string,
+  mode: ResearchMode,
+  model?: { provider: string; id: string },
+  smallModel?: { provider: string; id: string },
+  onProgress?: (progress: AgentResearchProgress) => void,
+): Promise<AgentResearchResult> {
+  return new Promise((resolve, reject) => {
+    fetch(`${BASE}/api/agent-research`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, mode, model, smallModel }),
+    }).then((res) => {
+      if (!res.ok) {
+        reject(new Error(`HTTP ${res.status}`))
+        return
+      }
+
+      const reader = res.body?.getReader()
+      if (!reader) {
+        reject(new Error("No response body"))
+        return
+      }
+
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      const processChunk = (chunk: string) => {
+        buffer += chunk
+        const lines = buffer.split("\n")
+        buffer = lines.pop() || ""
+
+        let currentEvent = ""
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim()
+          } else if (line.startsWith("data: ") && currentEvent) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              if (currentEvent === "step" && onProgress) {
+                onProgress(data as AgentResearchProgress)
+              } else if (currentEvent === "done") {
+                resolve(data as AgentResearchResult)
+              } else if (currentEvent === "error") {
+                reject(new Error(data.error || "Unknown error"))
+              }
+            } catch {}
+            currentEvent = ""
+          }
+        }
+      }
+
+      const read = (): Promise<void> => {
+        return reader!.read().then(({ done, value }) => {
+          if (done) return
+          processChunk(decoder.decode(value, { stream: true }))
+          return read()
+        })
+      }
+
+      read()
+    }).catch(reject)
+  })
+}
+
 export async function askSummarize(params: {
   query: string
   title: string
