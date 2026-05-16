@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      font-family: Inter, sans-serif;
+    }
+
+    .scene {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1080px;
+      height: 1920px;
+      overflow: hidden;
+    }
+
+    #scene1 {
+      z-index: 1;
+      background: #0a0a0a;
+    }
+
+    #scene2 {
+      z-index: 2;
+      background: #0a0a0a;
+      opacity: 0;
+    }
+
+    #scene3 {
+      z-index: 3;
+      background: #0a0a0a;
+      opacity: 0;
+    }
+
+    #scene4 {
+      z-index: 4;
+      background: #0a0a0a;
+      opacity: 0;
+    }
+
+    .scene-content {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: 160px 96px;
+      gap: 16px;
+      box-sizing: border-box;
+    }
+
+    /* === Typography === */
+    .title {
+      font-family: Inter, sans-serif;
+      font-weight: 200;
+      font-size: 72px;
+      letter-spacing: 0.05em;
+      color: #e0e0e0;
+      line-height: 1.3;
+    }
+
+    .title-main {
+      font-size: 88px;
+      font-weight: 100;
+      letter-spacing: 0.08em;
+    }
+
+    .subtitle {
+      font-family: Inter, sans-serif;
+      font-weight: 300;
+      font-size: 40px;
+      color: rgba(224, 224, 224, 0.7);
+    }
+
+    .body-text {
+      font-family: Inter, sans-serif;
+      font-weight: 300;
+      font-size: 32px;
+      line-height: 1.6;
+      color: rgba(224, 224, 224, 0.6);
+    }
+
+    .accent-text {
+      color: #06b6d4;
+    }
+
+    .purple-text {
+      color: #7c3aed;
+    }
+
+    .prompt-text {
+      font-family: Inter, sans-serif;
+      font-weight: 200;
+      font-size: 28px;
+      color: rgba(6, 182, 212, 0.7);
+    }
+
+    /* === Ghost Text === */
+    .ghost-text {
+      position: absolute;
+      font-weight: 100;
+      font-size: 200px;
+      color: rgba(224, 224, 224, 0.03);
+      letter-spacing: 0.15em;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* === Glow Effects === */
+    .glow {
+      position: absolute;
+      pointer-events: none;
+    }
+
+    .glow-purple {
+      background: radial-gradient(ellipse, rgba(124, 58, 237, 0.3), transparent 70%);
+    }
+
+    .glow-cyan {
+      background: radial-gradient(ellipse, rgba(6, 182, 212, 0.2), transparent 70%);
+    }
+
+    /* === Accent Lines === */
+    .accent-line-v {
+      position: absolute;
+      width: 2px;
+      background: rgba(124, 58, 237, 0.3);
+    }
+
+    .accent-line-h {
+      position: absolute;
+      height: 1.5px;
+      background: rgba(124, 58, 237, 0.25);
+    }
+
+    /* === Particles === */
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    /* === Scene 2: Pillars === */
+    .pillar-row {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      width: 100%;
+    }
+
+    .pillar-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      width: 240px;
+    }
+
+    .pillar-bar-outer {
+      width: 140px;
+      height: 360px;
+      border: 1.5px solid rgba(224, 224, 224, 0.12);
+      border-radius: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pillar-fill {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      border-radius: 4px;
+    }
+
+    .pillar-fill-p0 {
+      background: linear-gradient(to top, rgba(6, 182, 212, 0.7), rgba(6, 182, 212, 0.15));
+      height: 55%;
+    }
+
+    .pillar-fill-p1 {
+      background: linear-gradient(to top, rgba(124, 58, 237, 0.7), rgba(124, 58, 237, 0.15));
+      height: 70%;
+    }
+
+    .pillar-fill-p2 {
+      background: linear-gradient(to top, rgba(124, 58, 237, 0.9), rgba(6, 182, 212, 0.2));
+      height: 85%;
+    }
+
+    .pillar-label {
+      font-family: Inter, sans-serif;
+      font-weight: 300;
+      font-size: 26px;
+      color: rgba(224, 224, 224, 0.7);
+    }
+
+    .pillar-speed {
+      font-size: 20px;
+      color: rgba(224, 224, 224, 0.4);
+    }
+
+    .badge-row {
+      display: flex;
+      gap: 16px;
+      margin-top: 40px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 6px 20px;
+      border-radius: 99px;
+      font-family: Inter, sans-serif;
+      font-weight: 400;
+      font-size: 20px;
+    }
+
+    .badge-cyan {
+      background: rgba(6, 182, 212, 0.15);
+      color: #06b6d4;
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    .badge-purple {
+      background: rgba(124, 58, 237, 0.15);
+      color: #7c3aed;
+      border: 1px solid rgba(124, 58, 237, 0.2);
+    }
+
+    /* === Scene 3: Search === */
+    .search-bar {
+      width: 100%;
+      padding: 28px 40px;
+      border: 1.5px solid rgba(6, 182, 212, 0.25);
+      border-radius: 16px;
+      background: rgba(10, 10, 10, 0.85);
+      backdrop-filter: blur(12px);
+    }
+
+    .search-bar-text {
+      font-family: Inter, sans-serif;
+      font-weight: 300;
+      font-size: 30px;
+      color: #e0e0e0;
+    }
+
+    .result-card {
+      width: 100%;
+      padding: 24px 32px;
+      border: 1px solid rgba(224, 224, 224, 0.08);
+      border-radius: 12px;
+      background: rgba(20, 20, 20, 0.5);
+    }
+
+    .result-card-best {
+      border-color: rgba(6, 182, 212, 0.4);
+      background: rgba(6, 182, 212, 0.05);
+    }
+
+    .result-title {
+      font-family: Inter, sans-serif;
+      font-weight: 400;
+      font-size: 28px;
+      color: #e0e0e0;
+      margin-bottom: 8px;
+    }
+
+    .result-snippet {
+      font-family: Inter, sans-serif;
+      font-weight: 300;
+      font-size: 22px;
+      color: rgba(224, 224, 224, 0.4);
+    }
+
+    .score-tag {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 16px;
+      border-radius: 99px;
+      font-family: Inter, sans-serif;
+      font-size: 20px;
+      font-weight: 400;
+    }
+
+    /* === Scene 4: CTA === */
+    .command-block {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-weight: 400;
+      font-size: 22px;
+      padding: 28px 40px;
+      background: rgba(20, 20, 20, 0.85);
+      border: 1.5px solid rgba(124, 58, 237, 0.25);
+      border-radius: 12px;
+      color: #06b6d4;
+      text-align: center;
+      word-break: break-all;
+    }
+
+    .cta-tagline {
+      font-family: Inter, sans-serif;
+      font-weight: 200;
+      font-size: 52px;
+      letter-spacing: 0.1em;
+      color: rgba(224, 224, 224, 0.5);
+    }
+
+    .cta-link {
+      font-family: Inter, sans-serif;
+      font-weight: 300;
+      font-size: 24px;
+      color: rgba(224, 224, 224, 0.3);
+    }
+  </style>
+</head>
+
+<body>
+  <audio data-start="0" data-duration="25" data-track-index="5" src="scripts/bg_music.wav" data-volume="0.35"></audio>
+  <div data-composition-id="kb-video" data-width="1080" data-height="1920" data-start="0" data-duration="25">
+
+    <!-- ========== SCENE 1: Hook (0-6s) ========== -->
+    <div id="scene1" class="scene">
+      <div class="glow glow-purple" style="width:800px;height:800px;top:-100px;right:-200px;"></div>
+      <div class="glow glow-cyan" style="width:600px;height:600px;bottom:200px;left:-150px;"></div>
+
+      <div class="ghost-text" style="top:200px;left:40px;">KNOWLEDGE</div>
+      <div class="ghost-text" style="bottom:400px;right:20px;">DATA</div>
+
+      <div id="s1-particles"></div>
+
+      <div class="scene-content" style="gap:24px;">
+        <div style="margin-bottom:60px;">
+          <div class="title title-main" id="s1-t1">你的知识，</div>
+          <div class="title title-main accent-text" id="s1-t2" style="font-weight:200;">需要一个家</div>
+        </div>
+        <div class="subtitle" id="s1-sub">Knowledge Base MCP</div>
+        <div class="body-text" id="s1-desc">跨项目知识库 MCP 服务</div>
+      </div>
+
+      <div class="accent-line-v" id="s1-lineL" style="top:500px;left:48px;height:300px;"></div>
+      <div class="accent-line-v" id="s1-lineR"
+        style="bottom:500px;right:48px;height:240px;background:rgba(6,182,212,0.2);"></div>
+    </div>
+
+    <!-- ========== SCENE 2: Features (6-14s) ========== -->
+    <div id="scene2" class="scene">
+      <div class="glow glow-purple" style="width:700px;height:700px;top:50%;left:50%;transform:translate(-50%,-50%);">
+      </div>
+      <div class="glow glow-cyan" style="width:500px;height:500px;bottom:200px;right:50px;"></div>
+      <div class="ghost-text" style="top:120px;left:-20px;font-size:220px;">SEARCH</div>
+
+      <div class="scene-content" style="justify-content:flex-start;padding-top:260px;gap:12px;">
+        <div class="title" id="s2-t" style="font-size:64px;font-weight:200;">三层搜索</div>
+        <div class="subtitle" id="s2-st" style="margin-bottom:48px;font-size:36px;">一触即达</div>
+
+        <div class="pillar-row">
+          <div class="pillar-col" id="pil1">
+            <div class="pillar-bar-outer">
+              <div class="pillar-fill pillar-fill-p0"></div>
+            </div>
+            <div class="pillar-label">Text Match</div>
+            <div class="pillar-label pillar-speed" style="color:rgba(6,182,212,0.5);">P0 · 0.2s</div>
+          </div>
+          <div class="pillar-col" id="pil2">
+            <div class="pillar-bar-outer">
+              <div class="pillar-fill pillar-fill-p1"></div>
+            </div>
+            <div class="pillar-label">TF-IDF</div>
+            <div class="pillar-label pillar-speed">P1 · 0.3s</div>
+          </div>
+          <div class="pillar-col" id="pil3">
+            <div class="pillar-bar-outer">
+              <div class="pillar-fill pillar-fill-p2"></div>
+            </div>
+            <div class="pillar-label purple-text">Semantic</div>
+            <div class="pillar-label pillar-speed" style="color:rgba(124,58,237,0.5);">P2 · 0.5s</div>
+          </div>
+        </div>
+
+        <div class="badge-row">
+          <span class="badge badge-cyan" id="bdg1">P0 文本匹配</span>
+          <span class="badge badge-purple" id="bdg2">P1 TF-IDF</span>
+          <span class="badge badge-purple" id="bdg3">P2 语义向量</span>
+        </div>
+
+        <div class="body-text" id="s2-ft" style="margin-top:36px;text-align:center;font-size:26px;">
+          三层加权融合 · 精准排序
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== SCENE 3: Demo (14-20s) ========== -->
+    <div id="scene3" class="scene">
+      <div class="glow glow-cyan" style="width:600px;height:600px;top:30%;left:50%;transform:translateX(-50%);"></div>
+
+      <div class="scene-content" style="justify-content:flex-start;padding-top:240px;gap:12px;">
+        <div class="title" id="s3-t" style="font-size:56px;font-weight:200;margin-bottom:32px;">
+          自然语言<span class="accent-text"> 精准检索</span>
+        </div>
+
+        <div class="search-bar" id="sbar">
+          <span class="search-bar-text" id="stxt">&gt; 搜索: React Hooks best practices</span>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px;margin-top:24px;">
+          <div class="result-card" id="res1">
+            <div class="result-title">React Hooks 最佳实践</div>
+            <div class="result-snippet">useEffect 清理函数、依赖数组的注意事项...</div>
+            <span class="score-tag badge-cyan" style="margin-top:8px;">匹配 92%</span>
+          </div>
+          <div class="result-card" id="res2">
+            <div class="result-title">React 组件设计模式</div>
+            <div class="result-snippet">高阶组件、Render Props、Hooks 三种模式...</div>
+            <span class="score-tag badge-purple" style="margin-top:8px;">匹配 78%</span>
+          </div>
+          <div class="result-card result-card-best" id="res3">
+            <div class="result-title" style="color:#06b6d4;">[最佳] React Hooks 常见陷阱</div>
+            <div class="result-snippet">闭包陷阱、无限循环的解决方案...</div>
+            <span class="score-tag badge-cyan" style="margin-top:8px;">匹配 96%</span>
+          </div>
+        </div>
+
+        <div class="body-text" id="s3-ft" style="margin-top:24px;text-align:center;font-size:24px;">
+          50+ 语言 · 跨语言语义检索
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== SCENE 4: CTA (20-25s) ========== -->
+    <div id="scene4" class="scene">
+      <div class="glow glow-purple" style="width:800px;height:800px;top:40%;left:50%;transform:translate(-50%,-50%);">
+      </div>
+      <div class="glow glow-cyan" style="width:560px;height:560px;top:55%;left:50%;transform:translate(-50%,-50%);">
+      </div>
+
+      <div class="scene-content" style="text-align:center;gap:16px;">
+        <div class="title" id="s4-t" style="font-size:72px;font-weight:100;margin-bottom:20px;">开始使用</div>
+
+        <div style="margin:40px 0;">
+          <div class="command-block" id="cmd">npx @dyyz1993/kb-mcp --stdio</div>
+        </div>
+
+        <div class="cta-tagline" id="tagline">让你的知识流动起来</div>
+
+        <div class="cta-link" id="ghlink" style="margin-top:36px;">
+          github.com/dyyz1993/knowledge-base-mcp
+        </div>
+
+        <div class="badge-row" id="cta-badges" style="margin-top:32px;">
+          <span class="badge badge-cyan" style="font-size:22px;padding:8px 28px;">npm install</span>
+          <span class="badge badge-purple" style="font-size:22px;padding:8px 28px;">MIT License</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* Seeded PRNG (mulberry32) */
+    function mulberry32(a) {
+      return function() {
+        a|=0; a=a+0x6D2B79F5|0;
+        var t=Math.imul(a^a>>>15,1|a);
+        t=t+Math.imul(t^t>>>7,61|t)^t;
+        return ((t^t>>>14)>>>0)/4294967296;
+      };
+    }
+    var rng=mulberry32(42);
+
+    /* Scene 1: Generate particles */
+    (function() {
+      var c=document.getElementById('s1-particles');
+      for(var i=0;i<60;i++) {
+        var p=document.createElement('div');
+        p.className='particle';
+        var s=2+rng()*5;
+        p.style.cssText='left:'+(rng()*100)+'%;top:'+(rng()*100)+'%;width:'+s+'px;height:'+s+'px;background:'+
+          (rng()>0.5? 'rgba(124,58,237,':'rgba(6,182,212,')+(0.15+rng()*0.35)+');';
+        c.appendChild(p);
+      }
+    })();
+
+    window.__timelines=window.__timelines||{};
+    var tl=gsap.timeline({paused: true});
+
+    /* Ambient animations always playing */
+    var glowsAll=document.querySelectorAll('.glow');
+    glowsAll.forEach(function(el,i) {
+      tl.to(el,{
+        scale: 1.06+rng()*0.04,opacity: el.classList.contains('glow-purple')? 0.32:0.18,
+        duration: 3+rng()*2,ease: 'sine.inOut',yoyo: true,repeat: 20
+      },0);
+    });
+
+    /* ============ SCENE 1: Hook (0-6s) ============ */
+    var p1=document.querySelectorAll('#scene1 .particle');
+    p1.forEach(function(el) {
+      tl.to(el,{
+        x: -20+rng()*40,y: -20+rng()*40,
+        duration: 2+rng()*2,ease: 'sine.inOut',yoyo: true,repeat: 15
+      },0);
+    });
+    document.querySelectorAll('#scene1 .ghost-text').forEach(function(el,i) {
+      tl.to(el,{y: i===0? -12:10,opacity: 0.05,duration: 4,ease: 'sine.inOut',yoyo: true,repeat: 10},0);
+    });
+
+    tl.fromTo('#s1-t1',{y: 50,opacity: 0},{y: 0,opacity: 1,duration: 0.9,ease: 'sine.inOut'},0.3);
+    tl.fromTo('#s1-t2',{y: 50,opacity: 0},{y: 0,opacity: 1,duration: 0.9,ease: 'sine.inOut'},0.6);
+    tl.fromTo('#s1-sub',{y: 30,opacity: 0},{y: 0,opacity: 1,duration: 0.7,ease: 'sine.inOut'},1.0);
+    tl.fromTo('#s1-desc',{y: 25,opacity: 0},{y: 0,opacity: 1,duration: 0.6,ease: 'power2.out'},1.3);
+    tl.fromTo('#s1-lineL',{scaleY: 0,transformOrigin: 'top center'},{scaleY: 1,duration: 0.7,ease: 'power2.out'},0.3);
+    tl.fromTo('#s1-lineR',{scaleY: 0,transformOrigin: 'bottom center'},{scaleY: 1,duration: 0.7,ease: 'power2.out'},0.6);
+
+    /* Transition 1→2 (6.0s): Blur crossfade */
+    tl.set('#scene2',{opacity: 1},5.5);
+    tl.to('#scene1',{opacity: 0,filter: 'blur(12px)',duration: 0.5,ease: 'power2.inOut'},5.5);
+    tl.fromTo('#scene2',{filter: 'blur(12px)'},{filter: 'blur(0px)',duration: 0.5,ease: 'power2.inOut'},5.5);
+    tl.set('#scene1',{visibility: 'hidden'},6.0);
+
+    /* ============ SCENE 2: Features (6-14s) ============ */
+    tl.fromTo('#s2-t',{y: 40,opacity: 0},{y: 0,opacity: 1,duration: 0.7,ease: 'sine.inOut'},6.0);
+    tl.fromTo('#s2-st',{y: 25,opacity: 0},{y: 0,opacity: 1,duration: 0.5,ease: 'power2.out'},6.3);
+
+    tl.fromTo('#pil1',{y: 80,opacity: 0},{y: 0,opacity: 1,duration: 0.8,ease: 'sine.inOut'},6.6);
+    tl.fromTo('#pil2',{y: 80,opacity: 0},{y: 0,opacity: 1,duration: 0.8,ease: 'sine.inOut'},6.8);
+    tl.fromTo('#pil3',{y: 80,opacity: 0},{y: 0,opacity: 1,duration: 0.8,ease: 'sine.inOut'},7.0);
+
+    tl.fromTo('#pil1 .pillar-fill',{scaleY: 0,transformOrigin: 'bottom center'},{scaleY: 1,duration: 0.9,ease: 'sine.inOut'},6.8);
+    tl.fromTo('#pil2 .pillar-fill',{scaleY: 0,transformOrigin: 'bottom center'},{scaleY: 1,duration: 0.9,ease: 'sine.inOut'},7.0);
+    tl.fromTo('#pil3 .pillar-fill',{scaleY: 0,transformOrigin: 'bottom center'},{scaleY: 1,duration: 0.9,ease: 'sine.inOut'},7.2);
+
+    tl.fromTo('#bdg1',{opacity: 0,scale: 0.6},{opacity: 1,scale: 1,duration: 0.3,ease: 'back.out(1.5)'},8.0);
+    tl.fromTo('#bdg2',{opacity: 0,scale: 0.6},{opacity: 1,scale: 1,duration: 0.3,ease: 'back.out(1.5)'},8.2);
+    tl.fromTo('#bdg3',{opacity: 0,scale: 0.6},{opacity: 1,scale: 1,duration: 0.3,ease: 'back.out(1.5)'},8.4);
+    tl.fromTo('#s2-ft',{opacity: 0,y: 15},{opacity: 1,y: 0,duration: 0.5,ease: 'power2.out'},8.8);
+
+    /* Transition 2→3 (14.0s) */
+    tl.set('#scene3',{opacity: 1},13.5);
+    tl.to('#scene2',{opacity: 0,filter: 'blur(10px)',duration: 0.5,ease: 'power2.inOut'},13.5);
+    tl.fromTo('#scene3',{filter: 'blur(10px)'},{filter: 'blur(0px)',duration: 0.5,ease: 'power2.inOut'},13.5);
+    tl.set('#scene2',{visibility: 'hidden'},14.0);
+
+    /* ============ SCENE 3: Demo (14-20s) ============ */
+    tl.fromTo('#s3-t',{y: 40,opacity: 0},{y: 0,opacity: 1,duration: 0.7,ease: 'sine.inOut'},14.0);
+    tl.fromTo('#sbar',{y: -40,opacity: 0},{y: 0,opacity: 1,duration: 0.6,ease: 'power2.out'},14.3);
+    tl.fromTo('#stxt',{opacity: 0},{opacity: 1,duration: 0.5,ease: 'power2.out'},14.6);
+
+    tl.fromTo('#res1',{y: 25,opacity: 0},{y: 0,opacity: 1,duration: 0.5,ease: 'sine.inOut'},15.3);
+    tl.fromTo('#res2',{y: 25,opacity: 0},{y: 0,opacity: 1,duration: 0.5,ease: 'sine.inOut'},15.5);
+    tl.fromTo('#res3',{y: 25,opacity: 0},{y: 0,opacity: 1,duration: 0.5,ease: 'sine.inOut'},15.7);
+    tl.to('#res3',{boxShadow: '0 0 40px rgba(6,182,212,0.2)',duration: 1.0,ease: 'sine.inOut',yoyo: true,repeat: 3},16.2);
+    tl.fromTo('#s3-ft',{opacity: 0,y: 15},{opacity: 1,y: 0,duration: 0.5,ease: 'power2.out'},17.0);
+
+    /* Transition 3→4 (20.0s) */
+    tl.set('#scene4',{opacity: 1},19.5);
+    tl.to('#scene3',{opacity: 0,filter: 'blur(12px)',duration: 0.5,ease: 'power2.inOut'},19.5);
+    tl.fromTo('#scene4',{filter: 'blur(12px)'},{filter: 'blur(0px)',duration: 0.5,ease: 'power2.inOut'},19.5);
+    tl.set('#scene3',{visibility: 'hidden'},20.0);
+
+    /* ============ SCENE 4: CTA (20-25s) ============ */
+    tl.fromTo('#s4-t',{y: 40,opacity: 0},{y: 0,opacity: 1,duration: 0.7,ease: 'sine.inOut'},20.0);
+    tl.fromTo('#cmd',{y: 60,opacity: 0,scale: 0.85},{y: 0,opacity: 1,scale: 1,duration: 0.8,ease: 'power2.out'},20.3);
+    tl.fromTo('#tagline',{y: 40,opacity: 0},{y: 0,opacity: 1,duration: 0.6,ease: 'sine.inOut'},21.0);
+    tl.fromTo('#ghlink',{opacity: 0,y: 15},{opacity: 1,y: 0,duration: 0.5,ease: 'power2.out'},21.5);
+    tl.fromTo('#cta-badges .badge',{opacity: 0,scale: 0.6},{opacity: 1,scale: 1,duration: 0.4,ease: 'back.out(1.5)'},22.0);
+
+    /* Final fade to black */
+    tl.to('#scene4',{opacity: 0,duration: 1.0,ease: 'power1.in'},24.0);
+    tl.set('#scene4',{visibility: 'hidden'},25.0);
+
+    window.__timelines["kb-video"]=tl;
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,16 @@
+[
+  {
+    "id": "proc_2026-05-15T1220_e55bda",
+    "workspaceId": "mp6lwequ",
+    "title": "Chromium headless CDP",
+    "command": "/Applications/Chromium.app/Contents/MacOS/Chromium --headless --remote-debugging-port=9223 --no-first-run --disable-gpu --disable-software-rasterizer 2>/dev/null",
+    "cwd": "/Users/xuyingzhou/Project/temporary/knowledge-base-mcp",
+    "status": "error",
+    "pid": 59465,
+    "startedAt": "2026-05-15T12:20:10.160Z",
+    "outputSizeBytes": 207,
+    "terminalReason": "failed",
+    "exitCode": 137,
+    "stoppedAt": "2026-05-15T12:54:55.352Z"
+  }
+]

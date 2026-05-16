@@ -1,0 +1,4 @@
+Knowledge Base MCP running on http://localhost:19877
+  StreamableHTTP: http://localhost:19877/mcp
+  SSE (legacy):   http://localhost:19877/sse
+  API:            http://localhost:19877/api/docs

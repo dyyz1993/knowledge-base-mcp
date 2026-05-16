@@ -1,0 +1,5 @@
+Knowledge Base MCP running on http://localhost:19877
+  API:            http://localhost:19877/api/docs
+  MCP endpoints:  disabled (--no-mcp)
+  Web UI:         http://localhost:19877
+MCP web reader error: JSON Parse error: Unexpected identifier "MCP"

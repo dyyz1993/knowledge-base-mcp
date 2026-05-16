@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 220" width="240" height="220">
+  <defs>
+    <style>
+      /* 耳朵晃动 */
+      @keyframes earWiggle {
+        0%, 100% { transform: rotate(25deg); transform-origin: 128px 60px; }
+        25% { transform: rotate(20deg); transform-origin: 128px 60px; }
+        75% { transform: rotate(28deg); transform-origin: 128px 60px; }
+      }
+      .ear-left { animation: earWiggle 2s ease-in-out infinite; }
+      
+      @keyframes earRightWiggle {
+        0%, 100% { transform: rotate(12deg); transform-origin: 122px 48px; }
+        50% { transform: rotate(16deg); transform-origin: 122px 48px; }
+      }
+      .ear-right { animation: earRightWiggle 1.8s ease-in-out infinite; }
+
+      /* 嘴巴咀嚼 */
+      @keyframes chew {
+        0%, 100% { ry: 3.5; }
+        50% { ry: 5; }
+      }
+      .mouth { animation: chew 0.6s ease-in-out infinite; }
+      
+      /* 脸颊鼓起 */
+      @keyframes cheekPuff {
+        0%, 100% { rx: 8; ry: 5; }
+        50% { rx: 9; ry: 6; }
+      }
+      .cheek { animation: cheekPuff 0.6s ease-in-out infinite; }
+
+      /* 眼睛眨眼 */
+      @keyframes blink {
+        0%, 94%, 100% { opacity: 1; }
+        95%, 97% { opacity: 0; }
+      }
+      @keyframes blinkHighlight {
+        0%, 94%, 100% { opacity: 1; }
+        95%, 97% { opacity: 0; }
+      }
+      .eye { animation: blink 3s ease-in-out infinite; }
+      .eye-highlight { animation: blinkHighlight 3s ease-in-out infinite; }
+
+      /* 胡萝卜逐渐消失 */
+      @keyframes carrotShrink {
+        0% { d: path("M 142 110 Q 155 100 168 95 Q 175 92 178 95 Q 170 105 155 115 Q 145 118 142 110 Z"); }
+        50% { d: path("M 142 110 Q 152 103 162 99 Q 167 97 170 99 Q 164 106 152 113 Q 146 116 142 110 Z"); }
+        100% { d: path("M 142 110 Q 148 106 155 103 Q 158 101 160 103 Q 156 108 150 112 Q 145 114 142 110 Z"); }
+      }
+      .carrot-body { animation: carrotShrink 4s ease-in-out infinite; }
+      
+      /* 胡萝卜叶子抖动 */
+      @keyframes leafShake {
+        0%, 100% { transform: rotate(0deg); }
+        25% { transform: rotate(-3deg); }
+        75% { transform: rotate(3deg); }
+      }
+      .carrot-leaf { animation: leafShake 0.8s ease-in-out infinite; transform-origin: 178px 95px; }
+
+      /* 星星闪烁 */
+      @keyframes sparkle1 {
+        0%, 100% { opacity: 0.7; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.3); }
+      }
+      @keyframes sparkle2 {
+        0%, 100% { opacity: 0.5; transform: scale(1); }
+        50% { opacity: 0.9; transform: scale(1.2); }
+      }
+      .sparkle1 { animation: sparkle1 1.5s ease-in-out infinite; }
+      .sparkle2 { animation: sparkle2 2s ease-in-out infinite 0.5s; }
+
+      /* 碎屑掉落 */
+      @keyframes crumbFall1 {
+        0%, 100% { opacity: 0.6; transform: translate(0, 0); }
+        50% { opacity: 0.3; transform: translate(2px, 4px); }
+      }
+      @keyframes crumbFall2 {
+        0%, 100% { opacity: 0.5; transform: translate(0, 0); }
+        50% { opacity: 0.2; transform: translate(-1px, 3px); }
+      }
+      .crumb1 { animation: crumbFall1 1.2s ease-in-out infinite; }
+      .crumb2 { animation: crumbFall2 1.5s ease-in-out infinite 0.3s; }
+
+      /* 身体呼吸 */
+      @keyframes breathe {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.015); }
+      }
+      .body-breathe { animation: breathe 3s ease-in-out infinite; transform-origin: 110px 148px; }
+
+      /* 尾巴摇摆 */
+      @keyframes tailWag {
+        0%, 100% { transform: rotate(0deg); transform-origin: 148px 165px; }
+        50% { transform: rotate(10deg); transform-origin: 148px 165px; }
+      }
+      .tail { animation: tailWag 1.5s ease-in-out infinite; }
+    </style>
+  </defs>
+
+  <!-- 地面阴影 -->
+  <ellipse cx="120" cy="200" rx="90" ry="8" fill="#2d2d2d" opacity="0.08"/>
+
+  <!-- == 小兔子 == -->
+  <g class="body-breathe">
+    <!-- 身体 -->
+    <ellipse cx="110" cy="148" rx="40" ry="48" fill="#f0e6d3"/>
+    
+    <!-- 尾巴 -->
+    <g class="tail">
+      <circle cx="148" cy="165" r="9" fill="#f5ede0"/>
+    </g>
+    
+    <!-- 前腿 -->
+    <ellipse cx="88" cy="170" rx="9" ry="16" fill="#f0e6d3" transform="rotate(12, 88, 170)"/>
+    <ellipse cx="132" cy="170" rx="9" ry="16" fill="#f0e6d3" transform="rotate(-12, 132, 170)"/>
+    
+    <!-- 脚 -->
+    <ellipse cx="95" cy="192" rx="15" ry="9" fill="#f0e6d3" transform="rotate(-5, 95, 192)"/>
+    <ellipse cx="125" cy="192" rx="15" ry="9" fill="#f0e6d3" transform="rotate(5, 125, 192)"/>
+  </g>
+  
+  <!-- 头部 -->
+  <circle cx="100" cy="95" r="38" fill="#f0e6d3"/>
+  
+  <!-- 耳朵 -->
+  <g class="ear-left">
+    <ellipse cx="128" cy="60" rx="11" ry="32" fill="#f0e6d3"/>
+    <ellipse cx="128" cy="60" rx="6" ry="24" fill="#f5c6d0"/>
+  </g>
+  <g class="ear-right">
+    <ellipse cx="78" cy="48" rx="11" ry="32" fill="#f0e6d3"/>
+    <ellipse cx="78" cy="48" rx="6" ry="24" fill="#f5c6d0"/>
+  </g>
+  
+  <!-- 眼睛 -->
+  <ellipse class="eye" cx="88" cy="93" rx="5" ry="6" fill="#2d2d2d"/>
+  <ellipse class="eye" cx="112" cy="93" rx="5" ry="6" fill="#2d2d2d"/>
+  
+  <!-- 眼睛高光 -->
+  <circle class="eye-highlight" cx="90" cy="91" r="2" fill="white"/>
+  <circle class="eye-highlight" cx="114" cy="91" r="2" fill="white"/>
+  
+  <!-- 腮红 -->
+  <ellipse class="cheek" cx="75" cy="102" rx="8" ry="5" fill="#f5c6d0" opacity="0.5"/>
+  
+  <!-- == 右手（拿着胡萝卜） == -->
+  <ellipse cx="140" cy="115" rx="8" ry="12" fill="#f0e6d3" transform="rotate(-30, 140, 115)"/>
+  
+  <!-- == 胡萝卜 == -->
+  <!-- 胡萝卜主体 -->
+  <path class="carrot-body" d="M 142 110 Q 155 100 168 95 Q 175 92 178 95 Q 170 105 155 115 Q 145 118 142 110 Z" fill="#ff8c42"/>
+  
+  <!-- 胡萝卜高光 -->
+  <path d="M 148 108 Q 155 103 165 98" fill="none" stroke="#ffa864" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  
+  <!-- 胡萝卜叶子 -->
+  <g class="carrot-leaf">
+    <path d="M 178 95 Q 185 82 190 78 Q 192 76 190 80 Q 186 86 178 95" fill="#4aaf50"/>
+    <path d="M 178 95 Q 188 85 195 84 Q 197 83 194 85 Q 188 90 178 95" fill="#66bb6a"/>
+    <path d="M 178 95 Q 182 80 183 75 Q 184 73 186 76 Q 185 84 178 95" fill="#43a047"/>
+    <line x1="178" y1="95" x2="188" y2="79" stroke="#4aaf50" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="178" y1="95" x2="193" y2="84" stroke="#66bb6a" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="178" y1="95" x2="184" y2="76" stroke="#43a047" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  
+  <!-- == 嘴巴（咀嚼） == -->
+  <ellipse class="mouth" cx="117" cy="98" rx="5" ry="3.5" fill="#f5a0b0"/>
+  <path d="M 114 98 Q 117 100 120 98" fill="#f5a0b0" stroke="#2d2d2d" stroke-width="0.5"/>
+  
+  <!-- 鼻子 -->
+  <ellipse cx="108" cy="93" rx="3" ry="2" fill="#f5a0b0"/>
+  
+  <!-- 食物碎屑 -->
+  <circle class="crumb1" cx="122" cy="105" r="1.5" fill="#ff8c42" opacity="0.6"/>
+  <circle class="crumb2" cx="128" cy="108" r="1" fill="#ff8c42" opacity="0.5"/>
+  <circle cx="120" cy="110" r="1.2" fill="#ff8c42" opacity="0.4"/>
+  
+  <!-- 开心星星 -->
+  <text class="sparkle1" x="75" y="76" font-size="10" fill="#ffd700" opacity="0.7">✦</text>
+  <text class="sparkle2" x="132" y="73" font-size="8" fill="#ffd700" opacity="0.5">✦</text>
+</svg>

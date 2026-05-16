@@ -22,10 +22,7 @@ export class SearchPipeline {
     const allResults: Awaited<ReturnType<SearchSource["search"]>> = []
     const sourceTimings: { name: string; ms: number; count: number; error?: string }[] = []
 
-    const xbrowserSources = availableSources.filter(s => s.name.startsWith("xbrowser-"))
-    const otherSources = availableSources.filter(s => !s.name.startsWith("xbrowser-"))
-
-    const runSource = async (source: SearchSource) => {
+    const promises = availableSources.map(async (source) => {
       const t0 = Date.now()
       try {
         const results = await source.search(query)
@@ -42,14 +39,8 @@ export class SearchPipeline {
         sourceTimings.push({ name: source.name, ms, count: 0, error: errMsg })
         log("WARN", `Source [${source.name}] FAILED in ${ms}ms: ${errMsg}`)
       }
-    }
-
-    const otherPromises = otherSources.map(s => runSource(s))
-    await Promise.all(otherPromises)
-
-    for (const xs of xbrowserSources) {
-      await runSource(xs)
-    }
+    })
+    await Promise.all(promises)
 
     log("INFO", `Raw total: ${allResults.length} results before aggregation`)
     const aggregated = aggregateResults(allResults, query, maxResults)

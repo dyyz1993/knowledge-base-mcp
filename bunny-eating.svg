@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 220" width="240" height="220">
+  <!-- 地面阴影 -->
+  <ellipse cx="120" cy="200" rx="90" ry="8" fill="#2d2d2d" opacity="0.08"/>
+
+  <!-- == 小兔子 == -->
+  
+  <!-- 身体 -->
+  <ellipse cx="110" cy="148" rx="40" ry="48" fill="#f0e6d3"/>
+  
+  <!-- 尾巴 -->
+  <circle cx="148" cy="165" r="9" fill="#f5ede0"/>
+  
+  <!-- 前腿 -->
+  <ellipse cx="88" cy="170" rx="9" ry="16" fill="#f0e6d3" transform="rotate(12, 88, 170)"/>
+  <ellipse cx="132" cy="170" rx="9" ry="16" fill="#f0e6d3" transform="rotate(-12, 132, 170)"/>
+  
+  <!-- 脚 -->
+  <ellipse cx="95" cy="192" rx="15" ry="9" fill="#f0e6d3" transform="rotate(-5, 95, 192)"/>
+  <ellipse cx="125" cy="192" rx="15" ry="9" fill="#f0e6d3" transform="rotate(5, 125, 192)"/>
+  
+  <!-- 头部 -->
+  <circle cx="100" cy="95" r="38" fill="#f0e6d3"/>
+  
+  <!-- 耳朵 -->
+  <ellipse cx="78" cy="48" rx="11" ry="32" fill="#f0e6d3" transform="rotate(-12, 78, 48)"/>
+  <ellipse cx="78" cy="48" rx="6" ry="24" fill="#f5c6d0" transform="rotate(-12, 78, 48)"/>
+  
+  <ellipse cx="122" cy="48" rx="11" ry="32" fill="#f0e6d3" transform="rotate(12, 122, 48)"/>
+  <ellipse cx="122" cy="48" rx="6" ry="24" fill="#f5c6d0" transform="rotate(12, 122, 48)"/>
+  
+  <!-- 左耳下垂 -->
+  <ellipse cx="128" cy="60" rx="11" ry="32" fill="#f0e6d3" transform="rotate(25, 128, 60)"/>
+  <ellipse cx="128" cy="60" rx="6" ry="24" fill="#f5c6d0" transform="rotate(25, 128, 60)"/>
+  
+  <!-- 眼睛 -->
+  <ellipse cx="88" cy="93" rx="5" ry="6" fill="#2d2d2d"/>
+  <ellipse cx="112" cy="93" rx="5" ry="6" fill="#2d2d2d"/>
+  
+  <!-- 眼睛高光 -->
+  <circle cx="90" cy="91" r="2" fill="white"/>
+  <circle cx="114" cy="91" r="2" fill="white"/>
+  
+  <!-- 开心眼形（弯弯的眼睛效果） -->
+  <path d="M 86 91 Q 88 89 90 91" fill="none" stroke="#2d2d2d" stroke-width="0.8" opacity="0.3"/>
+  <path d="M 110 91 Q 112 89 114 91" fill="none" stroke="#2d2d2d" stroke-width="0.8" opacity="0.3"/>
+  
+  <!-- 腮红 -->
+  <ellipse cx="75" cy="102" rx="8" ry="5" fill="#f5c6d0" opacity="0.5"/>
+  
+  <!-- == 右手（拿着胡萝卜） == -->
+  <ellipse cx="140" cy="115" rx="8" ry="12" fill="#f0e6d3" transform="rotate(-30, 140, 115)"/>
+  
+  <!-- == 胡萝卜 == -->
+  <!-- 胡萝卜主体 - 从右手延伸向嘴巴 -->
+  <path d="M 142 110 Q 155 100 168 95 Q 175 92 178 95 Q 170 105 155 115 Q 145 118 142 110 Z" fill="#ff8c42"/>
+  
+  <!-- 胡萝卜被咬掉一口 -->
+  <path d="M 175 92 Q 178 90 180 93 Q 178 96 175 95 Z" fill="#f0e6d3"/>
+  
+  <!-- 胡萝卜高光 -->
+  <path d="M 148 108 Q 155 103 165 98" fill="none" stroke="#ffa864" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+  
+  <!-- 胡萝卜叶子 -->
+  <path d="M 178 95 Q 185 82 190 78 Q 192 76 190 80 Q 186 86 178 95" fill="#4aaf50"/>
+  <path d="M 178 95 Q 188 85 195 84 Q 197 83 194 85 Q 188 90 178 95" fill="#66bb6a"/>
+  <path d="M 178 95 Q 182 80 183 75 Q 184 73 186 76 Q 185 84 178 95" fill="#43a047"/>
+  
+  <!-- 叶子茎 -->
+  <line x1="178" y1="95" x2="188" y2="79" stroke="#4aaf50" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="178" y1="95" x2="193" y2="84" stroke="#66bb6a" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="178" y1="95" x2="184" y2="76" stroke="#43a047" stroke-width="2.5" stroke-linecap="round"/>
+  
+  <!-- == 张嘴吃胡萝卜 == -->
+  <!-- 嘴巴（微张） -->
+  <ellipse cx="117" cy="98" rx="5" ry="3.5" fill="#f5a0b0"/>
+  <path d="M 114 98 Q 117 100 120 98" fill="#f5a0b0" stroke="#2d2d2d" stroke-width="0.5"/>
+  
+  <!-- 鼻子 -->
+  <ellipse cx="108" cy="93" rx="3" ry="2" fill="#f5a0b0"/>
+  
+  <!-- 食物碎屑 -->
+  <circle cx="122" cy="105" r="1.5" fill="#ff8c42" opacity="0.6"/>
+  <circle cx="128" cy="108" r="1" fill="#ff8c42" opacity="0.5"/>
+  <circle cx="120" cy="110" r="1.2" fill="#ff8c42" opacity="0.4"/>
+  
+  <!-- 开心表情符号（小星星） -->
+  <text x="75" y="78" font-size="10" fill="#ffd700" opacity="0.7">✦</text>
+  <text x="130" y="75" font-size="8" fill="#ffd700" opacity="0.5">✦</text>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 200" width="120" height="200">
+  <!-- 胡萝卜主体 -->
+  <path d="M 60 25 Q 55 60 50 100 Q 48 130 55 160 Q 60 175 65 160 Q 72 130 70 100 Q 65 60 60 25 Z" fill="#ff8c42"/>
+  
+  <!-- 高光 -->
+  <path d="M 57 40 Q 54 70 52 105 Q 51 130 56 155" fill="none" stroke="#ffa864" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+  
+  <!-- 纹理线 -->
+  <path d="M 50 80 Q 55 82 60 80" fill="none" stroke="#e07830" stroke-width="1.5" opacity="0.4"/>
+  <path d="M 48 105 Q 55 107 62 105" fill="none" stroke="#e07830" stroke-width="1.5" opacity="0.4"/>
+  <path d="M 50 130 Q 56 132 63 130" fill="none" stroke="#e07830" stroke-width="1.5" opacity="0.4"/>
+  
+  <!-- 叶子 1 -->
+  <path d="M 60 25 Q 45 5 50 -15 Q 52 -20 55 -15 Q 58 0 60 25" fill="#4aaf50"/>
+  
+  <!-- 叶子 2 -->
+  <path d="M 60 25 Q 60 0 65 -20 Q 68 -25 70 -20 Q 68 0 60 25" fill="#66bb6a"/>
+  
+  <!-- 叶子 3 -->
+  <path d="M 60 25 Q 75 5 80 -10 Q 82 -15 78 -10 Q 72 5 60 25" fill="#43a047"/>
+  
+  <!-- 叶子茎 -->
+  <line x1="60" y1="25" x2="52" y2="-12" stroke="#4aaf50" stroke-width="3" stroke-linecap="round"/>
+  <line x1="60" y1="25" x2="63" y2="-16" stroke="#66bb6a" stroke-width="3" stroke-linecap="round"/>
+  <line x1="60" y1="25" x2="76" y2="-8" stroke="#43a047" stroke-width="3" stroke-linecap="round"/>
+</svg>

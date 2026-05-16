@@ -133,6 +133,7 @@ export class XBrowserCLI {
       ]
 
       const raw = await runCommand(args, this.config.timeout)
+      console.log(`[xbrowser-cli] raw output for engine=${this.config.engine}: length=${raw.length}, preview=${raw.substring(0, 200)}`)
 
       let parsed: unknown
       try {
@@ -177,7 +178,8 @@ export class XBrowserCLI {
 
       console.log(`[xbrowser-cli] search("${query}") engine=${this.config.engine}: items=${items.length} mapped=${mapped.length}`)
       return mapped
-    } catch {
+    } catch (e) {
+      console.log(`[xbrowser-cli] search FAILED engine=${this.config.engine} query="${query}": ${e instanceof Error ? e.message : String(e)}`)
       return []
     }
   }
