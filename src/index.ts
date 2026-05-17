@@ -1875,6 +1875,52 @@ Answer in the same language as the query.`
     return
   }
 
+  if (url.pathname === "/api/research-evolve" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req))
+    const config = loadConfig()
+    if (!config.searchPipeline?.enabled) {
+      json(res, { error: "Search pipeline not enabled" }, 503)
+      return
+    }
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    })
+
+    const sendSSE = (event: string, data: unknown) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    }
+
+    try {
+      const { ResearchEvolutionAgent } = await import("./research/evolution/orchestrator.js")
+      const agent = new ResearchEvolutionAgent(
+        {
+          maxCycles: body.maxCycles || 3,
+          serverUrl: body.serverUrl || `http://localhost:${process.argv.includes("--port") ? process.argv[process.argv.indexOf("--port") + 1] : "19877"}`,
+          model: body.model || { provider: "zhipuai", id: "glm-5.1" },
+          smallModel: body.smallModel || { provider: "zhipuai", id: "glm-4-flash" },
+          targetMetrics: body.targetMetrics || undefined,
+        },
+        undefined,
+        (msg: string) => {
+          sendSSE("log", { msg, timestamp: Date.now() })
+        },
+      )
+
+      const cycles = await agent.run()
+      sendSSE("done", { cycles, report: agent.getReport() })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      sendSSE("error", { error: msg })
+    }
+
+    res.end()
+    return
+  }
+
   if (url.pathname === "/api/ask-work-key" && req.method === "POST") {
     const body = JSON.parse(await readBody(req))
     const { query, results } = body
