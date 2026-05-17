@@ -18,8 +18,11 @@ import { evaluateResults } from "./steps/evaluate"
 import { deepReadUrls } from "./steps/deep-read"
 import { evaluateDepth } from "./steps/evaluate-depth"
 import { synthesize } from "./steps/synthesize"
+import { checkSitemap } from "./steps/check-sitemap"
+import { checkGithub, fetchGitHubFile } from "./steps/check-github"
 import { loadConfig } from "../config"
 import type { SearchResult } from "../search/types"
+import type { SitemapCheck, GitHubCheck } from "./types"
 
 type ProgressCallback = (progress: ResearchProgress) => void
 
@@ -42,6 +45,10 @@ export class ResearchAgent {
   private coverageScore = 0
   private missingTopics: string[] = []
   private loopCount = 0
+  private sitemapHints: string[] = []
+  private githubHints: string[] = []
+  private sitemapResult: SitemapCheck | null = null
+  private githubResult: GitHubCheck | null = null
 
   constructor(
     request: ResearchRequest,
@@ -153,7 +160,7 @@ export class ResearchAgent {
     if (stepName === "check_sitemap" || stepName === "follow_paths") {
       if (this.mode === "quick") return "not applicable for quick mode"
     }
-    if (stepName === "check_github" || stepName === "clone_index" || stepName === "code_search") {
+    if (stepName === "clone_index" || stepName === "code_search") {
       if (this.mode === "quick" || this.mode === "standard") return "only for deep mode"
     }
     return null
@@ -169,6 +176,8 @@ export class ResearchAgent {
       case "evaluate": return this.stepEvaluate(warning)
       case "deep_read": return this.stepDeepRead()
       case "evaluate_depth": return this.stepEvaluateDepth(warning)
+      case "check_sitemap": return this.stepCheckSitemap()
+      case "check_github": return this.stepCheckGithub()
       case "synthesize": return null
       default: return null
     }
@@ -216,13 +225,28 @@ export class ResearchAgent {
       sources.push(...xbrowserSources)
     }
 
+    if (config.searchPipeline.sources.tavily?.enabled && config.webSearch.tavilyApiKey) {
+      const { TavilySource } = await import("../search/source-tavily.js")
+      sources.push(new TavilySource())
+    }
+
+    if (config.searchPipeline.sources.serper?.enabled && config.webSearch.serperApiKey) {
+      const { SerperSource } = await import("../search/source-serper.js")
+      sources.push(new SerperSource())
+    }
+
+    if (config.searchPipeline.sources.aiSearch?.enabled) {
+      const { AiSearchSource } = await import("../search/source-ai-search.js")
+      sources.push(new AiSearchSource())
+    }
+
     if (sources.length === 0) {
       this.phaseLog.push("search: no sources available")
       return null
     }
 
     const { SearchPipeline } = await import("../search/search-pipeline.js")
-    const pipeline = new SearchPipeline(sources)
+    const pipeline = new SearchPipeline(sources, { fastTimeout: 10_000, slowTimeout: 60_000 })
 
     const analyzeOutput = this.progressLog.find(
       (p) => p.step === "analyze_query" && p.status === "done",
@@ -292,6 +316,8 @@ export class ResearchAgent {
     )
     this.selectedForRead = validIndices.map((idx) => results[idx])
     this.outline = evalResult.outline
+    this.sitemapHints = evalResult.sitemapHints || []
+    this.githubHints = evalResult.githubHints || []
     this.phaseLog.push(
       `evaluated: selected ${this.selectedForRead.length} URLs for deep reading`,
     )
@@ -351,6 +377,117 @@ export class ResearchAgent {
     }
 
     return result.decision as StepDecision
+  }
+
+  private async stepCheckSitemap(): Promise<StepDecision> {
+    const hints = this.sitemapHints.length > 0
+      ? this.sitemapHints
+      : this.extractDocSiteUrls()
+
+    if (hints.length === 0) {
+      this.phaseLog.push("sitemap: no doc site candidates found")
+      this.sitemapResult = { isDocSite: false, sitemapUrl: null, relevantPaths: [], priority: [] }
+      return null
+    }
+
+    this.sitemapResult = await checkSitemap(hints, this.collectedSearchResults, this.query)
+
+    if (!this.sitemapResult.isDocSite || this.sitemapResult.relevantPaths.length === 0) {
+      this.phaseLog.push("sitemap: no relevant paths found")
+      return null
+    }
+
+    const base = this.sitemapResult.sitemapUrl?.replace(/\/sitemap.*$/, "") || hints[0]
+    const paths = this.sitemapResult.relevantPaths.slice(0, 15)
+    const urls = paths.map(p => ({ title: p.split("/").pop() || p, url: `${base}${p}`, snippet: "", source: "sitemap", sourceType: "official", qualityScore: 90 }))
+
+    this.phaseLog.push(`sitemap: found ${this.sitemapResult.relevantPaths.length} paths, deep-reading ${urls.length}`)
+
+    const config = loadConfig()
+    const sitemapDR = await deepReadUrls(urls, {
+      xbrowserEnabled: config.searchPipeline?.sources.xbrowser.enabled ?? false,
+      xbrowserCdp: config.searchPipeline?.sources.xbrowser.cdpEndpoint,
+      xbrowserHeadless: config.searchPipeline?.sources.xbrowser.headless,
+    })
+
+    const successful = sitemapDR.filter(r => r.success)
+    this.deepReadResults.push(...successful)
+    this.phaseLog.push(`sitemap deep-read: ${successful.length}/${sitemapDR.length} pages read`)
+
+    return successful.length > 3 ? "done" : null
+  }
+
+  private async stepCheckGithub(): Promise<StepDecision> {
+    const hints = this.githubHints.length > 0
+      ? this.githubHints
+      : this.extractGithubUrls()
+
+    if (hints.length === 0) {
+      this.phaseLog.push("github: no repo candidates found")
+      this.githubResult = { repoUrl: null, needsClone: false, targetPaths: [], searchKeywords: [] }
+      return null
+    }
+
+    this.githubResult = await checkGithub(hints, this.collectedSearchResults, this.query)
+
+    if (!this.githubResult.repoUrl) {
+      this.phaseLog.push("github: no valid repo identified")
+      return null
+    }
+
+    const paths = this.githubResult.targetPaths.slice(0, 10)
+    this.phaseLog.push(`github: found ${this.githubResult.repoUrl}, reading ${paths.length} files: ${paths.join(", ")}`)
+
+    const results: DeepReadItem[] = []
+    for (const p of paths) {
+      const content = await fetchGitHubFile(this.githubResult.repoUrl, p)
+      if (content && content.length > 50) {
+        results.push({
+          title: `${this.githubResult.repoUrl}/${p}`,
+          url: `${this.githubResult.repoUrl}/blob/main/${p}`,
+          content: content.slice(0, 15000),
+          success: true,
+          source: "github",
+        })
+      }
+    }
+
+    const successful = results.filter(r => r.success)
+    this.deepReadResults.push(...successful)
+    this.phaseLog.push(`github: ${successful.length}/${paths.length} files read`)
+
+    return null
+  }
+
+  private extractDocSiteUrls(): string[] {
+    const urls: string[] = []
+    for (const r of this.collectedSearchResults) {
+      try {
+        const u = new URL(r.url)
+        const base = `${u.protocol}//${u.hostname}`
+        if (
+          u.pathname.includes("/docs") ||
+          u.hostname.startsWith("docs.") ||
+          r.sourceType === "official"
+        ) {
+          if (!urls.includes(base)) urls.push(base)
+        }
+      } catch { continue }
+    }
+    return urls.slice(0, 5)
+  }
+
+  private extractGithubUrls(): string[] {
+    const urls: string[] = []
+    const pattern = /github\.com\/([^/]+\/[^/]+)/
+    for (const r of this.collectedSearchResults) {
+      const m = r.url.match(pattern)
+      if (m) {
+        const repo = `https://github.com/${m[1]}`
+        if (!urls.includes(repo)) urls.push(repo)
+      }
+    }
+    return urls.slice(0, 3)
   }
 
   private async doSynthesize(): Promise<string> {

@@ -45,9 +45,8 @@ export class BudgetManager {
 
   getBudget() {
     return {
-      mode: this.mode,
-      usedSteps: this.usedSteps,
-      maxSteps: this.maxSteps,
+      used: this.usedSteps,
+      max: this.maxSteps,
       usedCost: this.usedCost,
       maxCost: this.maxCost,
     }
