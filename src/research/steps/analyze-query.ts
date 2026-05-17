@@ -2,35 +2,52 @@ import type { AnalyzeQueryResult } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
 
 const SYSTEM_PROMPT =
-  "You are a search query optimizer. You analyze user queries and generate optimal search keywords. Always respond with valid JSON only."
+  "You are a search query optimizer. You analyze user queries and generate diverse search keywords. You MUST respond with ONLY valid JSON. No markdown. No explanation. No code fences. Just the JSON object."
 
 function buildUserPrompt(query: string, warningPrompt?: string): string {
   const warningSection = warningPrompt ? `\nContext: ${warningPrompt}\n` : ""
-  return `Analyze: "${query}"
+  return `Analyze this research query: "${query}"
 ${warningSection}
-Return JSON ONLY (no markdown fences):
-{"coreKeywords":["AI SDK","使用","generateText"],"subQueries":["AI SDK generateText 使用教程","AI SDK streamText 实时流式输出","Vercel AI SDK tool calling 配置","AI SDK structured output 示例","AI SDK tutorial getting started","AI SDK API reference documentation","How to use AI SDK for text generation"],"researchType":"doc","language":"zh"}
+CRITICAL: Return ONLY raw JSON. No markdown fences. No extra text.
+
+Required format:
+{"coreKeywords":["keyword1","keyword2"],"subQueries":["query 1","query 2","query 3","query 4","query 5","query 6","query 7"],"researchType":"doc","language":"zh"}
 
 Rules:
-- coreKeywords: 3-7 core technical terms extracted from query. Remove filler: 什么是 如何 怎么 为什么 介绍一下 请问 的 了 吗 呢 完整 列表
-- subQueries: FLAT string array of exactly 7 diverse search queries. MUST include:
-  * 2 queries in original language (Chinese if query is Chinese)
-  * 2 queries in English (translated/technical terms)
-  * 2 queries targeting specific sub-topics or features mentioned in query
-  * 1 broad overview query
-  Do NOT just repeat the original query. Each subQuery must be different.
-- researchType: doc|api|code|concept|comparison
-- language: zh|en|mixed`
+- coreKeywords: 3-7 extracted technical terms. REMOVE filler words: 什么是 如何 怎么 为什么 介绍一下 请问 的 了 吗 呢 完整 列表 从零 搭建 应用 深度 分析
+- subQueries: EXACTLY 7 diverse search queries as a flat array. Distribution:
+  * 2 in the ORIGINAL language (Chinese if query is Chinese)
+  * 2 in ENGLISH (use key technical terms)
+  * 2 targeting specific SUB-TOPICS or features (break down the query)
+  * 1 broad OVERVIEW query
+  NEVER repeat the original query. Each subQuery MUST be meaningfully different.
+- researchType: one of doc|api|code|concept|comparison
+- language: zh|en|mixed
+
+Think step by step about what aspects of "${query}" a researcher would want to learn about, then generate diverse queries covering those aspects.`
 }
 
 function buildFallback(query: string): AnalyzeQueryResult {
   const hasChinese = /[\u4e00-\u9fff]/.test(query)
+  const keywords = extractKeywords(query)
   return {
-    coreKeywords: [query],
-    subQueries: generateFallbackQueries(query).slice(0, 7),
+    coreKeywords: keywords.slice(0, 5),
+    subQueries: generateFallbackQueries(query),
     researchType: "concept",
     language: hasChinese ? "zh" : "en",
   }
+}
+
+/**
+ * 从查询中提取有意义的关键词（去除中文虚词和短词）
+ */
+function extractKeywords(query: string): string[] {
+  const cleaned = query
+    .replace(/[什么是如何怎么为什么介绍一下请问的了呢吗完整列表、，。！？\s]+/g, " ")
+    .trim()
+  const words = cleaned.split(/\s+/).filter(w => w.length > 1)
+  // 如果提取后为空，回退到原始查询
+  return words.length > 0 ? words : [query]
 }
 
 function parseResponse(raw: string, query: string): AnalyzeQueryResult {
@@ -51,13 +68,26 @@ function parseResponse(raw: string, query: string): AnalyzeQueryResult {
       subQueries = [...zh, ...en]
     }
 
-    if (subQueries.length === 0) subQueries = [query]
+    // 如果 subQueries 为空，或者只有 1 个且和原查询几乎一样 → 补充
+    if (subQueries.length === 0) {
+      subQueries = []
+    }
+    if (subQueries.length === 1 && similarityRatio(subQueries[0], query) > 0.7) {
+      // LLM 只是把原查询回吐了，不算是有效的 subQuery
+      subQueries = []
+    }
 
-    if (subQueries.length < 4) {
+    // 如果有效 subQueries 不足 5 个，用 fallback 补充
+    if (subQueries.length < 5) {
       const extras = generateFallbackQueries(query)
       for (const e of extras) {
-        if (!subQueries.includes(e) && subQueries.length < 7) subQueries.push(e)
+        if (!subQueries.includes(e) && subQueries.length < 8) subQueries.push(e)
       }
+    }
+
+    // 如果 coreKeywords 只有 1 个且等于原查询，也重新提取
+    if (coreKeywords.length === 1 && coreKeywords[0] === query) {
+      coreKeywords.splice(0, 1, ...extractKeywords(query))
     }
 
     const researchType = parsed.researchType as string | undefined
@@ -85,7 +115,7 @@ export async function analyzeQuery(
     { role: "user", content: buildUserPrompt(query, warningPrompt) },
   ]
 
-  const raw = await callLlm(smallModel, messages, 0.1, 800)
+  const raw = await callLlm(smallModel, messages, 0.3, 1200)
   if (!raw) return buildFallback(query)
 
   return parseResponse(raw, query)
@@ -94,25 +124,40 @@ export async function analyzeQuery(
 function generateFallbackQueries(query: string): string[] {
   const queries: string[] = []
   const hasChinese = /[\u4e00-\u9fff]/.test(query)
+  const keywords = extractKeywords(query)
+  const joined = keywords.join(" ")
 
-  const keywords = query
-    .replace(/[什么是如何怎么为什么介绍一下请问的了呢吗、，。！？\s]+/g, " ")
-    .split(/\s+/)
-    .filter(w => w.length > 1)
-    .slice(0, 5)
-
+  // 中文视角（如果原查询有中文）
   if (hasChinese) {
-    queries.push(keywords.join(" ") + " 教程")
-    queries.push(keywords.join(" ") + " 最佳实践")
-    queries.push(keywords.join(" ") + " 使用指南")
-    queries.push(keywords.join(" ") + " 入门到精通")
+    queries.push(`${joined} 教程 入门`)
+    queries.push(`${joined} 最佳实践 经验总结`)
+    queries.push(`${joined} 原理 深度解析`)
+    queries.push(`${joined} 常见问题 解决方案`)
   }
 
-  const enTerms = keywords.join(" ")
-  queries.push(`${enTerms} tutorial`)
+  // 英文视角 — 拆分技术关键词
+  const enTerms = keywords.filter(w => !/[\u4e00-\u9fff]/.test(w)).join(" ") || joined
+  queries.push(`${enTerms} tutorial getting started`)
   queries.push(`${enTerms} best practices guide`)
-  queries.push(`${enTerms} getting started documentation`)
-  queries.push(`${enTerms} examples and usage`)
+  queries.push(`${enTerms} examples code usage`)
+  queries.push(`${enTerms} vs alternatives comparison`)
 
-  return queries
+  // 去重并截取
+  const unique = [...new Set(queries)]
+  return unique.slice(0, 8)
+}
+
+/**
+ * 计算两个字符串的简单相似度（共同字符占比）
+ */
+function similarityRatio(a: string, b: string): number {
+  if (a === b) return 1
+  const shorter = a.length < b.length ? a : b
+  const longer = a.length < b.length ? b : a
+  if (shorter.length === 0) return 0
+  let common = 0
+  for (let i = 0; i < shorter.length; i++) {
+    if (longer.includes(shorter[i])) common++
+  }
+  return common / longer.length
 }
