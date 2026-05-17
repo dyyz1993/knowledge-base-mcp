@@ -4,3 +4,7 @@ dist/
 *.bak
 web/node_modules/
 web/dist/
+.codenomad/
+.opencode/session-registry.json
+*-report.html
+.DS_Store
