@@ -15,7 +15,7 @@ import { callLlm } from "../search/llm-caller"
 import { analyzeQuery } from "./steps/analyze-query"
 import { filterResults } from "./steps/filter-results"
 import { evaluateResults } from "./steps/evaluate"
-import { deepReadUrls } from "./steps/deep-read"
+import { deepReadUrls, clearDeepReadCache } from "./steps/deep-read"
 import { evaluateDepth } from "./steps/evaluate-depth"
 import { synthesize } from "./steps/synthesize"
 import { checkSitemap } from "./steps/check-sitemap"
@@ -70,6 +70,7 @@ export class ResearchAgent {
   }
 
   async run(): Promise<ResearchResult> {
+    clearDeepReadCache()
     this.startTime = Date.now()
     const flow = this.getFlow()
 
