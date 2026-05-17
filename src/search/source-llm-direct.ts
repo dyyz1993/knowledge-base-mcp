@@ -1,42 +1,39 @@
 import type { SearchSource, SearchResult } from "./types"
-
-interface LlmDirectConfig {
-  enabled: boolean
-  baseUrl: string
-  apiKey: string
-  model: string
-}
+import { getConfiguredModels } from "../chat/api-models"
 
 export class LlmDirectSource implements SearchSource {
   name = "llm-direct" as const
-  private config: LlmDirectConfig
-
-  constructor(config: LlmDirectConfig) {
-    this.config = config
-  }
 
   available(): boolean {
-    return this.config.enabled && !!this.config.apiKey && !!this.config.baseUrl
+    const models = getConfiguredModels().filter(m => m.apiKey && m.baseUrl)
+    return models.length > 0
   }
 
   async search(query: string): Promise<SearchResult[]> {
-    if (!this.available()) return []
+    const models = getConfiguredModels().filter(m => m.apiKey && m.baseUrl)
+    if (models.length === 0) return []
+
+    const smallPatterns = [/air/i, /flash/i, /mini/i, /turbo/i]
+    let model = models.find(m => smallPatterns.some(p => p.test(m.id)))
+    if (!model) model = models[0]
+
     try {
-      const resp = await fetch(`${this.config.baseUrl}/chat/completions`, {
+      const resp = await fetch(`${model.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.config.apiKey}`,
+          "Authorization": `Bearer ${model.apiKey}`,
         },
         body: JSON.stringify({
-          model: this.config.model,
+          model: model.id,
           messages: [
-            { role: "system", content: "你是一个知识助手。请简洁准确地回答用户的问题。如果你知道答案，请直接给出；如果不确定，请说明。回答控制在500字以内。" },
+            { role: "system", content: "你是一个知识助手。请简洁准确地回答用户的问题。回答控制在500字以内。" },
             { role: "user", content: query },
           ],
           max_tokens: 1000,
           temperature: 0.3,
         }),
+        signal: AbortSignal.timeout(30000),
       })
       const data = await resp.json() as Record<string, unknown>
       const choices = data.choices as Array<{ message: { content: string } }> | undefined
@@ -44,13 +41,13 @@ export class LlmDirectSource implements SearchSource {
       if (!content) return []
 
       return [{
-        title: `LLM 回答: ${query.slice(0, 50)}`,
+        title: `PI 回答: ${query.slice(0, 50)}`,
         url: "",
         snippet: content.slice(0, 500),
         content,
         source: "llm-direct",
         sourceType: "llm-knowledge",
-        qualityScore: 0,
+        qualityScore: 7,
       }]
     } catch {
       return []

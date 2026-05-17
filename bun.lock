@@ -7,7 +7,7 @@
       "dependencies": {
         "@dyyz1993/pi-agent-core": "latest",
         "@dyyz1993/pi-ai": "latest",
-        "@dyyz1993/xbrowser": "^0.7.0",
+        "@dyyz1993/xbrowser": "^0.7.1",
         "@modelcontextprotocol/sdk": "^1.12.1",
         "playwright": "^1.59.1",
         "turndown-plugin-gfm": "^1.0.2",
@@ -103,9 +103,9 @@
 
     "@dyyz1993/pi-ai": ["@dyyz1993/pi-ai@0.70.4", "", { "dependencies": { "@anthropic-ai/sdk": "^0.90.0", "@aws-sdk/client-bedrock-runtime": "^3.1030.0", "@google/genai": "^1.40.0", "@mistralai/mistralai": "^2.2.0", "chalk": "^5.6.2", "openai": "6.26.0", "partial-json": "^0.1.7", "proxy-agent": "^6.5.0", "typebox": "^1.1.24", "undici": "^7.19.1", "zod-to-json-schema": "^3.24.6" }, "bin": { "pi-ai": "dist/cli.js" } }, "sha512-gDrVMCbTk4BOt6cLB7sU83GhFJaJOn1boPdxysfLCmggYEDgcMPaboX2tJsLu8JkVxM97s/gwVG4Zi0NiOMF3w=="],
 
-    "@dyyz1993/xbrowser": ["@dyyz1993/xbrowser@0.7.0", "", { "dependencies": { "@dyyz1993/xcli-core": "^0.7.5", "@types/react-syntax-highlighter": "^15.5.13", "@types/turndown": "^5.0.6", "cheerio": "^1.2.0", "chrome-remote-interface": "^0.34.0", "imapflow": "^1.3.3", "lucide-react": "^1.14.0", "playwright": "^1.59.0", "react-markdown": "^10.1.0", "react-syntax-highlighter": "^16.1.1", "remark-gfm": "^4.0.1", "turndown": "^7.2.4", "turndown-plugin-gfm": "^1.0.2", "ws": "^8.20.0", "yaml": "^2.8.4", "zod": "^3.24.0" }, "optionalDependencies": { "undici": "^7.25.0" }, "bin": { "xbrowser": "dist/cli.js" } }, "sha512-V3pYCe18owkM9RVaVz7JJfifoeRq9pNDYwCJ0cEeBvR0+KNIGiCUOXDwDZW+dKqbRU0EOFycFLTIQLfAEJfa0Q=="],
+    "@dyyz1993/xbrowser": ["@dyyz1993/xbrowser@0.7.1", "", { "dependencies": { "@dyyz1993/xcli-core": "^0.8.0", "@types/react-syntax-highlighter": "^15.5.13", "@types/turndown": "^5.0.6", "cheerio": "^1.2.0", "chrome-remote-interface": "^0.34.0", "imapflow": "^1.3.3", "lucide-react": "^1.14.0", "playwright": "^1.59.0", "react-markdown": "^10.1.0", "react-syntax-highlighter": "^16.1.1", "remark-gfm": "^4.0.1", "turndown": "^7.2.4", "turndown-plugin-gfm": "^1.0.2", "ws": "^8.20.0", "yaml": "^2.8.4", "zod": "^3.24.0" }, "optionalDependencies": { "undici": "^7.25.0" }, "bin": { "xbrowser": "dist/cli.js" } }, "sha512-8ZFw5NQGs9UeAwQXXqX8VZoAHXKD+aiz//YQ82CVh4/9XJ4gE0yqhSCpotk/nhiZKC8woDj+stTxrhJn9Mg0rA=="],
 
-    "@dyyz1993/xcli-core": ["@dyyz1993/xcli-core@0.7.5", "", { "dependencies": { "jiti": "^2.4.0", "ws": "^8.18.0", "zod": "^3.24.0" } }, "sha512-x3btNluJqSgdPIUas6YYtOXoMhmcM5f68nwQEq/EoXmq8FSls3NrrJcAFMC3EnvUoKbececzIafAcMHuHgGqLw=="],
+    "@dyyz1993/xcli-core": ["@dyyz1993/xcli-core@0.8.0", "", { "dependencies": { "jiti": "^2.4.0", "ws": "^8.18.0", "zod": "^3.24.0" } }, "sha512-y72E68ubirohfMpSUzjCMi/Ipy2C2HVPWf9z+v5QnmacBR53hcoX5YKWdgeSvCWL9+TVcin+y7KlYYuP6sp/6A=="],
 
     "@emnapi/runtime": ["@emnapi/runtime@1.10.0", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-ewvYlk86xUoGI0zQRNq/mC+16R1QeDlKQy21Ki3oSYXNgLb45GV1P6A0M+/s6nyCuNDqe5VpaY84BzXGwVbwFA=="],
 

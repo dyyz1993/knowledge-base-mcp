@@ -81,51 +81,15 @@ function fromPiModelsJson(): ConfiguredModel[] {
   return results
 }
 
-function fromOpencodeConfig(): ConfiguredModel[] {
-  const cfgPath = path.join(os.homedir(), ".config", "opencode", "opencode.json")
-  const raw = readJson(cfgPath)
-  if (!raw) return []
-
-  const d = raw as {
-    provider?: Record<string, {
-      options?: { apiKey?: string; baseURL?: string; baseUrl?: string }
-      npm?: string
-      models?: Record<string, { name?: string }>
-    }>
-  }
-  if (!d.provider) return []
-
-  const results: ConfiguredModel[] = []
-  for (const [name, val] of Object.entries(d.provider)) {
-    if (!val?.options?.apiKey) continue
-    const models = val.models
-    if (models) {
-      for (const [modelId, modelDef] of Object.entries(models)) {
-        results.push({
-          provider: name,
-          id: modelId,
-          name: modelDef?.name || modelId,
-          api: val.npm,
-          baseUrl: val.options?.baseURL || val.options?.baseUrl,
-          apiKey: val.options.apiKey,
-        })
-      }
-    }
-  }
-  return results
-}
-
 export function getConfiguredModels(): ConfiguredModel[] {
   const seen = new Set<string>()
   const all: ConfiguredModel[] = []
 
-  for (const src of [fromPiModelsJson, fromOpencodeConfig]) {
-    for (const m of src()) {
-      const key = `${m.provider}::${m.id}`
-      if (!seen.has(key)) {
-        seen.add(key)
-        all.push(m)
-      }
+  for (const m of fromPiModelsJson()) {
+    const key = `${m.provider}::${m.id}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      all.push(m)
     }
   }
   return all

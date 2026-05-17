@@ -1,4 +1,21 @@
 export type XBrowserEngine = "google" | "bing" | "baidu" | "duckduckgo"
+export type XBrowserAIEngine = "deepseek" | "doubao" | "chatgpt" | "claude"
+
+export interface AISearchResultItem {
+  title: string
+  url: string
+  snippet: string
+  position: number
+  aiSummary?: string
+}
+
+export interface AISearchResult {
+  query: string
+  engine: string
+  results: AISearchResultItem[]
+  total: number
+  aiResponse?: string
+}
 
 export interface XBrowserConfig {
   enabled: boolean
@@ -256,6 +273,47 @@ export class XBrowserCLI {
       return []
     } catch {
       return []
+    }
+  }
+
+  async aiSearch(
+    query: string,
+    engine: XBrowserAIEngine = "deepseek",
+    options?: { limit?: number; timeout?: number },
+  ): Promise<AISearchResult | null> {
+    if (!this.config.enabled) return null
+
+    const timeout = options?.timeout ?? 60000
+    try {
+      const args = [
+        "ai-search",
+        query,
+        "--engine",
+        engine,
+        "--limit",
+        String(options?.limit ?? 10),
+        "--format",
+        "json",
+        ...buildBaseArgs(this.config),
+        "--timeout",
+        String(timeout),
+      ]
+
+      const raw = await runCommand(args, timeout + 5000)
+      const parsed = parseJsonOutput<unknown>(raw)
+
+      if (typeof parsed === "object" && parsed !== null) {
+        const obj = parsed as Record<string, unknown>
+        if (obj.content && typeof obj.content === "object") {
+          return (obj.content as Record<string, unknown>) as unknown as AISearchResult
+        }
+        return parsed as unknown as AISearchResult
+      }
+
+      return null
+    } catch (e) {
+      console.log(`[xbrowser-cli] aiSearch FAILED engine=${engine} query="${query}": ${e instanceof Error ? e.message : String(e)}`)
+      return null
     }
   }
 

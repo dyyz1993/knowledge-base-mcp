@@ -12,12 +12,19 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js"
 import { z } from "zod"
 import { randomUUID } from "node:crypto"
 import { createServer, IncomingMessage, ServerResponse } from "node:http"
+import { readdirSync, statSync } from "node:fs"
 import { readFileSync, existsSync } from "node:fs"
 import { getMcpWebSearch } from "./search/mcp-web-search.js"
 import { join, extname } from "node:path"
 import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines, rebuildAllVectors, getAllKeywords, listRecentDocs, recordMiss, resolveMiss, getMissStats } from "./storage/index.js"
 import type { DocMeta } from "./storage/index.js"
 import type { SearchSource } from "./search/types.js"
+import { kbAskPipeline } from "./search/kb-ask-pipeline.js"
+import { searchStats, llmStats, embeddingStats, mcpStats } from "./statistics/index.js"
+import { WebSearchPrimeSource } from "./search/source-web-search-prime.js"
+import { createXBrowserSources } from "./search/source-xbrowser.js"
+import { LlmDirectSource } from "./search/source-llm-direct.js"
+import { SearchPipeline } from "./search/search-pipeline.js"
 import { getStorageStats, initDb } from "./search/vector-store.js"
 import { handleChat } from "./chat/api-chat.js"
 import { handleGetModels, handleSetModel, getConfiguredModels } from "./chat/api-models.js"
@@ -34,14 +41,14 @@ function scanDir(base: string, prefix: string, depth: number): string {
   if (depth <= 0) return `${prefix}/...`
   const dir = prefix ? `${base}/${prefix}` : base
   try {
-    const items = Bun.readdirSync(dir).sort()
+    const items = readdirSync(dir).sort()
     const lines: string[] = []
     const skip = new Set([".git", "node_modules", "dist", ".turbo", ".next", "__pycache__", "target", "vendor"])
     for (const item of items) {
       if (item.startsWith(".") || skip.has(item)) continue
       const fullPath = prefix ? `${prefix}/${item}` : item
       try {
-        const stat = Bun.statSync(`${base}/${fullPath}`)
+        const stat = statSync(`${base}/${fullPath}`)
         if (stat.isDirectory()) {
           lines.push(`${fullPath}/`)
           if (depth > 1) {
@@ -84,6 +91,26 @@ async function readKeyFiles(base: string, maxFiles: number): Promise<string> {
 }
 
 function registerTools(server: McpServer) {
+  const origTool = server.tool.bind(server)
+  const wrappedTool = (...args: Parameters<typeof server.tool>) => {
+    const last = args[args.length - 1]
+    if (typeof last === "function") {
+      const toolName = typeof args[0] === "string" ? args[0] : "unknown"
+      args[args.length - 1] = async (...innerArgs: unknown[]) => {
+        const t0 = Date.now()
+        try {
+          const result = await last(...innerArgs)
+          mcpStats.recordToolCall(toolName, {}, Date.now() - t0, false)
+          return result
+        } catch (err) {
+          mcpStats.recordToolCall(toolName, {}, Date.now() - t0, true)
+          throw err
+        }
+      }
+    }
+    return origTool(...args)
+  }
+  server.tool = wrappedTool as typeof server.tool
   server.tool(
     "kb_write",
     `保存知识文档到知识库。当识别到跨项目可复用的方法论、架构模式、错误经验、最佳实践时，主动使用此工具保存。
@@ -520,58 +547,55 @@ function registerTools(server: McpServer) {
 
   server.tool(
     "kb_ask",
-    `智能查询：先搜知识库，没命中则返回 Miss Task 引导 Agent 用外部工具搜索后存储。
-返回 { from_kb: boolean, sources: [...], content: "..." }`,
+    `智能查询：先分析用户意图，用多维度搜索知识库，评估结果质量，不满足则重写查询回流重试（最多2次），最终没命中则返回 Miss Task 引导 Agent 搜索后存储。
+返回 { from_kb: boolean, quality: "high"|"medium"|"low", loops_used: number, queries_used: [...], content: "..." }`,
     {
       query: z.string().describe("自然语言查询"),
       max_web_results: z.number().optional().default(3).describe("联网搜索最大结果数（默认 3）"),
       auto_save: z.boolean().optional().default(true).describe("是否自动存入知识库（默认 true）"),
     },
     async (args) => {
-      const kbResults = searchDocs(args.query, undefined, undefined, 3)
-      const highScoreHits = kbResults.filter(r => r.score >= 40)
+      const result = await kbAskPipeline(args.query, args.max_web_results || 3)
 
-      if (highScoreHits.length > 0) {
-        const best = highScoreHits[0]
-        const full = readDoc(best.id, false)
+      if (result.from_kb) {
         return {
           content: [{
             type: "text",
             text: JSON.stringify({
               from_kb: true,
-              id: best.id,
-              title: best.title,
-              score: best.score,
-              content: full ? full.content.slice(0, 4000) : best.snippet || best.intent,
-              hint: "✅ 直接从知识库命中，无需联网搜索",
+              id: result.id,
+              title: result.title,
+              score: result.score,
+              quality: result.quality,
+              completeness: result.completeness,
+              content: result.content,
+              loops_used: result.loops_used,
+              queries_used: result.queries_used,
+              ...(result.web_search_suggestion ? { web_search_suggestion: result.web_search_suggestion } : {}),
+              ...(result.web_results ? { web_results: result.web_results } : {}),
+              ...(result.auto_saved ? { auto_saved: result.auto_saved } : {}),
+              hint: result.hint,
             }, null, 2),
           }],
         }
       }
-
-      const miss = recordMiss(args.query)
 
       return {
         content: [{
           type: "text",
           text: JSON.stringify({
             from_kb: false,
-            miss: true,
+            miss: result.miss,
             query: args.query,
-            miss_stats: { total_unresolved: miss.total_misses, recurring: miss.recurring },
-            suggested_workflow: {
-              step_1_search: `web-search-prime(query="${args.query}")`,
-              step_2_read: "web-reader(url=top_results) — 抓取页面完整内容",
-              step_3_store: "kb_ingest_url(url, title, content) — 存入知识库",
-            },
-            alternative_workflows: {
-              github_repo: "zread(repo='owner/repo') → kb_ingest_url()",
-              js_rendered_page: "agent-browser / xbrowser scrape(url) → kb_ingest_url()",
-              local_project: "kb_ingest_repo(repo_url) → 自动克隆分析存储",
-            },
-            hint: miss.recurring
-              ? `⚠️ 该查询已 miss ${miss.total_misses} 次，建议尽快搜索并存储。`
-              : "知识库未命中。请使用 web-search-prime / web-reader 搜索后，通过 kb_ingest_url 存储。",
+            queries_tried: result.queries_used,
+            loops_used: result.loops_used,
+            miss_stats: result.miss_stats,
+            suggested_workflow: result.suggested_workflow,
+            alternative_workflows: result.alternative_workflows,
+            ...(result.web_results ? { web_results: result.web_results } : {}),
+            ...(result.auto_saved ? { auto_saved: result.auto_saved } : {}),
+            ...(result.content ? { content: result.content } : {}),
+            hint: result.hint,
           }, null, 2),
         }],
       }
@@ -634,23 +658,78 @@ function registerTools(server: McpServer) {
     },
     async (args) => {
       const tmpDir = `/tmp/kb-repo-${Date.now()}`
+      let cloneOk = false
       try {
-        const proc = Bun.spawn(["git", "clone", "--depth=1", `https://github.com/${args.repo}.git`, tmpDir], {
-          stdout: "pipe",
-          stderr: "pipe",
-        })
-        const exitCode = await proc.exited
-        if (exitCode !== 0) {
+        // Strategy 1: ZIP download via curl (curl respects proxy env vars automatically)
+        let repoDir = tmpDir
+        try {
+          const zipUrl = `https://github.com/${args.repo}/archive/refs/heads/main.zip`
+          const zipPath = `${tmpDir}.zip`
+          const curlProc = Bun.spawn([
+            "curl", "-fsSL", "--connect-timeout", "15", "--max-time", "30",
+            "-o", zipPath, zipUrl,
+          ], {
+            stdout: "pipe", stderr: "pipe",
+            env: { ...process.env },
+          })
+          const curlExit = await Promise.race([
+            curlProc.exited,
+            new Promise<number>((_, reject) => setTimeout(() => { curlProc.kill(); reject(new Error("curl timeout")) }, 35000)),
+          ])
+          if (curlExit === 0) {
+            // Extract zip into tmpDir
+            await Bun.spawn(["unzip", "-q", zipPath, "-d", tmpDir], {
+              stdout: "pipe", stderr: "pipe",
+              env: { ...process.env },
+            }).exited
+            // unzip creates a subdirectory like zod-main/, use that as repo root
+            const entries = readdirSync(tmpDir).sort()
+            if (entries.length === 1) {
+              const subDir = `${tmpDir}/${entries[0]}`
+              const stat = statSync(subDir)
+              if (stat.isDirectory()) {
+                repoDir = subDir
+              }
+            }
+            cloneOk = true
+          }
+        } catch {
+          // ZIP failed, try git clone
+        }
+
+        // Strategy 2: git clone fallback
+        if (!cloneOk) {
+          try {
+            const proc = Bun.spawn(["git", "clone", "--depth=1", `https://github.com/${args.repo}.git`, tmpDir], {
+              stdout: "pipe",
+              stderr: "pipe",
+              env: { ...process.env },
+            })
+            const exitCode = await Promise.race([
+              proc.exited,
+              new Promise<number>((_, reject) => setTimeout(() => { proc.kill(); reject(new Error("timeout")) }, 45000)),
+            ])
+            if (exitCode === 0) {
+              cloneOk = true
+              repoDir = tmpDir
+            }
+          } catch {
+            // git clone also failed
+          }
+        }
+
+        if (!cloneOk) {
           return {
             content: [{
               type: "text",
-              text: JSON.stringify({ error: "git clone 失败", repo: args.repo }),
+              text: JSON.stringify({ error: "下载失败（ZIP 和 git clone 均失败），请检查网络/代理设置", repo: args.repo }),
             }],
           }
         }
 
-        const structure = scanDir(tmpDir, "", 3)
-        const keyFiles = await readKeyFiles(tmpDir, args.max_files)
+        const structure = scanDir(repoDir, "", 3)
+        const keyFiles = await readKeyFiles(repoDir, args.max_files)
+        const filesRead = keyFiles ? keyFiles.split("## ").length - 1 : 0
 
         const docContent = `# ${args.repo} 项目分析
 
@@ -690,7 +769,7 @@ ${keyFiles}
               id: doc.id,
               title: doc.title,
               repo: args.repo,
-              files_read: keyFiles.split("## ").length - 1,
+              files_read: filesRead,
               hint: `✅ 已分析并存储 ${args.repo}`,
             }, null, 2),
           }],
@@ -703,9 +782,8 @@ ${keyFiles}
           }],
         }
       } finally {
-        try {
-          Bun.spawn(["rm", "-rf", tmpDir], { stdout: "pipe", stderr: "pipe" })
-        } catch {}
+        try { Bun.spawn(["rm", "-rf", tmpDir], { stdout: "pipe", stderr: "pipe" }) } catch {}
+        try { Bun.spawn(["rm", "-f", `${tmpDir}.zip`], { stdout: "pipe", stderr: "pipe" }) } catch {}
       }
     },
   )
@@ -1086,6 +1164,137 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
     })
     return
   }
+  if (url.pathname === "/api/stats" && req.method === "GET") {
+    const search = searchStats.getStats()
+    const llm = llmStats.getStats()
+    const embedding = embeddingStats.getStats()
+    const mcp = mcpStats.getStats()
+    json(res, {
+      summary: {
+        totalSearchQueries: search.totalQueries,
+        totalSearchResults: search.totalResults,
+        activeSources: Object.keys(search.sources).length,
+        totalLLMCalls: Object.values(llm.models).reduce((sum, m) => sum + m.count, 0),
+      },
+      searchSources: Object.values(search.sources).map(s => ({
+        name: s.name,
+        calls: s.count,
+        totalTime: s.totalTime,
+        avgTime: s.avgTime,
+        avgResults: s.count > 0 ? (s.totalResults || 0) / s.count : 0,
+        errors: s.errors,
+        lastCalled: s.lastCalledAt,
+      })),
+      llmUsage: Object.values(llm.models).map(m => ({
+        name: m.model,
+        calls: m.count,
+        totalTokens: m.totalTokens,
+        avgTokens: m.count > 0 ? m.totalTokens / m.count : 0,
+        totalCost: m.totalCost,
+        avgTime: m.avgTime,
+        lastCalled: m.lastCalledAt,
+      })),
+      embedding: {
+        calls: embedding.count,
+        totalTokens: embedding.totalTokens,
+        avgTime: embedding.avgTime,
+        lastCalled: embedding.lastCalledAt,
+      },
+      mcpTools: Object.values(mcp.tools).map(t => ({
+        name: t.name,
+        calls: t.count,
+        totalTime: t.totalTime,
+        avgTime: t.avgTime,
+        errors: t.errors,
+        lastCalled: t.lastCalledAt,
+      })),
+    })
+    return
+  }
+  if (url.pathname === "/api/stats/reset" && req.method === "POST") {
+    const body = JSON.parse(await readBody(req))
+    const type = body.type || "all"
+    if (type === "search" || type === "all") searchStats.reset()
+    if (type === "llm" || type === "all") llmStats.reset()
+    if (type === "embedding" || type === "all") embeddingStats.reset()
+    if (type === "mcp" || type === "all") mcpStats.reset()
+    json(res, { success: true })
+    return
+  }
+  if (url.pathname === "/api/stats/usage" && req.method === "GET") {
+    const config = loadConfig()
+    const results: Record<string, { service: string; status: string; used?: number; limit?: number; remaining?: number; balance?: string; plan?: string; rateLimit?: number; note?: string; raw?: unknown }> = {}
+    const proxy = process.env.https_proxy || process.env.HTTPS_PROXY || ""
+
+    const fetchWithProxy = (url: string, headers: Record<string, string>) => {
+      const curlArgs = ["-s", "-m", "10"]
+      if (proxy) { curlArgs.push("--proxy", proxy) }
+      curlArgs.push("-H", "Content-Type: application/json")
+      for (const [k, v] of Object.entries(headers)) {
+        curlArgs.push("-H", `${k}: ${v}`)
+      }
+      curlArgs.push(url)
+      return Bun.spawnSync(["curl", ...curlArgs], { stdout: "pipe" }).stdout.toString()
+    }
+
+    if (config.webSearch.tavilyApiKey) {
+      try {
+        const raw = fetchWithProxy("https://api.tavily.com/usage", { "Authorization": `Bearer ${config.webSearch.tavilyApiKey}` })
+        const parsed = JSON.parse(raw)
+        const keyUsage = parsed.key || parsed
+        const accountUsage = parsed.account || {}
+        const limit = keyUsage.limit ?? accountUsage.plan_limit
+        const used = keyUsage.usage ?? accountUsage.plan_usage ?? 0
+        results.tavily = {
+          service: "Tavily",
+          status: "ok",
+          used,
+          limit,
+          remaining: limit != null ? limit - used : undefined,
+          plan: accountUsage.current_plan,
+          raw: parsed,
+        }
+      } catch {
+        results.tavily = { service: "Tavily", status: "error" }
+      }
+    }
+
+    if (config.webSearch.serperApiKey) {
+      try {
+        const raw = fetchWithProxy("https://google.serper.dev/account", { "X-API-KEY": config.webSearch.serperApiKey })
+        const parsed = JSON.parse(raw)
+        results.serper = {
+          service: "Serper.dev",
+          status: "ok",
+          remaining: parsed.balance,
+          rateLimit: parsed.rateLimit,
+          raw: parsed,
+        }
+      } catch {
+        results.serper = { service: "Serper.dev", status: "error" }
+      }
+    }
+
+    if (config.embedding.apiKey) {
+      try {
+        const raw = fetchWithProxy("https://api.siliconflow.cn/v1/user/info", { "Authorization": `Bearer ${config.embedding.apiKey}` })
+        const parsed = JSON.parse(raw)
+        results.siliconflow = {
+          service: "SiliconFlow (Embedding)",
+          status: "ok",
+          balance: parsed.data?.totalBalance ?? parsed.totalBalance ?? parsed.data?.balance,
+          raw: parsed,
+        }
+      } catch {
+        results.siliconflow = { service: "SiliconFlow (Embedding)", status: "error" }
+      }
+    }
+
+    results.zhipu = { service: "Zhipu/BigModel (Web Search)", status: "unsupported", note: "No public billing API" }
+
+    json(res, { updatedAt: Date.now(), services: results })
+    return
+  }
   if (url.pathname === "/api/config" && req.method === "PUT") {
     const body = JSON.parse(await readBody(req))
     const current = loadConfig()
@@ -1142,38 +1351,9 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
       json(res, { error: "Missing or invalid 'query' field" }, 400)
       return
     }
-    const hits = searchDocs(query, undefined, undefined, 3)
-    if (hits.length > 0 && hits[0].score >= 40) {
-      const best = hits[0]
-      const full = readDoc(best.id, false)
-      const content = full ? full.content.slice(0, 4000) : ""
-      json(res, {
-        from_kb: true,
-        id: best.id,
-        title: best.title,
-        score: best.score,
-        content,
-        hint: "✅ 从知识库命中",
-      })
-    } else {
-      const miss = recordMiss(query)
-      const webSearch = getMcpWebSearch()
-      let webResults: any[] = []
-      if (webSearch) {
-        webResults = await webSearch.search(query, 5)
-      }
-      json(res, {
-        from_kb: false,
-        miss: true,
-        query,
-        web_results: webResults,
-        total_misses: miss.total_misses,
-        recurring: miss.recurring,
-        hint: webResults.length > 0
-          ? "未命中知识库，已联网搜索，点击查看结果"
-          : "未命中知识库，未配置联网搜索（请在设置中配置 Web Search API Key）",
-      })
-    }
+    const maxWebResults = typeof body.max_web_results === "number" ? body.max_web_results : 3
+    const result = await kbAskPipeline(query, maxWebResults)
+    json(res, result)
     return
   }
   if (url.pathname === "/api/web-read" && req.method === "POST") {
@@ -1270,12 +1450,10 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
     const sources: SearchSource[] = []
 
     if (config.searchPipeline.sources.webSearchPrime.enabled && config.webSearch.apiKey) {
-      const { WebSearchPrimeSource } = await import("./search/source-web-search-prime.js")
       sources.push(new WebSearchPrimeSource())
     }
 
     if (config.searchPipeline.sources.xbrowser.enabled) {
-      const { createXBrowserSources } = await import("./search/source-xbrowser.js")
       const engines = config.searchPipeline.sources.xbrowser.engines?.length
         ? config.searchPipeline.sources.xbrowser.engines
         : [config.searchPipeline.sources.xbrowser.engine]
@@ -1289,17 +1467,11 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
       sources.push(...xbrowserSources)
     }
 
-    if (config.searchPipeline.sources.llmDirect.enabled || resolvedModel) {
-      const { LlmDirectSource } = await import("./search/source-llm-direct.js")
-      sources.push(new LlmDirectSource({
-        enabled: true,
-        baseUrl: resolvedModel?.baseUrl || config.searchPipeline.sources.llmDirect.baseUrl,
-        apiKey: resolvedModel?.apiKey || config.searchPipeline.sources.llmDirect.apiKey,
-        model: resolvedModel?.id || config.searchPipeline.sources.llmDirect.model,
-      }))
+    {
+      const src = new LlmDirectSource()
+      if (src.available()) sources.push(src)
     }
 
-    const { SearchPipeline } = await import("./search/search-pipeline.js")
     const pipeline = new SearchPipeline(sources)
     const result = await pipeline.search(query, config.searchPipeline.maxResults || 10)
     json(res, result)
@@ -1421,12 +1593,10 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
     const sources: SearchSource[] = []
 
     if (config.searchPipeline.sources.webSearchPrime.enabled && config.webSearch.apiKey) {
-      const { WebSearchPrimeSource } = await import("./search/source-web-search-prime.js")
       sources.push(new WebSearchPrimeSource())
     }
 
     if (config.searchPipeline.sources.xbrowser.enabled) {
-      const { createXBrowserSources } = await import("./search/source-xbrowser.js")
       const engines = config.searchPipeline.sources.xbrowser.engines?.length
         ? config.searchPipeline.sources.xbrowser.engines
         : [config.searchPipeline.sources.xbrowser.engine]
@@ -1440,17 +1610,11 @@ async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL
       sources.push(...xbrowserSources)
     }
 
-    if (config.searchPipeline.sources.llmDirect.enabled || resolvedModel) {
-      const { LlmDirectSource } = await import("./search/source-llm-direct.js")
-      sources.push(new LlmDirectSource({
-        enabled: true,
-        baseUrl: resolvedModel?.baseUrl || config.searchPipeline.sources.llmDirect.baseUrl,
-        apiKey: resolvedModel?.apiKey || config.searchPipeline.sources.llmDirect.apiKey,
-        model: resolvedModel?.id || config.searchPipeline.sources.llmDirect.model,
-      }))
+    {
+      const src = new LlmDirectSource()
+      if (src.available()) sources.push(src)
     }
 
-    const { SearchPipeline } = await import("./search/search-pipeline.js")
     const pipeline = new SearchPipeline(sources)
     const searchResult = await pipeline.search(query, 30)
 

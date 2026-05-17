@@ -36,6 +36,8 @@ export interface BrowserConfig {
 export interface WebSearchConfig {
   apiKey: string
   enabled: boolean
+  tavilyApiKey: string
+  serperApiKey: string
 }
 
 export type XBrowserEngine = "google" | "bing" | "baidu" | "duckduckgo"
@@ -61,6 +63,13 @@ export interface SearchPipelineConfig {
     plugin: {
       enabled: boolean
       prompt: string
+    }
+    tavily: { enabled: boolean }
+    serper: { enabled: boolean }
+    aiSearch: {
+      enabled: boolean
+      engines: string[]
+      timeout: number
     }
   }
   maxResults: number
@@ -109,6 +118,8 @@ const DEFAULT_CONFIG: AppConfig = {
   webSearch: {
     apiKey: "",
     enabled: true,
+    tavilyApiKey: "",
+    serperApiKey: "",
   },
   searchPipeline: {
     enabled: true,
@@ -131,6 +142,13 @@ const DEFAULT_CONFIG: AppConfig = {
       plugin: {
         enabled: false,
         prompt: "",
+      },
+      tavily: { enabled: true },
+      serper: { enabled: true },
+      aiSearch: {
+        enabled: true,
+        engines: ["deepseek", "doubao"],
+        timeout: 60000,
       },
     },
     maxResults: 10,
@@ -172,6 +190,9 @@ export function loadConfig(): AppConfig {
             xbrowser: { ...DEFAULT_CONFIG.searchPipeline.sources.xbrowser, ...raw.searchPipeline?.sources?.xbrowser },
             llmDirect: { ...DEFAULT_CONFIG.searchPipeline.sources.llmDirect, ...raw.searchPipeline?.sources?.llmDirect },
             plugin: { ...DEFAULT_CONFIG.searchPipeline.sources.plugin, ...raw.searchPipeline?.sources?.plugin },
+            tavily: { ...DEFAULT_CONFIG.searchPipeline.sources.tavily, ...raw.searchPipeline?.sources?.tavily },
+            serper: { ...DEFAULT_CONFIG.searchPipeline.sources.serper, ...raw.searchPipeline?.sources?.serper },
+            aiSearch: { ...DEFAULT_CONFIG.searchPipeline.sources.aiSearch, ...raw.searchPipeline?.sources?.aiSearch },
           },
         },
       }

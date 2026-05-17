@@ -15,11 +15,11 @@ export interface DocMeta {
   keywords: string[]
   intent: string
   project_description: string
-  project_path: string
-  source_project: string
-  source_worktree: string
-  related_projects: string[]
-  related_files: string[]
+  project_path?: string
+  source_project?: string
+  source_worktree?: string
+  related_projects?: string[]
+  related_files?: string[]
   created_at: number
   updated_at?: number
   file_path: string
@@ -58,7 +58,7 @@ function writeIndex(idx: IndexFile) {
 }
 
 export function generateId(): string {
-  return Math.random().toString(36).slice(2, 12)
+  return Math.random().toString(36).slice(2).padEnd(10, "0").slice(0, 10)
 }
 
 export function slugify(s: string): string {
@@ -69,7 +69,7 @@ function docFilePath(id: string, title: string) {
   return `${KNOWLEDGE_DIR}/${id}-${slugify(title)}.md`
 }
 
-export function findDuplicate(meta: { title: string; source_project: string }, idx: IndexFile): DocMeta | null {
+export function findDuplicate(meta: { title: string; source_project?: string }, idx: IndexFile): DocMeta | null {
   return Object.values(idx.documents).find(
     d => d.title === meta.title && d.source_project === (meta.source_project || "")
   ) || null
@@ -80,7 +80,7 @@ export function writeDoc(
   content: string,
 ): DocMeta {
   const idx = readIndex()
-  const existing = !meta.id ? findDuplicate(meta, idx) : null
+  const existing = !meta.id ? findDuplicate({ title: meta.title, source_project: meta.source_project || "" }, idx) : null
   const id = meta.id || existing?.id || generateId()
   const created_at = meta.created_at || existing?.created_at || Date.now()
   const file_path = meta.file_path || existing?.file_path || docFilePath(id, meta.title)
@@ -109,7 +109,7 @@ export function writeDoc(
 
   idx.documents[id] = doc
   writeIndex(idx)
-  updateOutline(doc.source_project, idx)
+  updateOutline(doc.source_project || "", idx)
 
   indexDoc(id, docToSearchableText(doc)).catch(() => {})
 
@@ -354,10 +354,10 @@ export function deleteDoc(id: string): boolean {
 
   if (existsSync(doc.file_path)) unlinkSync(doc.file_path)
 
-  const project = doc.source_project
+  const project = doc.source_project || ""
   delete idx.documents[id]
   writeIndex(idx)
-  updateOutline(project, idx)
+  updateOutline(project || "", idx)
   return true
 }
 

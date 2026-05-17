@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs"
 import { parseFrontmatter } from "../storage/markdown"
 import type { DocMeta } from "../storage/index"
 import { loadConfig } from "../config"
+import { embeddingStats } from "../statistics"
 
 let transformersAvailable = true
 let pipelineFn: any = null
@@ -68,16 +69,25 @@ async function embedExternal(text: string): Promise<number[]> {
 
 export async function embed(text: string): Promise<number[]> {
   const config = loadConfig()
+  const t0 = Date.now()
+  let result: number[]
 
   if (config.embedding.enabled && config.embedding.apiKey) {
     try {
-      return await embedExternal(text)
+      result = await embedExternal(text)
     } catch (e) {
       console.error("External embedding failed, falling back to local:", e)
+      result = embedLocal(text)
     }
+  } else {
+    result = embedLocal(text)
   }
 
-  return embedLocal(text)
+  const ms = Date.now() - t0
+  const tokens = text.length
+  embeddingStats.recordCall(tokens, ms)
+
+  return result
 }
 
 async function embedBatchExternal(texts: string[]): Promise<number[][]> {
