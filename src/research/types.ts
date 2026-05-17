@@ -47,16 +47,18 @@ export const MODE_BUDGETS: Record<ResearchMode, { maxSteps: number; maxCost: num
 export const QUICK_FLOW: StepName[] = ["analyze_query", "search", "filter_results", "evaluate", "deep_read", "synthesize"]
 export const STANDARD_FLOW: StepName[] = [
   "analyze_query", "search", "filter_results", "evaluate",
-  "deep_read", "evaluate_depth",
-  "check_sitemap", "evaluate_depth",
+  "deep_read",
+  "check_sitemap",
   "check_github",
+  "evaluate_depth",
   "synthesize",
 ]
 export const DEEP_FLOW: StepName[] = [
   "analyze_query", "search", "filter_results", "evaluate",
-  "deep_read", "evaluate_depth",
-  "check_sitemap", "evaluate_depth",
+  "deep_read",
+  "check_sitemap",
   "check_github",
+  "evaluate_depth",
   "synthesize",
 ]
 

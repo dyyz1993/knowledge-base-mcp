@@ -104,10 +104,11 @@ export class ResearchAgent {
         const decision = await this.executeStep(stepName)
         this.emit(stepName, "done")
 
-        if (decision === "done" || stepName === "synthesize") {
-          const summary = stepName === "synthesize"
-            ? await this.doSynthesize()
-            : await this.doSynthesize()
+        const shouldFinalize = decision === "done" &&
+          !["check_sitemap", "check_github"].some(s => flow.slice(i + 1).includes(s))
+
+        if (shouldFinalize || stepName === "synthesize") {
+          const summary = await this.doSynthesize()
           return this.buildResult(summary, false)
         }
 
