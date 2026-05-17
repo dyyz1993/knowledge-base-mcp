@@ -1,2 +1,0 @@
-- [x] v2.19.0 发布（自进化工具 + 清理未用文件 + README 更新）
-- [x] v2.20.0 发布（Smart Ask Web UI + kb-ask/kb-ingest HTTP 端点 + 中文界面）

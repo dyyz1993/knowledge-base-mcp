@@ -1,1 +1,0 @@
-bash: line 1: 59468 Killed: 9               /Applications/Chromium.app/Contents/MacOS/Chromium --headless --remote-debugging-port=9223 --no-first-run --disable-gpu --disable-software-rasterizer 2> /dev/null

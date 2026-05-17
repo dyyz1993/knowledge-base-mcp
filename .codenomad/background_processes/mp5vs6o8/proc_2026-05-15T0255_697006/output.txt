@@ -1,2 +1,0 @@
-scripts/test-stress.sh: line 47: syntax error near unexpected token `newline'
-scripts/test-stress.sh: line 47: `    fi'
