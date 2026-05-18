@@ -52,6 +52,12 @@ function getDefaultModel(): { provider: string; id: string } | null {
   if (cfg.defaultProvider && cfg.defaultModel) {
     return { provider: cfg.defaultProvider, id: cfg.defaultModel }
   }
+
+  // Smart fallback: prefer glm-4.5-air (free tier, always available)
+  const all = fromPiModelsJson()
+  const preferred = all.find(m => m.id === "glm-4.5-air")
+  if (preferred) return { provider: preferred.provider, id: preferred.id }
+
   return null
 }
 

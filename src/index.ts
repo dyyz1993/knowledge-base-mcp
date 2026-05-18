@@ -911,39 +911,6 @@ ${keyFiles}
 
   server.tool(
     "kb_research",
-    "对指定主题进行深度研究。多源搜索 → URL 深读 → sitemap/github 发现 → 质量评估 → 结构化总结。返回研究报告（含参考资料和质量评分）。适用于知识库未覆盖的主题。注意：耗时较长（1-3分钟），仅在需要深度研究时调用。",
-    {
-      query: z.string().describe("研究主题或问题"),
-      mode: z.string().optional().default("standard").describe('研究模式 - "quick"(快速搜索)、"standard"(标准研究)、"deep"(深度研究)'),
-    },
-    async (args) => {
-      try {
-        const { ResearchAgent } = await import("./research/research-agent.js")
-        const agent = new ResearchAgent({ query: args.query, mode: args.mode as "quick" | "standard" | "deep" }, () => {})
-        const result = await agent.run()
-        const successCount = result.deepReadResults.filter(r => r.success).length
-        const durationSec = (result.durationMs / 1000).toFixed(1)
-        const text = `# 研究报告：${result.query}\n\n${result.summary}\n\n---\n📊 质量: ${result.finalQualityScore}/10 | 覆盖: ${result.finalCoverageScore}/10 | 深读: ${successCount}/${result.deepReadResults.length} | 耗时: ${durationSec}s`
-        return {
-          content: [{
-            type: "text",
-            text,
-          }],
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-        return {
-          content: [{
-            type: "text",
-            text: `研究失败: ${msg}`,
-          }],
-          isError: true,
-        }
-      }
-    },
-  )
-  server.tool(
-    "kb_research",
     "深度研究一个主题：自动搜索、深读 URL、分析 sitemap/GitHub、生成结构化研究报告。适用于知识库中没有答案、需要联网深入研究的场景。返回结构化研究报告。",
     {
       query: z.string().describe("研究主题或问题"),
