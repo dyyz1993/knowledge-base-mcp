@@ -272,7 +272,30 @@ export const toolDefinitions: OpenAITool[] = [
       },
     },
   },
-]
+  {
+      type: "function",
+      function: {
+        name: "kb_research",
+        description: "对指定主题进行深度研究。多源搜索 → URL 深读 → sitemap/github 发现 → 质量评估 → 结构化总结。返回研究报告（含参考资料和质量评分）。适用于知识库未覆盖的主题。注意：耗时较长（1-3分钟），仅在需要深度研究时调用。",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description: "研究主题或问题",
+            },
+            mode: {
+              type: "string",
+              description: '研究模式 - "quick"(快速搜索)、"standard"(标准研究)、"deep"(深度研究)',
+              default: "standard",
+            },
+          },
+          required: ["query"],
+        },
+      },
+    },
+  ]
+
 
 function buildTree(lines: string[]): string {
   const root: Record<string, string[]> = {}
@@ -812,6 +835,56 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         const err = e as { stdout?: string; stderr?: string; message?: string }
         const output = err.stdout || err.stderr || err.message || String(e)
         return `脚本执行错误: ${output.slice(0, 2000)}`
+      }
+    }
+    case "kb_research": {
+      const query = String(args.query || "")
+      if (!query) return "query is required."
+
+      const config = loadConfig()
+      if (!config.searchPipeline?.enabled) {
+        return "Error: Search pipeline not enabled. Enable searchPipeline in ~/.kb-chat/config.json to use kb_research."
+      }
+
+      try {
+        const { ResearchAgent } = await import("../research/research-agent.js")
+        const mode = (args.mode as "quick" | "standard" | "deep") || "standard"
+        const agent = new ResearchAgent(
+          { query, mode },
+          () => {},
+        )
+
+        const result = await agent.run()
+        const dr = result.deepReadResults || []
+        const drSuccess = dr.filter(r => r.success).length
+
+        const meta = [
+          `研究模式: ${result.mode}`,
+          `总步骤: ${result.totalSteps}`,
+          `深读: ${drSuccess}/${dr.length} URLs`,
+          `质量/覆盖: ${result.finalQualityScore}/${result.finalCoverageScore}`,
+          `耗时: ${(result.durationMs / 1000).toFixed(1)}s`,
+        ].join(" | ")
+
+        return `# 研究报告: ${result.query}\n\n${result.summary}\n\n---\n📊 ${meta}`
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        return `研究失败: ${msg}`
+      }
+    }
+    case "kb_research": {
+      try {
+        const { ResearchAgent } = await import("../research/research-agent.js")
+        const query = String(args.query ?? "")
+        const mode = String(args.mode ?? "standard") as "quick" | "standard" | "deep"
+        const agent = new ResearchAgent({ query, mode }, () => {})
+        const result = await agent.run()
+        const successCount = result.deepReadResults.filter(r => r.success).length
+        const durationSec = (result.durationMs / 1000).toFixed(1)
+        return `# 研究报告：${result.query}\n\n${result.summary}\n\n---\n📊 质量: ${result.finalQualityScore}/10 | 覆盖: ${result.finalCoverageScore}/10 | 深读: ${successCount}/${result.deepReadResults.length} | 耗时: ${durationSec}s`
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        return `研究失败: ${msg}`
       }
     }
     default:
