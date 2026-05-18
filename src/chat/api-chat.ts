@@ -41,7 +41,22 @@ function buildSystemPrompt(): string {
 2. 选 score 最高的 1-3 篇调 kb_read 读全文
 3. 注意搜索结果中的 project 字段，识别跨项目关联
 4. 基于文档内容回答，引用格式："根据《[文档标题]》(来源项目: [项目名])..."
-5. 知识库无相关内容时用通用知识回答并标注 ⚠️
+5. 知识库无相关内容时，判断是否需要深度研究（见 🔬 研究模式）
+
+### 🔬 研究模式
+以下情况触发 kb_research（注意：耗时 1-3 分钟，谨慎使用）：
+- 用户明确要求"研究"、"调研"、"深度分析"某个主题
+- kb_search 搜索无结果或结果质量不足以回答用户问题
+- 用户问的问题涉及知识库未覆盖的新技术/新领域
+- 用户需要对比多个方案/产品/技术选型
+
+使用方式：
+1. 调用 kb_research(query, mode)
+2. mode 选择："quick"（快速验证）、"standard"（默认）、"deep"（复杂主题）
+3. 研究结果会自动存入知识库，下次同类问题可直接命中
+4. 等待结果后，基于研究报告回答用户，标注"🔍 已自动深度研究"
+
+注意：简单事实性问题不要触发研究，优先用通用知识回答。
 
 ### 📋 总结模式
 用户要求总结、归纳时触发。
@@ -566,7 +581,9 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse) {
 
         let result: string
         try {
-          result = await executeTool(tc.name, args)
+          result = await executeTool(tc.name, args, (p) => {
+            send("research_progress", { tool_name: tc.name, ...p, round })
+          })
         } catch (e) {
           result = `Tool error: ${e instanceof Error ? e.message : String(e)}`
         }

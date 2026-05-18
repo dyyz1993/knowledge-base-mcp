@@ -331,7 +331,13 @@ function buildTree(lines: string[]): string {
   return result.join("\n")
 }
 
-export async function executeTool(name: string, args: Record<string, unknown>): Promise<string> {
+export type ToolProgressCallback = (progress: { step: string; status: string; output?: unknown }) => void
+
+export async function executeTool(
+  name: string,
+  args: Record<string, unknown>,
+  onProgress?: ToolProgressCallback,
+): Promise<string> {
   switch (name) {
     case "kb_search": {
       const q = String(args.query || "")
@@ -851,7 +857,7 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         const mode = (args.mode as "quick" | "standard" | "deep") || "standard"
         const agent = new ResearchAgent(
           { query, mode },
-          () => {},
+          (p) => { if (onProgress) onProgress(p) },
         )
 
         const result = await agent.run()
@@ -869,21 +875,6 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         return `# 研究报告: ${result.query}\n\n${result.summary}\n\n---\n📊 ${meta}`
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
-        return `研究失败: ${msg}`
-      }
-    }
-    case "kb_research": {
-      try {
-        const { ResearchAgent } = await import("../research/research-agent.js")
-        const query = String(args.query ?? "")
-        const mode = String(args.mode ?? "standard") as "quick" | "standard" | "deep"
-        const agent = new ResearchAgent({ query, mode }, () => {})
-        const result = await agent.run()
-        const successCount = result.deepReadResults.filter(r => r.success).length
-        const durationSec = (result.durationMs / 1000).toFixed(1)
-        return `# 研究报告：${result.query}\n\n${result.summary}\n\n---\n📊 质量: ${result.finalQualityScore}/10 | 覆盖: ${result.finalCoverageScore}/10 | 深读: ${successCount}/${result.deepReadResults.length} | 耗时: ${durationSec}s`
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
         return `研究失败: ${msg}`
       }
     }
