@@ -171,17 +171,17 @@ Evaluate BOTH relevance AND completeness. Return JSON ONLY:
 {"relevanceScore":85,"isRelevant":true,"completeness":"complete|partial|incomplete","missingAspects":[],"suggestedRewrite":null,"webSearchRecommended":false,"webSearchQuery":null}
 
 Rules:
-- relevanceScore: 0-100 based on how well the document matches the query
-- isRelevant: true if this document directly addresses the query
+- relevanceScore: 0-100 based on how well the document CONTENT (not just title) matches the query
+- isRelevant: true if this document directly addresses the query with substantive content
 - completeness:
-  - "complete": Document provides a thorough answer. Use this when the content clearly and sufficiently answers the user's question.
-  - "partial": Document is relevant but clearly incomplete — missing key subtopics, only covers part of the question, or is outdated.
-  - "incomplete": Document barely touches the topic or is tangentially related.
+  - "complete": Document contains enough detail to fully answer the user's question — includes concrete examples, API references, code snippets, or step-by-step instructions. NOT just links, references, or pointers to other resources.
+  - "partial": Document is on-topic but lacks depth — only high-level overview, missing code examples, or only covers part of the topic. Also use for documents that mainly reference/point to other sources instead of providing answers directly.
+  - "incomplete": Document barely touches the topic or is tangentially related. Also use for documents that are just index pages, navigation guides, or "see also" references.
 - missingAspects: only list aspects that are genuinely important and missing (can be empty [])
 - webSearchRecommended: true ONLY when completeness is "incomplete", or "partial" AND missing aspects are critical. Default to false.
 - webSearchQuery: if webSearchRecommended=true, provide search query; otherwise null
 
-IMPORTANT: Be generous with "complete". If the document covers the main topic well, even if not exhaustive, mark it "complete". Reserve "partial" for cases where significant content is clearly missing.`,
+IMPORTANT: Evaluate based on SUBSTANCE, not just topic match. A document titled "AI SDK" that only says "read the docs at ai-sdk.dev" is NOT "complete" — it's "incomplete". A document needs actual explanatory content, code examples, or detailed instructions to qualify as "complete".`,
     },
   ]
 
