@@ -633,10 +633,67 @@ export async function kbAskPipeline(
       }
     }
   } catch {
-    // web search failed — fall through to normal miss response
+    // web search failed — try auto research
   }
 
+  const researchResult = await autoResearch(query, allQueriesUsed)
+  if (researchResult) return researchResult
+
   return buildMissResponse(query, allQueriesUsed, MAX_LOOPS)
+}
+
+async function autoResearch(query: string, allQueriesUsed: string[]): Promise<AskResult | null> {
+  const config = loadConfig()
+  if (!config.searchPipeline?.enabled) return null
+
+  try {
+    const { ResearchAgent } = await import("../research/research-agent.js")
+    const agent = new ResearchAgent(
+      { query, mode: "quick" },
+      () => {},
+    )
+    const result = await agent.run()
+
+    if (!result.summary || result.summary.length < 200) return null
+
+    const dr = result.deepReadResults || []
+    const drSuccess = dr.filter(r => r.success).length
+    const sources = (result.sources || []).map(s => `- [${s.title}](${s.url})`).slice(0, 10).join("\n")
+
+    const doc = writeDoc(
+      {
+        title: `研究: ${query}`,
+        tags: ["reference", "web-ingested", "auto-research"],
+        keywords: query.split(/[\s,，]+/).filter(w => w.length > 1).slice(0, 8),
+        intent: `kb_ask auto-research for: ${query}`,
+        project_description: "kb_ask deep research",
+        source_project: "",
+        source_worktree: "",
+        project_path: "",
+        related_projects: [],
+        related_files: [],
+      },
+      result.summary + (sources ? `\n\n## 参考资料\n${sources}` : ""),
+    )
+
+    resolveMiss(query)
+
+    return {
+      from_kb: true,
+      id: doc.id,
+      title: doc.title,
+      score: 50,
+      content: result.summary.slice(0, 8000),
+      quality: result.finalQualityScore >= 7 ? "high" : "medium",
+      completeness: result.finalCoverageScore >= 7 ? "complete" : "partial",
+      loops_used: MAX_LOOPS,
+      queries_used: allQueriesUsed,
+      auto_saved: true,
+      hint: `🔍 自动深度研究完成 (Q=${result.finalQualityScore}/10, C=${result.finalCoverageScore}/10, 深读=${drSuccess}/${dr.length}, ${(result.durationMs / 1000).toFixed(0)}s)`,
+    }
+  } catch {
+    return null
+  }
 }
 
 function fallbackSearch(
