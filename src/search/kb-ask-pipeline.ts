@@ -326,6 +326,17 @@ async function augmentWithWebSearch(
       }
 
       baseResult.web_results = savedDocs
+
+      // If snippets are too shallow, trigger deep research for a thorough answer
+      const totalSnippetLen = webResults.reduce((sum, r) => sum + (r.snippet || "").length, 0)
+      if (totalSnippetLen < 800 && baseResult.completeness !== "complete") {
+        const research = await autoResearch(searchQuery, [])
+        if (research) {
+          research.web_results = savedDocs
+          research.hint += baseResult.hint
+          return research
+        }
+      }
     }
   } catch {
     // web search augmentation failed — keep original result
@@ -409,6 +420,15 @@ export async function kbAskPipeline(
       try {
         const evaluation = await evaluateQuality(query, intent, best, content, results, llm)
 
+        // Content length calibration: short content can't be "complete"
+        const contentLen = content.length
+        let calibratedCompleteness = evaluation.completeness
+        if (contentLen < 300 && evaluation.completeness === "complete") {
+          calibratedCompleteness = "partial"
+        } else if (contentLen < 100 && evaluation.completeness === "partial") {
+          calibratedCompleteness = "incomplete"
+        }
+
         const baseResult: AskResult = {
           from_kb: true,
           id: best.id,
@@ -416,10 +436,20 @@ export async function kbAskPipeline(
           score: best.score,
           content: content.slice(0, 4000),
           quality: evaluation.relevanceScore >= 70 ? "high" : "medium",
-          completeness: evaluation.completeness,
+          completeness: calibratedCompleteness,
           loops_used: loop,
           queries_used: allQueriesUsed,
-          hint: `KB match (score=${best.score}, relevance=${evaluation.relevanceScore}, completeness=${evaluation.completeness}, loop=${loop})`,
+          hint: `KB match (score=${best.score}, relevance=${evaluation.relevanceScore}, completeness=${calibratedCompleteness}${calibratedCompleteness !== evaluation.completeness ? ` [calibrated from ${evaluation.completeness}, content=${contentLen}c]` : ""}, loop=${loop})`,
+        }
+
+        // Trigger web augmentation for incomplete/partial results
+        const shouldAugment = calibratedCompleteness === "incomplete"
+          || (calibratedCompleteness === "partial" && evaluation.relevanceScore < 60)
+          || (calibratedCompleteness === "partial" && contentLen < 500)
+
+        if (shouldAugment) {
+          const augQuery = evaluation.webSearchQuery || intent.rewrittenQuery || query
+          return await augmentWithWebSearch(baseResult, augQuery, maxWebResults)
         }
 
         if (evaluation.webSearchRecommended && evaluation.webSearchQuery) {
@@ -433,9 +463,6 @@ export async function kbAskPipeline(
             evaluation.missingAspects,
           )
           baseResult.hint += ` | 🌐 建议联网搜索: "${evaluation.webSearchQuery}"`
-          if (evaluation.completeness === "incomplete" || (evaluation.completeness === "partial" && evaluation.relevanceScore < 60)) {
-            return await augmentWithWebSearch(baseResult, evaluation.webSearchQuery, maxWebResults)
-          }
         }
 
         return baseResult
