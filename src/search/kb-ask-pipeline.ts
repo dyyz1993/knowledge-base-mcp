@@ -327,9 +327,9 @@ async function augmentWithWebSearch(
 
       baseResult.web_results = savedDocs
 
-      // If snippets are too shallow, trigger deep research for a thorough answer
-      const totalSnippetLen = webResults.reduce((sum, r) => sum + (r.snippet || "").length, 0)
-      if (totalSnippetLen < 800 && baseResult.completeness !== "complete") {
+      // If completeness is not "complete", trigger deep research for a thorough answer
+      // (snippets alone are rarely sufficient; research does actual deep reading)
+      if (baseResult.completeness !== "complete") {
         const research = await autoResearch(searchQuery, [])
         if (research) {
           research.web_results = savedDocs
@@ -420,13 +420,20 @@ export async function kbAskPipeline(
       try {
         const evaluation = await evaluateQuality(query, intent, best, content, results, llm)
 
-        // Content length calibration: short content can't be "complete"
-        const contentLen = content.length
+        // Content substance calibration: detect code-less docs for API/tool queries
         let calibratedCompleteness = evaluation.completeness
+        const contentLen = content.length
         if (contentLen < 300 && evaluation.completeness === "complete") {
           calibratedCompleteness = "partial"
         } else if (contentLen < 100 && evaluation.completeness === "partial") {
           calibratedCompleteness = "incomplete"
+        }
+
+        // If doc has no code blocks but user asks for usage/examples, downgrade
+        const hasCodeBlock = /```[\s\S]*?```/.test(content)
+        const userWantsUsage = /用法|example|how.to|usage|api|tool|function|method|class|component|用|使/.test(query)
+        if (!hasCodeBlock && userWantsUsage && calibratedCompleteness === "complete") {
+          calibratedCompleteness = "partial"
         }
 
         const baseResult: AskResult = {
@@ -442,14 +449,17 @@ export async function kbAskPipeline(
           hint: `KB match (score=${best.score}, relevance=${evaluation.relevanceScore}, completeness=${calibratedCompleteness}${calibratedCompleteness !== evaluation.completeness ? ` [calibrated from ${evaluation.completeness}, content=${contentLen}c]` : ""}, loop=${loop})`,
         }
 
-        // Trigger web augmentation for incomplete/partial results
-        const shouldAugment = calibratedCompleteness === "incomplete"
-          || (calibratedCompleteness === "partial" && evaluation.relevanceScore < 60)
-          || (calibratedCompleteness === "partial" && contentLen < 500)
-
-        if (shouldAugment) {
+        // incomplete → quick web supplement, partial → deep research directly
+        if (calibratedCompleteness === "incomplete") {
           const augQuery = evaluation.webSearchQuery || intent.rewrittenQuery || query
           return await augmentWithWebSearch(baseResult, augQuery, maxWebResults)
+        }
+
+        if (calibratedCompleteness === "partial") {
+          const researchQuery = evaluation.webSearchQuery || intent.rewrittenQuery || query
+          const research = await autoResearch(researchQuery, allQueriesUsed)
+          if (research) return research
+          // research failed, fall through to web search suggestion
         }
 
         if (evaluation.webSearchRecommended && evaluation.webSearchQuery) {
