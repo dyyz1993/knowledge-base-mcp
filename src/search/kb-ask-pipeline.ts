@@ -697,11 +697,26 @@ async function autoResearch(query: string, allQueriesUsed: string[]): Promise<As
     const drSuccess = dr.filter(r => r.success).length
     const sources = (result.sources || []).map(s => `- [${s.title}](${s.url})`).slice(0, 10).join("\n")
 
+    // Extract keywords from search result titles + query terms
+    const searchTitleWords = (result.searchResults || [])
+      .flatMap(r => r.title.split(/[\s|\-–—:：,，.·/\\()（）\[\]]+/))
+      .filter(w => w.length > 2 && w.length < 30)
+      .map(w => w.toLowerCase())
+    const queryWords = query.split(/[\s,，]+/).filter(w => w.length > 1)
+    const keywordCounts = new Map<string, number>()
+    for (const w of [...searchTitleWords, ...queryWords]) {
+      keywordCounts.set(w, (keywordCounts.get(w) || 0) + 1)
+    }
+    const keywords = [...keywordCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([w]) => w)
+
     const doc = writeDoc(
       {
         title: `研究: ${query}`,
         tags: ["reference", "web-ingested", "auto-research"],
-        keywords: query.split(/[\s,，]+/).filter(w => w.length > 1).slice(0, 8),
+        keywords,
         intent: `kb_ask auto-research for: ${query}`,
         project_description: "kb_ask deep research",
         source_project: "",

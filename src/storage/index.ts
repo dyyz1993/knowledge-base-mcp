@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from "node:fs"
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, renameSync } from "node:fs"
 import { parseFrontmatter, buildFrontmatter } from "./markdown"
 import { tfidfSearch, buildIDF } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
@@ -35,26 +35,113 @@ function ensureDir(dir: string) {
 }
 
 let cachedIndex: IndexFile | null = null
+let cacheTimestamp = 0
+const CACHE_TTL = 5000 // 5 seconds — stale cache threshold
 
 function readIndex(): IndexFile {
-  if (cachedIndex) return cachedIndex
   ensureDir(KNOWLEDGE_DIR)
+  const now = Date.now()
+
+  // Use cache if fresh (< 5s old)
+  if (cachedIndex && (now - cacheTimestamp) < CACHE_TTL) return cachedIndex
+
   try {
     const raw = readFileSync(INDEX_PATH, "utf-8")
     const idx = JSON.parse(raw) as IndexFile
     cachedIndex = idx
+    cacheTimestamp = now
     return idx
   } catch {
+    // Index file missing or corrupted — attempt recovery from .md files
+    const recovered = recoverIndexFromDisk()
+    if (recovered && Object.keys(recovered.documents).length > 0) {
+      cachedIndex = recovered
+      cacheTimestamp = now
+      atomicWriteIndex(recovered)
+      return recovered
+    }
+    // No recovery possible — start fresh
     const idx: IndexFile = { version: 1, documents: {} }
     cachedIndex = idx
-    writeFileSync(INDEX_PATH, JSON.stringify(idx, null, 2))
+    cacheTimestamp = now
+    atomicWriteIndex(idx)
     return idx
   }
 }
 
+/** Force re-read from disk on next readIndex() call — use before writes */
+function invalidateCache() {
+  cachedIndex = null
+  cacheTimestamp = 0
+}
+
+function atomicWriteIndex(idx: IndexFile) {
+  const tmpPath = INDEX_PATH + ".tmp"
+  writeFileSync(tmpPath, JSON.stringify(idx, null, 2))
+  renameSync(tmpPath, INDEX_PATH)
+}
+
 function writeIndex(idx: IndexFile) {
   cachedIndex = idx
-  writeFileSync(INDEX_PATH, JSON.stringify(idx, null, 2))
+  cacheTimestamp = Date.now()
+  atomicWriteIndex(idx)
+}
+
+/**
+ * Recover index from .md files on disk when index.json is corrupted or missing.
+ * Each .md file has YAML frontmatter with full metadata.
+ */
+function recoverIndexFromDisk(): IndexFile | null {
+  try {
+    const files = readdirSync(KNOWLEDGE_DIR).filter(f => f.endsWith(".md"))
+    if (files.length === 0) return null
+
+    const idx: IndexFile = { version: 1, documents: {} }
+    for (const file of files) {
+      try {
+        const raw = readFileSync(`${KNOWLEDGE_DIR}/${file}`, "utf-8")
+        const { frontmatter } = parseFrontmatterWithMeta(raw)
+        if (frontmatter?.id && frontmatter?.title) {
+          idx.documents[frontmatter.id] = frontmatter as DocMeta
+        }
+      } catch {
+        // Skip unreadable files
+      }
+    }
+    return idx
+  } catch {
+    return null
+  }
+}
+
+function parseFrontmatterWithMeta(raw: string): { frontmatter: Record<string, unknown> | null; content: string } {
+  const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
+  if (!match) return { frontmatter: null, content: raw }
+
+  const fm: Record<string, unknown> = {}
+  const fmText = match[1]
+  let currentKey = ""
+  let currentArr: unknown[] = []
+
+  for (const line of fmText.split("\n")) {
+    const kvMatch = line.match(/^(\w+):\s*["']?(.+?)["']?\s*$/)
+    if (kvMatch) {
+      if (currentKey && currentArr.length > 0) {
+        fm[currentKey] = currentArr
+        currentArr = []
+      }
+      currentKey = kvMatch[1]
+      fm[currentKey] = kvMatch[2]
+    } else if (line.match(/^\s+-\s+(.+)/)) {
+      const val = line.match(/^\s+-\s+(.+)/)![1].replace(/^["']|["']$/g, "")
+      currentArr.push(val)
+    }
+  }
+  if (currentKey && currentArr.length > 0) {
+    fm[currentKey] = currentArr
+  }
+
+  return { frontmatter: fm, content: match[2] }
 }
 
 export function generateId(): string {
@@ -79,6 +166,8 @@ export function writeDoc(
   meta: Omit<DocMeta, "id" | "file_path" | "created_at"> & { id?: string; file_path?: string; created_at?: number },
   content: string,
 ): DocMeta {
+  // Invalidate cache to get latest from disk (multi-process safety)
+  invalidateCache()
   const idx = readIndex()
   const existing = !meta.id ? findDuplicate({ title: meta.title, source_project: meta.source_project || "" }, idx) : null
   const id = meta.id || existing?.id || generateId()
@@ -171,6 +260,25 @@ function tokenMatch(text: string, token: string): boolean {
   return text.toLowerCase().includes(token)
 }
 
+function contentQualityBoost(filePath: string): number {
+  let boost = 0
+  try {
+    const body = readDocContent(filePath)
+    if (!body) return 0
+
+    const codeBlockPairs = ((body.match(/```/g) || []).length) / 2
+    boost += Math.min(codeBlockPairs, 3) * 3
+
+    const len = body.length
+    if (len >= 3000) boost += 5
+    else if (len >= 2000) boost += 4
+    else if (len >= 500) boost += 2
+  } catch {
+    // can't read file, no boost
+  }
+  return boost
+}
+
 export function searchDocs(
   query?: string,
   keywords?: string[],
@@ -193,7 +301,7 @@ export function searchDocs(
         if (tokenMatch(doc.title, token)) { score += 10; if (!matched_by.includes("title")) matched_by.push("title") }
         if (doc.keywords.some(k => tokenMatch(k, token))) { score += 4; if (!matched_by.includes("keywords")) matched_by.push("keywords") }
         if (tokenMatch(doc.intent, token)) { score += 5; if (!matched_by.includes("intent")) matched_by.push("intent") }
-        if (tokenMatch(doc.project_description, token)) { score += 3; if (!matched_by.includes("project_description")) matched_by.push("project_description") }
+        if (tokenMatch(doc.project_description, token)) { score += 1; if (!matched_by.includes("project_description")) matched_by.push("project_description") }
         if (body.includes(token)) { score += 2; if (!matched_by.includes("content")) matched_by.push("content") }
       }
       if (tokens.length > 1) {
@@ -213,7 +321,10 @@ export function searchDocs(
     if (keywords?.length) {
       if (doc.keywords.some(k => keywords.some(kw => tokenMatch(k, kw)))) { score += 3; if (!matched_by.includes("keywords")) matched_by.push("keywords") }
     }
-    if (score > 0) results.push({ ...doc, score, snippet, matched_by })
+    if (score > 0) {
+      score += contentQualityBoost(doc.file_path)
+      results.push({ ...doc, score, snippet, matched_by })
+    }
   }
 
   const config = loadConfig()
@@ -348,6 +459,7 @@ export function listRecentDocs(options: {
 }
 
 export function deleteDoc(id: string): boolean {
+  invalidateCache()
   const idx = readIndex()
   const doc = idx.documents[id]
   if (!doc) return false
