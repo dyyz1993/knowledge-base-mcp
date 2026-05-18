@@ -295,35 +295,14 @@ async function augmentWithWebSearch(
   maxWebResults: number,
 ): Promise<AskResult> {
   try {
-    const piConfig = resolvePiConfig()
     const webResults = await searchViaPipeline(searchQuery, maxWebResults)
     if (webResults.length > 0) {
       const savedDocs: AskResult["web_results"] = []
 
-      if (piConfig) {
-        for (const r of webResults) {
-          const doc = writeDoc(
-            {
-              title: r.title,
-              tags: ["reference", "web-ingested", "auto-search"],
-              keywords: r.title.split(/[\s,，]+/).filter(w => w.length > 1).slice(0, 8),
-              intent: `Auto-search supplement for: ${searchQuery}`,
-              project_description: "kb_ask web enhancement",
-              source_project: "",
-              source_worktree: "",
-              project_path: "",
-              related_projects: [],
-              related_files: [],
-            },
-            r.snippet || r.title,
-          )
-          savedDocs.push({ id: doc.id, title: doc.title, url: r.url, source: r.source })
-        }
-        baseResult.auto_saved = true
-        baseResult.hint += ` | ✅ 已联网补充 ${webResults.length} 条结果并存入知识库`
-      } else {
-        baseResult.hint += ` | ⚠️ 降级模式（PI 不可用）：搜索到 ${webResults.length} 条结果，未存入知识库`
+      for (const r of webResults) {
+        savedDocs.push({ id: "", title: r.title, url: r.url, source: r.source })
       }
+      baseResult.hint += ` | 🌐 已联网补充 ${webResults.length} 条结果（摘要不入库，深度研究会自动存储）`
 
       baseResult.web_results = savedDocs
 
@@ -618,55 +597,24 @@ export async function kbAskPipeline(
 
   // KB miss — try web search before returning miss response
   try {
-    const piConfig = resolvePiConfig()
     const webResults = await searchViaPipeline(
       intent?.rewrittenQuery || query,
       maxWebResults,
     )
 
     if (webResults.length > 0) {
-      if (piConfig) {
-        const savedDocs: Array<{ id: string; title: string; url: string; source: string }> = []
+      const webContent = webResults.map(r => `## ${r.title}\n${r.snippet}\nSource: ${r.url}`).join("\n\n")
+      const webResultRefs = webResults.map(r => ({ id: "", title: r.title, url: r.url, source: r.source }))
 
-        for (const r of webResults) {
-          const doc = writeDoc(
-            {
-              title: r.title,
-              tags: ["reference", "web-ingested", "auto-search"],
-              keywords: r.title.split(/[\s,，]+/).filter(w => w.length > 1).slice(0, 8),
-              intent: `Auto-search result for: ${query}`,
-              project_description: "kb_ask web enhancement",
-              source_project: "",
-              source_worktree: "",
-              project_path: "",
-              related_projects: [],
-              related_files: [],
-            },
-            r.snippet || r.title,
-          )
-          savedDocs.push({ id: doc.id, title: doc.title, url: r.url, source: r.source })
-        }
-
-        resolveMiss(query)
-
-        return {
-          from_kb: false,
-          web_results: savedDocs,
-          auto_saved: true,
-          content: webResults.map(r => `## ${r.title}\n${r.snippet}\nSource: ${r.url}`).join("\n\n"),
-          loops_used: MAX_LOOPS,
-          queries_used: allQueriesUsed,
-          hint: `知识库未命中，已联网搜索到 ${webResults.length} 条结果并自动存入知识库`,
-        }
-      }
+      resolveMiss(query)
 
       return {
         from_kb: false,
-        degraded: true,
-        content: webResults.map(r => `## ${r.title}\n${r.snippet}\nSource: ${r.url}`).join("\n\n"),
+        web_results: webResultRefs,
+        content: webContent,
         loops_used: MAX_LOOPS,
         queries_used: allQueriesUsed,
-        hint: `⚠️ 降级模式（PI 不可用）：搜索到 ${webResults.length} 条结果，未经过 AI 提炼，未存入知识库`,
+        hint: `知识库未命中，已联网搜索到 ${webResults.length} 条摘要（深度研究会自动存储完整内容）`,
       }
     }
   } catch {
