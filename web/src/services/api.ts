@@ -183,7 +183,12 @@ export async function streamChat(params: {
               try { params.onSuggestions(JSON.parse(String(data.suggestions || data.data || "[]"))) } catch { /* ignore */ }
             }
             break
-          case "error": params.onError(String(data.error || "Unknown error")); break
+          case "error": {
+            const errMsg = String(data.error || "Unknown error")
+            const hint = data.hint ? `\n\n💡 ${data.hint}` : ""
+            params.onError(errMsg + hint)
+            break
+          }
           case "research_progress":
             if (params.onResearchProgress) {
               params.onResearchProgress(data as { step: string; status: string; budget?: { usedSteps: number; maxSteps: number }; round: number })
