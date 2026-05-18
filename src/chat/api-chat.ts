@@ -228,6 +228,9 @@ function resolveConfiguredModel(provider?: string, modelId?: string): Configured
     const found = configured.find(m => m.provider === provider && m.id === modelId)
     if (found) return found
   }
+  // Smart fallback: prefer glm-4.5-air (free tier)
+  const preferred = configured.find(m => m.id === "glm-4.5-air" && m.apiKey && m.baseUrl)
+  if (preferred) return preferred
   return configured.length > 0 ? configured[0] : null
 }
 
