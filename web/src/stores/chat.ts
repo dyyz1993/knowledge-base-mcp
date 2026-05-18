@@ -25,6 +25,7 @@ export interface SessionStreamState {
   abortController: AbortController | null
   suggestions: string[]
   usage?: TokenUsage
+  researchProgress: { step: string; status: string; budget?: { usedSteps: number; maxSteps: number } }[]
 }
 
 interface ChatState {
@@ -66,6 +67,7 @@ function emptyStreamState(): SessionStreamState {
     streamingTimeline: [],
     abortController: null,
     suggestions: [],
+    researchProgress: [],
   }
 }
 
@@ -173,6 +175,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamingTimeline: [],
       abortController: ctrl,
       suggestions: [],
+      researchProgress: [],
     }
     set((s) => {
       const states = new Map(s.streamStates)
@@ -375,6 +378,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
           if (ss) {
             states.set(targetSessionId, { ...ss, usage })
           }
+          return { streamStates: states }
+        })
+      },
+      onResearchProgress: (progress) => {
+        set((s) => {
+          const states = new Map(s.streamStates)
+          const ss = states.get(targetSessionId)
+          if (!ss) return s
+          const existing = [...ss.researchProgress]
+          const idx = existing.findIndex(p => p.step === progress.step)
+          const entry = { step: progress.step, status: progress.status, budget: progress.budget }
+          if (idx >= 0) {
+            existing[idx] = entry
+          } else {
+            existing.push(entry)
+          }
+          states.set(targetSessionId, { ...ss, researchProgress: existing.slice(-20) })
           return { streamStates: states }
         })
       },

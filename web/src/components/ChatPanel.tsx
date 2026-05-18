@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, type ReactNode } from "react"
-import { Send, Square, ChevronDown, ChevronRight, Wrench, Loader2, Star } from "lucide-react"
+import { Send, Square, ChevronDown, ChevronRight, Wrench, Loader2, Star, CheckCircle2, XCircle, SkipForward, Play, Search } from "lucide-react"
 import { useChatStore, type TimelineEvent } from "../stores/chat"
 import type { TokenUsage } from "../services/api"
 import CopyButton from "./CopyButton"
@@ -63,6 +63,83 @@ function ToolCallBlock({ name, args, result }: { name: string; args: string; res
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+const STEP_LABELS: Record<string, string> = {
+  analyze_query: "分析查询",
+  search: "搜索",
+  filter_results: "过滤结果",
+  evaluate: "评估 URL",
+  deep_read: "深度阅读",
+  check_sitemap: "Sitemap",
+  check_github: "GitHub",
+  follow_paths: "路径发现",
+  evaluate_depth: "质量评估",
+  synthesize: "总结生成",
+  clone_index: "代码索引",
+  code_search: "代码搜索",
+}
+
+function ResearchProgressBar({ progress }: { progress: { step: string; status: string; budget?: { usedSteps: number; maxSteps: number } }[] }) {
+  if (progress.length === 0) return null
+
+  const budgetInfo = progress.find(p => p.budget)?.budget
+  const currentStep = progress.find(p => p.status === "running")
+  const doneSteps = progress.filter(p => p.status === "done").length
+  const totalSteps = progress.length
+
+  return (
+    <div className="mt-1.5 rounded-lg border border-blue-500/20 bg-blue-950/30 px-3 py-2 text-xs space-y-1.5">
+      <div className="flex items-center justify-between text-blue-400">
+        <span className="flex items-center gap-1.5 font-medium">
+          <Search size={12} className="animate-pulse" />
+          🔬 深度研究进行中
+          {currentStep && (
+            <span className="text-blue-300 font-normal">
+              — {STEP_LABELS[currentStep.step] || currentStep.step}
+            </span>
+          )}
+        </span>
+        {budgetInfo && (
+          <span className="text-zinc-500">
+            {budgetInfo.usedSteps}/{budgetInfo.maxSteps} 步
+          </span>
+        )}
+      </div>
+      {totalSteps > 0 && (
+        <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-500 rounded-full transition-all duration-500"
+            style={{ width: `${Math.min(100, (doneSteps / totalSteps) * 100)}%` }}
+          />
+        </div>
+      )}
+      <div className="flex flex-wrap gap-1">
+        {progress.map((p) => (
+          <span
+            key={p.step}
+            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] ${
+              p.status === "done"
+                ? "bg-green-900/40 text-green-400"
+                : p.status === "running"
+                ? "bg-blue-900/40 text-blue-300 animate-pulse"
+                : p.status === "failed"
+                ? "bg-red-900/40 text-red-400"
+                : p.status === "skipped"
+                ? "bg-zinc-800/40 text-zinc-600"
+                : "bg-zinc-800/40 text-zinc-500"
+            }`}
+          >
+            {p.status === "done" && <CheckCircle2 size={8} />}
+            {p.status === "running" && <Play size={8} />}
+            {p.status === "failed" && <XCircle size={8} />}
+            {p.status === "skipped" && <SkipForward size={8} />}
+            {STEP_LABELS[p.step] || p.step}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
@@ -311,15 +388,20 @@ export default function ChatPanel() {
                 </div>
               )
             }
-            case "tool_call":
+            case "tool_call": {
+              const isResearch = event.name === "kb_research"
+              const rp = isResearch ? (streamState?.researchProgress ?? []) : []
               return (
-                <ToolCallBlock
-                  key={`tl-${i}`}
-                  name={event.name || ""}
-                  args={event.args || ""}
-                  result={event.result || ""}
-                />
+                <div key={`tl-${i}`}>
+                  <ToolCallBlock
+                    name={event.name || ""}
+                    args={event.args || ""}
+                    result={event.result || ""}
+                  />
+                  {isResearch && rp.length > 0 && <ResearchProgressBar progress={rp} />}
+                </div>
               )
+            }
             case "tool_result":
               return (
                 <div key={`tl-${i}`} className="my-1 ml-4 rounded bg-zinc-900/50 px-3 py-1.5 text-xs text-zinc-400 max-h-32 overflow-y-auto">

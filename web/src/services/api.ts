@@ -97,6 +97,7 @@ export interface StreamCallbacks {
   onError: (error: string) => void
   onSuggestions?: (suggestions: string[]) => void
   onUsage?: (usage: TokenUsage) => void
+  onResearchProgress?: (progress: { step: string; status: string; budget?: { usedSteps: number; maxSteps: number }; round: number }) => void
 }
 
 export async function fetchDocs(): Promise<DocMeta[]> {
@@ -183,6 +184,11 @@ export async function streamChat(params: {
             }
             break
           case "error": params.onError(String(data.error || "Unknown error")); break
+          case "research_progress":
+            if (params.onResearchProgress) {
+              params.onResearchProgress(data as { step: string; status: string; budget?: { usedSteps: number; maxSteps: number }; round: number })
+            }
+            break
         }
         currentEvent = ""
       }
