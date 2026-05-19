@@ -276,7 +276,7 @@ export const toolDefinitions: OpenAITool[] = [
       type: "function",
       function: {
         name: "kb_research",
-        description: "对指定主题进行深度研究。多源搜索 → URL 深读 → sitemap/github 发现 → 质量评估 → 结构化总结。返回研究报告（含参考资料和质量评分）。适用于知识库未覆盖的主题。注意：耗时较长（1-3分钟），仅在需要深度研究时调用。",
+        description: "对指定主题进行深度研究。多源搜索 → URL 深读 → sitemap/github 发现 → 质量评估 → 结构化总结。返回研究报告（含参考资料和质量评分）。结果自动存入知识库，下次同类问题可直接命中，一次研究可反复复用。推荐用于知识库未覆盖的主题。",
         parameters: {
           type: "object",
           properties: {
@@ -872,7 +872,37 @@ export async function executeTool(
           `耗时: ${(result.durationMs / 1000).toFixed(1)}s`,
         ].join(" | ")
 
-        return `# 研究报告: ${result.query}\n\n${result.summary}\n\n---\n📊 ${meta}`
+        // Auto-save to knowledge base
+        let saveNote = ""
+        if (result.summary && result.summary.length >= 200) {
+          try {
+            const { writeDoc } = await import("../storage/index.js")
+            const searchTitles = (result.searchResults || [])
+              .flatMap(r => r.title.split(/[\s|\-–—:：,，.·/\\()（）\[\]]+/))
+              .filter(w => w.length > 2 && w.length < 30)
+              .map(w => w.toLowerCase())
+            const queryWords = query.split(/[\s,，]+/).filter(w => w.length > 1)
+            const allKw = [...new Set([...queryWords, ...searchTitles.slice(0, 8)])].slice(0, 10)
+
+            const sources = (result.sources || []).map(s => `- [${s.title}](${s.url})`).slice(0, 10).join("\n")
+            const fullSummary = result.summary + (sources ? `\n\n## 参考资料\n${sources}` : "")
+
+            writeDoc({
+              title: `研究: ${query}`,
+              content: fullSummary,
+              tags: ["research", "auto-saved", result.mode, "web-ingested"],
+              keywords: allKw,
+              intent: `Auto-research for "${query}" (${result.mode}, Q:${result.finalQualityScore}/C:${result.finalCoverageScore})`,
+              project_description: "Research results",
+            }, undefined)
+            saveNote = "\n\n✅ 已自动存入知识库"
+          } catch (e) {
+            console.error("[kb_research] Auto-save failed:", e instanceof Error ? e.message : e)
+            saveNote = "\n\n⚠️ 自动存入知识库失败"
+          }
+        }
+
+        return `# 研究报告: ${result.query}\n\n${result.summary}\n\n---\n📊 ${meta}${saveNote}`
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e)
         return `研究失败: ${msg}`

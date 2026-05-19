@@ -634,7 +634,7 @@ async function autoResearch(query: string, allQueriesUsed: string[]): Promise<As
   try {
     const { ResearchAgent } = await import("../research/research-agent.js")
     const agent = new ResearchAgent(
-      { query, mode: "quick" },
+      { query, mode: "standard" },
       () => {},
     )
     const result = await agent.run()

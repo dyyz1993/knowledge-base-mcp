@@ -1,4 +1,5 @@
 import type { SearchResult, SourceType } from "./types"
+import { normalizeUrl } from "./utils"
 
 function log(level: string, msg: string) {
   const ts = new Date().toISOString().substring(11, 19)
@@ -67,7 +68,7 @@ export function aggregateResults(
   const urlCount = new Map<string, number>()
 
   for (const r of allResults) {
-    const key = r.url || r.title
+    const key = normalizeUrl(r.url || r.title)
     const count = (urlCount.get(key) || 0) + 1
     urlCount.set(key, count)
     const existing = byUrl.get(key)

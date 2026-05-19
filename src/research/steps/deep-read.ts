@@ -1,6 +1,17 @@
 import type { DeepReadItem } from "../types"
 import type { SearchResult } from "../../search/types"
 
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+}
+
 const TRACKING_PARAMS = new Set([
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
   "ref", "source", "fbclid", "gclid",
@@ -98,51 +109,29 @@ export async function deepReadUrls(
 
     try {
       if (config.xbrowserEnabled) {
-        const args = ["scrape", fetchItem.url, "--json"]
-        if (config.xbrowserCdp) {
-          args.push("--cdp", config.xbrowserCdp)
-        }
-        if (config.xbrowserHeadless !== false) {
-          args.push("--headless")
-        }
-
-        const xbrowserBin = process.env.XBROWSER_PATH || "xbrowser"
-        const proc = Bun.spawn([xbrowserBin, ...args], {
-          stdout: "pipe",
-          stderr: "ignore",
-          env: { ...process.env },
-        })
-
-        const timeout = setTimeout(() => {
-          try { proc.kill() } catch {}
-        }, 15000)
-
-        const exitCode = await proc.exited
-        clearTimeout(timeout)
-
-        if (exitCode === 0) {
-          const output = await new Response(proc.stdout).text()
-          const jsonMatch = output.match(/\{[\s\S]*"success"[\s\S]*\}/)
-          if (!jsonMatch) return { ...base }
-          let parsed: Record<string, unknown>
-          try {
-            parsed = JSON.parse(jsonMatch[0])
-          } catch {
-            return { ...base }
-          }
-          const data = parsed?.data as Record<string, unknown> | undefined
-          const content = data?.content || parsed?.content || ""
-          if (content && String(content).length > 50) {
+        try {
+          const { XBrowserCLI } = await import("../../search/xbrowser-cli.js")
+          const cli = new XBrowserCLI({
+            enabled: true,
+            engine: "google",
+            cdpEndpoint: config.xbrowserCdp || "",
+            headless: config.xbrowserHeadless !== false,
+            timeout: 15000,
+          })
+          const scrapeResult = await cli.scrape(fetchItem.url, "markdown")
+          if (scrapeResult && scrapeResult.content && scrapeResult.content.length > 50) {
             const result: DeepReadItem = {
-              title: (data?.title as string) || fetchItem.title,
+              title: scrapeResult.title || fetchItem.title,
               url: fetchItem.url,
-              content: String(content),
+              content: scrapeResult.content,
               success: true,
               source: "xbrowser",
             }
             deepReadCache.set(cacheKey, result)
             return result
           }
+        } catch (e) {
+          console.log(`[deep-read] xbrowser scrape failed for ${fetchItem.url}: ${e instanceof Error ? e.message : e}`)
         }
       }
 
@@ -160,7 +149,30 @@ export async function deepReadUrls(
       const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
       const title = titleMatch ? titleMatch[1].trim() : fetchItem.title
 
-      const bodyContent = html
+      // Preserve code blocks before stripping HTML tags
+      let processed = html
+      // <pre><code class="language-xxx"> → ```xxx\n...\n```
+      processed = processed.replace(
+        /<pre[^>]*><code[^>]*class="(?:language-|lang-)(\w+)"[^>]*>([\s\S]*?)<\/code><\/pre>/gi,
+        (_, lang, code) => `\n\`\`\`${lang}\n${decodeHtmlEntities(code)}\n\`\`\`\n`,
+      )
+      // <pre><code> → ```\n...\n```
+      processed = processed.replace(
+        /<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi,
+        (_, code) => `\n\`\`\`\n${decodeHtmlEntities(code)}\n\`\`\`\n`,
+      )
+      // <pre> → ```\n...\n```
+      processed = processed.replace(
+        /<pre[^>]*>([\s\S]*?)<\/pre>/gi,
+        (_, code) => `\n\`\`\`\n${code.replace(/<[^>]+>/g, "")}\n\`\`\`\n`,
+      )
+      // <code> → `inline code`
+      processed = processed.replace(
+        /<code[^>]*>([\s\S]*?)<\/code>/gi,
+        (_, code) => `\`${code.replace(/<[^>]+>/g, "")}\``,
+      )
+
+      const bodyContent = processed
         .replace(/<script[\s\S]*?<\/script>/gi, "")
         .replace(/<style[\s\S]*?<\/style>/gi, "")
         .replace(/<[^>]+>/g, " ")
@@ -218,7 +230,7 @@ async function tryCacheFallback(url: string, fallbackTitle: string): Promise<Dee
 
   const cacheUrls = [
     `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}`,
-    `https://web.archive.org/web/2024/${url}`,
+    `https://web.archive.org/web/${new Date().getFullYear()}/${url}`,
   ]
 
   for (const cacheUrl of cacheUrls) {

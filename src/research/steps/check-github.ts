@@ -27,80 +27,84 @@ export async function checkGithub(
     return { repoUrl: null, needsClone: false, targetPaths: [], searchKeywords: [] }
   }
 
-  const repoUrl = repoUrls[0]
-  const match = repoUrl.match(GITHUB_REPO_PATTERN)
-  if (!match) {
-    return { repoUrl: null, needsClone: false, targetPaths: [], searchKeywords: [] }
-  }
-  const fullName = match[1]
+  // Process up to 3 repos
+  const allTargetPaths: string[] = []
+  const allKeywords = query.toLowerCase().split(/[\s,，、]+/).filter(w => w.length > 1)
+  let primaryRepoUrl = ""
 
-  const apiBase = `https://api.github.com/repos/${fullName}`
+  for (const repoUrl of repoUrls.slice(0, 3)) {
+    const match = repoUrl.match(GITHUB_REPO_PATTERN)
+    if (!match) continue
+    const fullName = match[1]
+    const apiBase = `https://api.github.com/repos/${fullName}`
 
-  const keywords = query.toLowerCase().split(/[\s,，、]+/).filter(w => w.length > 1)
+    if (!primaryRepoUrl) primaryRepoUrl = repoUrl
 
-  const targetPaths: string[] = []
-
-  try {
-    const resp = await fetch(`${apiBase}/readme`, {
-      headers: {
-        "User-Agent": "KB-MCP/1.0",
-        "Accept": "application/vnd.github.v3+json",
-      },
-      signal: AbortSignal.timeout(10000),
-    })
-    if (resp.ok) {
-      targetPaths.push("README.md")
-    }
-  } catch {}
-
-  try {
-    const resp = await fetch(`${apiBase}/contents/`, {
-      headers: {
-        "User-Agent": "KB-MCP/1.0",
-        "Accept": "application/vnd.github.v3+json",
-      },
-      signal: AbortSignal.timeout(10000),
-    })
-    if (resp.ok) {
-      const entries = await resp.json() as Array<{ name: string; type: string; path: string }>
-      const docDirs = entries.filter(e =>
-        e.type === "dir" && /docs?|examples?|packages?\/core/i.test(e.name)
-      )
-      for (const d of docDirs) {
-        targetPaths.push(d.path)
+    // Check README
+    try {
+      const resp = await fetch(`${apiBase}/readme`, {
+        headers: {
+          "User-Agent": "KB-MCP/1.0",
+          "Accept": "application/vnd.github.v3+json",
+        },
+        signal: AbortSignal.timeout(8000),
+      })
+      if (resp.ok) {
+        allTargetPaths.push(`${fullName}/README.md`)
       }
-      const docFiles = entries.filter(e =>
-        e.type === "file" && /\.(md|mdx)$/i.test(e.name)
-      )
-      for (const f of docFiles) {
-        targetPaths.push(f.path)
-      }
-    }
-  } catch {}
+    } catch {}
 
-  try {
-    const resp = await fetch(`${apiBase}/contents/docs`, {
-      headers: {
-        "User-Agent": "KB-MCP/1.0",
-        "Accept": "application/vnd.github.v3+json",
-      },
-      signal: AbortSignal.timeout(10000),
-    })
-    if (resp.ok) {
-      const docs = await resp.json() as Array<{ name: string; type: string; path: string }>
-      for (const d of docs) {
-        if (d.type === "file" && /\.(md|mdx)$/i.test(d.name)) {
-          targetPaths.push(d.path)
+    // Check root directory for docs/examples
+    try {
+      const resp = await fetch(`${apiBase}/contents/`, {
+        headers: {
+          "User-Agent": "KB-MCP/1.0",
+          "Accept": "application/vnd.github.v3+json",
+        },
+        signal: AbortSignal.timeout(8000),
+      })
+      if (resp.ok) {
+        const entries = await resp.json() as Array<{ name: string; type: string; path: string }>
+        const docDirs = entries.filter(e =>
+          e.type === "dir" && /docs?|examples?|packages?\/core/i.test(e.name)
+        )
+        for (const d of docDirs) {
+          allTargetPaths.push(`${fullName}/${d.path}`)
+        }
+        const docFiles = entries.filter(e =>
+          e.type === "file" && /\.(md|mdx)$/i.test(e.name)
+        )
+        for (const f of docFiles) {
+          allTargetPaths.push(`${fullName}/${f.path}`)
         }
       }
-    }
-  } catch {}
+    } catch {}
+
+    // Check docs/ directory
+    try {
+      const resp = await fetch(`${apiBase}/contents/docs`, {
+        headers: {
+          "User-Agent": "KB-MCP/1.0",
+          "Accept": "application/vnd.github.v3+json",
+        },
+        signal: AbortSignal.timeout(8000),
+      })
+      if (resp.ok) {
+        const docs = await resp.json() as Array<{ name: string; type: string; path: string }>
+        for (const d of docs) {
+          if (d.type === "file" && /\.(md|mdx)$/i.test(d.name)) {
+            allTargetPaths.push(`${fullName}/${d.path}`)
+          }
+        }
+      }
+    } catch {}
+  }
 
   return {
-    repoUrl,
-    needsClone: targetPaths.length > 5,
-    targetPaths: targetPaths.slice(0, 20),
-    searchKeywords: keywords,
+    repoUrl: primaryRepoUrl || null,
+    needsClone: allTargetPaths.length > 5,
+    targetPaths: allTargetPaths.slice(0, 20),
+    searchKeywords: allKeywords,
   }
 }
 
@@ -108,10 +112,32 @@ export async function fetchGitHubFile(
   repoUrl: string,
   filePath: string,
 ): Promise<string> {
-  const match = repoUrl.match(GITHUB_REPO_PATTERN)
-  if (!match) return ""
-  const fullName = match[1]
-  const apiUrl = `https://api.github.com/repos/${fullName}/contents/${filePath}`
+  // filePath may be "owner/repo/actual/path" or just "actual/path"
+  let fullName: string
+  let actualPath: string
+
+  // If filePath starts with the repo prefix (e.g. "oven-sh/bun/README.md")
+  const repoMatch = repoUrl.match(GITHUB_REPO_PATTERN)
+  if (repoMatch && filePath.startsWith(repoMatch[1] + "/")) {
+    fullName = repoMatch[1]
+    actualPath = filePath.slice(fullName.length + 1)
+  } else if (filePath.includes("/")) {
+    // Try to parse as owner/repo/path
+    const parts = filePath.split("/")
+    if (parts.length >= 3) {
+      fullName = `${parts[0]}/${parts[1]}`
+      actualPath = parts.slice(2).join("/")
+    } else {
+      fullName = repoMatch ? repoMatch[1] : ""
+      actualPath = filePath
+    }
+  } else {
+    fullName = repoMatch ? repoMatch[1] : ""
+    actualPath = filePath
+  }
+
+  if (!fullName) return ""
+  const apiUrl = `https://api.github.com/repos/${fullName}/contents/${actualPath}`
 
   try {
     const resp = await fetch(apiUrl, {

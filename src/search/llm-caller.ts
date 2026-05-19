@@ -7,10 +7,10 @@ export interface LlmConfig {
 /**
  * Call an OpenAI-compatible chat completions endpoint.
  *
- * - Retries up to 3 times on HTTP 429 (rate-limit) with exponential backoff
- *   (1 s, 2 s, 4 s), as long as the total elapsed time stays within `timeoutMs`.
- * - Throws a descriptive `Error` on non-OK responses (including the status code
- *   and up to 500 chars of the response body).
+ * - Retries up to 3 times on HTTP 429 (rate-limit) and 5xx (server error)
+ *   with exponential backoff (1 s, 2 s, 4 s), as long as total elapsed time
+ *   stays within `timeoutMs`.
+ * - Retries network errors (DNS, connection reset, timeout) up to 3 times.
  * - Supports "thinking mode" models (e.g. zhipu glm-5.1) that return the actual
  *   answer in `reasoning_content` while `content` is empty.
  */
@@ -44,21 +44,33 @@ export async function callLlm(
       throw new Error(`LLM request timed out after ${timeoutMs}ms (retry budget exhausted)`)
     }
 
-    resp = await fetch(url, {
-      method: "POST",
-      headers,
-      body,
-      signal: AbortSignal.timeout(remaining),
-    })
+    try {
+      resp = await fetch(url, {
+        method: "POST",
+        headers,
+        body,
+        signal: AbortSignal.timeout(remaining),
+      })
+    } catch (fetchErr) {
+      // Network errors (DNS, connection reset, timeout)
+      if (attempt < maxRetries) {
+        const backoff = Math.pow(2, attempt) * 1000
+        console.warn(`LLM network error on attempt ${attempt + 1}/${maxRetries + 1}: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}, retrying in ${backoff}ms…`)
+        await new Promise<void>((resolve) => setTimeout(resolve, backoff))
+        continue
+      }
+      throw new Error(`LLM network error after ${maxRetries + 1} attempts: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`)
+    }
 
-    if (resp.status === 429 && attempt < maxRetries) {
+    // Retry on 429 (rate limit) or 5xx (server error)
+    if ((resp.status === 429 || resp.status >= 500) && attempt < maxRetries) {
       const backoff = Math.pow(2, attempt) * 1000
       const afterBackoff = Date.now() - start + backoff
       if (afterBackoff >= timeoutMs) {
-        console.error(`LLM rate-limited (429) on attempt ${attempt + 1}/${maxRetries + 1} but no time left for retry`)
+        console.error(`LLM ${resp.status} on attempt ${attempt + 1}/${maxRetries + 1} but no time left for retry`)
         break
       }
-      console.warn(`LLM rate-limited (429) on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${backoff}ms…`)
+      console.warn(`LLM ${resp.status} on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${backoff}ms…`)
       await new Promise<void>((resolve) => setTimeout(resolve, backoff))
       continue
     }

@@ -8,6 +8,7 @@ export async function synthesize(
   largeModel: LlmConfig,
   qualityScore: number,
   coverageScore: number,
+  researchType: string = "concept",
 ): Promise<{ text: string; isFallback: boolean }> {
   const successfulResults = deepReadResults.filter(r => r.success)
   const maxTotalChars = 20000
@@ -23,6 +24,10 @@ export async function synthesize(
   const systemPrompt =
     "You are a research assistant. Provide comprehensive, well-structured answers with citations. Use [1], [2] etc. to reference sources. Answer in the same language as the query."
 
+  const codeInstruction = ["api", "code", "concept"].includes(researchType)
+    ? `2. **Must include code examples** — extract and reconstruct any code snippets from the content. Wrap ALL code in proper markdown code blocks with language tags (e.g. \`\`\`typescript, \`\`\`python). If the content describes APIs or functions, show usage examples with code blocks.`
+    : `2. Include code examples only if the source content contains actual code — wrap in proper markdown code blocks with language tags.`
+
   const userPrompt = `Based on the following deep-read content about "${query}":
 ${contentSections}
 
@@ -33,9 +38,9 @@ Quality assessment: ${qualityScore}/10, Coverage: ${coverageScore}/10
 
 Synthesize a comprehensive answer that:
 1. Directly answers the query with specific details
-2. Includes code examples or API references if found in the content
+${codeInstruction}
 3. Cites sources with [1], [2] etc. matching the source numbers
-4. Is well-structured with headers and bullet points
+4. Is well-structured with headers (##) and bullet points
 5. Notes any gaps or uncertainties if coverage is not perfect
 
 Answer in the same language as the query.`

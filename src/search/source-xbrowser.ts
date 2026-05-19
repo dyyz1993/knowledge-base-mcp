@@ -1,6 +1,7 @@
 import { XBrowserCLI } from "./xbrowser-cli"
 import type { SearchSource, SearchResult, SourceName } from "./types"
 import type { XBrowserConfig, XBrowserEngine } from "./xbrowser-cli"
+import { normalizeUrl } from "./utils"
 
 const ENGINE_NAMES: Record<XBrowserEngine, SourceName> = {
   bing: "xbrowser-bing",
@@ -136,24 +137,13 @@ export class XBrowserMultiEngineSource implements SearchSource {
   }
 }
 
-function normalizeUrl(url: string): string {
-  try {
-    const u = new URL(url)
-    let path = u.pathname.replace(/\/+$/, "")
-    if (u.hash && u.hash !== "#") path += u.hash
-    return `${u.hostname}${path}${u.search}`
-  } catch {
-    return url.toLowerCase().replace(/\/+$/, "")
-  }
-}
-
 export function createXBrowserSources(
   config: XBrowserConfig,
   engines: XBrowserEngine[],
 ): SearchSource[] {
   if (!config.enabled) return []
 
-  const engineList = engines.length > 0 ? engines : (["bing", "google", "baidu"] as XBrowserEngine[])
+  const engineList = engines.length > 0 ? engines : (["bing", "google"] as XBrowserEngine[])
   return [new XBrowserMultiEngineSource(config, engineList)]
 }
 

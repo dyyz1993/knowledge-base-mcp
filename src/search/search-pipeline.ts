@@ -9,14 +9,18 @@ function log(level: string, msg: string) {
 
 export class SearchPipeline {
   private fastSources: SearchSource[]
+  private mediumSources: SearchSource[]
   private slowSources: SearchSource[]
   private fastTimeout: number
+  private mediumTimeout: number
   private slowTimeout: number
 
   constructor(sources: SearchSource[], options?: { fastTimeout?: number; slowTimeout?: number }) {
     this.slowSources = sources.filter(s => s.name === "ai-search")
-    this.fastSources = sources.filter(s => s.name !== "ai-search")
+    this.mediumSources = sources.filter(s => s.name === "xbrowser")
+    this.fastSources = sources.filter(s => s.name !== "ai-search" && s.name !== "xbrowser")
     this.fastTimeout = options?.fastTimeout ?? 10_000
+    this.mediumTimeout = 15_000
     this.slowTimeout = options?.slowTimeout ?? 60_000
   }
 
@@ -25,47 +29,69 @@ export class SearchPipeline {
     const allResults: SearchResult[] = []
     const sourceTimings: SourceTiming[] = []
 
-    log("INFO", `Query: "${query}" | Fast: [${this.fastSources.filter(s => s.available()).map(s => s.name).join(", ")}] | Slow: [${this.slowSources.filter(s => s.available()).map(s => s.name).join(", ")}] | maxResults: ${maxResults}`)
+    log("INFO", `Query: "${query}" | Fast: [${this.fastSources.filter(s => s.available()).map(s => s.name).join(", ")}] | Medium: [${this.mediumSources.filter(s => s.available()).map(s => s.name).join(", ")}] | Slow: [${this.slowSources.filter(s => s.available()).map(s => s.name).join(", ")}] | maxResults: ${maxResults}`)
 
     searchStats.recordQuery()
 
-    // Phase 1: fast sources in parallel
+    // Phase 1: fast sources in parallel (API-based: tavily, serper, web-search-prime)
     const fastPromise = this.runSources(this.fastSources, query, allResults, sourceTimings)
 
-    // Phase 2: wait for fast sources with timeout
+    // Phase 2: medium sources start immediately but have separate timeout
+    const mediumPromise = this.runSources(this.mediumSources, query, allResults, sourceTimings)
+
+    // Wait for fast sources with timeout
     const fastResults = await Promise.race([
       fastPromise.then(() => allResults.length),
       new Promise<number>(resolve => setTimeout(() => resolve(-1), this.fastTimeout)),
     ])
 
     const fastOnly = fastResults >= 0
-    const fastCount = fastOnly ? fastResults : allResults.length
-
     if (!fastOnly) {
-      log("INFO", `Fast timeout (${this.fastTimeout}ms) reached with ${fastCount} results, continuing to wait for fast sources...`)
+      log("INFO", `Fast timeout (${this.fastTimeout}ms) reached with ${allResults.length} results, continuing to wait...`)
       await fastPromise
     }
 
     log("INFO", `Fast phase done: ${allResults.length} results`)
 
-    const needSlow = allResults.length < 3 && this.slowSources.length > 0
-
-    if (needSlow) {
-      log("INFO", `Only ${allResults.length} fast results (< 3), activating slow sources...`)
-
-      const slowResults: SearchResult[] = []
-      const slowTimings: SourceTiming[] = []
-
-      await Promise.race([
-        this.runSources(this.slowSources, query, slowResults, slowTimings),
-        new Promise<void>(resolve => setTimeout(() => resolve(), this.slowTimeout)),
+    // If fast sources already gave enough, skip medium/slow
+    if (allResults.length >= 10) {
+      log("INFO", `Fast results sufficient (${allResults.length} >= 10), skipping medium/slow sources`)
+      // But still wait for medium if it's already running and nearly done
+      const mediumDone = Promise.race([
+        mediumPromise,
+        new Promise<void>(resolve => setTimeout(() => resolve(), 3000)),
       ])
+      await mediumDone
+      if (allResults.length > 10) {
+        log("INFO", `After medium: ${allResults.length} total results`)
+      }
+    } else {
+      // Wait for medium sources
+      log("INFO", `Waiting for medium sources (timeout ${this.mediumTimeout}ms)...`)
+      await Promise.race([
+        mediumPromise,
+        new Promise<void>(resolve => setTimeout(() => resolve(), this.mediumTimeout)),
+      ])
+      log("INFO", `Fast+Medium phase done: ${allResults.length} results`)
 
-      sourceTimings.push(...slowTimings)
-      allResults.push(...slowResults)
-      log("INFO", `Slow phase done: +${slowResults.length} results (total: ${allResults.length})`)
-    } else if (this.slowSources.length > 0) {
-      log("INFO", `Fast results sufficient (${allResults.length} >= 3), skipping slow sources`)
+      // Phase 3: slow sources only if still not enough
+      const needSlow = allResults.length < 3 && this.slowSources.length > 0
+      if (needSlow) {
+        log("INFO", `Only ${allResults.length} results (< 3), activating slow sources...`)
+        const slowResults: SearchResult[] = []
+        const slowTimings: SourceTiming[] = []
+
+        await Promise.race([
+          this.runSources(this.slowSources, query, slowResults, slowTimings),
+          new Promise<void>(resolve => setTimeout(() => resolve(), this.slowTimeout)),
+        ])
+
+        sourceTimings.push(...slowTimings)
+        allResults.push(...slowResults)
+        log("INFO", `Slow phase done: +${slowResults.length} results (total: ${allResults.length})`)
+      } else if (this.slowSources.length > 0) {
+        log("INFO", `Results sufficient (${allResults.length} >= 3), skipping slow sources`)
+      }
     }
 
     log("INFO", `Raw total: ${allResults.length} results before aggregation`)

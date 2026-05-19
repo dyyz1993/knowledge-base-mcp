@@ -178,7 +178,7 @@ export function loadConfig(): AppConfig {
           ...raw.skills,
           paths: (raw.skills?.paths || DEFAULT_CONFIG.skills.paths).map(expandPath),
         },
-        browser: { ...DEFAULT_CONFIG.browser, ...raw.browser },
+        browser: { ...DEFAULT_CONFIG.browser, ...raw.browser, cdpEndpoint: raw.browser?.cdpEndpoint || DEFAULT_CONFIG.browser.cdpEndpoint },
         webSearch: { ...DEFAULT_CONFIG.webSearch, ...raw.webSearch },
         searchPipeline: {
           ...DEFAULT_CONFIG.searchPipeline,
@@ -187,7 +187,7 @@ export function loadConfig(): AppConfig {
             ...DEFAULT_CONFIG.searchPipeline.sources,
             ...raw.searchPipeline?.sources,
             webSearchPrime: { ...DEFAULT_CONFIG.searchPipeline.sources.webSearchPrime, ...raw.searchPipeline?.sources?.webSearchPrime },
-            xbrowser: { ...DEFAULT_CONFIG.searchPipeline.sources.xbrowser, ...raw.searchPipeline?.sources?.xbrowser },
+            xbrowser: { ...DEFAULT_CONFIG.searchPipeline.sources.xbrowser, ...raw.searchPipeline?.sources?.xbrowser, cdpEndpoint: raw.searchPipeline?.sources?.xbrowser?.cdpEndpoint || DEFAULT_CONFIG.searchPipeline.sources.xbrowser.cdpEndpoint },
             llmDirect: { ...DEFAULT_CONFIG.searchPipeline.sources.llmDirect, ...raw.searchPipeline?.sources?.llmDirect },
             plugin: { ...DEFAULT_CONFIG.searchPipeline.sources.plugin, ...raw.searchPipeline?.sources?.plugin },
             tavily: { ...DEFAULT_CONFIG.searchPipeline.sources.tavily, ...raw.searchPipeline?.sources?.tavily },

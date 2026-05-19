@@ -27,7 +27,12 @@ function buildSystemPrompt(): string {
 
 ## 重要认知
 
-优先使用 browser_scrape 代替 url_fetch。browser_scrape 支持 JS 渲染（SPA），url_fetch 只能用 curl（无法渲染 JS）。
+**工具优先级（从高到低）：**
+1. kb_search / kb_read — 知识库已有内容（优先级最高）
+2. kb_research — 深度研究新主题（自动存入知识库，一次研究可反复复用）
+3. browser_scrape / url_fetch — 仅当需要快速查看单个页面时使用
+
+⚠️ 当知识库未覆盖用户主题时，优先使用 kb_research 而非 browser_scrape。browser_scrape 的结果不会存入知识库，是低效的一次性操作。
 
 知识库是跨项目的。每篇文档来自不同项目（搜索结果会显示 project 字段），项目之间可能有关联（依赖、fork、共享库等）。当你发现多项目关联时，主动指出这些关系。
 
@@ -44,7 +49,7 @@ function buildSystemPrompt(): string {
 5. 知识库无相关内容时，判断是否需要深度研究（见 🔬 研究模式）
 
 ### 🔬 研究模式
-以下情况触发 kb_research（注意：耗时 1-3 分钟，谨慎使用）：
+以下情况触发 kb_research（自动存入知识库，下次同类问题可直接命中）：
 - 用户明确要求"研究"、"调研"、"深度分析"某个主题
 - kb_search 搜索无结果或结果质量不足以回答用户问题
 - 用户问的问题涉及知识库未覆盖的新技术/新领域
@@ -104,7 +109,7 @@ function buildSystemPrompt(): string {
 - 明确要求"分析项目"或"沉淀知识库"
 
 #### 第一步：获取项目内容
-- **URL 链接** → 优先用 browser_scrape 抓取内容（支持 JS 渲染），url_fetch 作为 fallback
+- **URL 链接** → 用 kb_research 进行深度研究（自动存入知识库），browser_scrape 仅用于快速预览单个页面
 - **GitHub 仓库** → 用 git_clone 克隆到临时目录
 - **本地路径** → 直接用 scan_project 扫描
 
@@ -692,8 +697,16 @@ function flushPendingAssistant(
   result.push(msg)
 }
 
-async function readBodyJson(req: IncomingMessage): Promise<unknown> {
+async function readBodyJson(req: IncomingMessage, maxBytes = 10 * 1024 * 1024): Promise<unknown> {
   const chunks: Buffer[] = []
-  for await (const chunk of req) chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk)
+  let totalSize = 0
+  for await (const chunk of req) {
+    const buf = typeof chunk === "string" ? Buffer.from(chunk) : chunk
+    totalSize += buf.length
+    if (totalSize > maxBytes) {
+      throw new Error(`Request body too large (${totalSize} bytes, max ${maxBytes})`)
+    }
+    chunks.push(buf)
+  }
   return JSON.parse(Buffer.concat(chunks).toString("utf-8"))
 }

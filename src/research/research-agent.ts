@@ -43,6 +43,7 @@ export class ResearchAgent {
   private outline = ""
   private qualityScore = 0
   private coverageScore = 0
+  private researchType = "concept"
   private missingTopics: string[] = []
   private loopCount = 0
   private sitemapHints: string[] = []
@@ -105,6 +106,17 @@ export class ResearchAgent {
         const decision = await this.executeStep(stepName)
         this.emit(stepName, "done")
 
+        // Early termination: if search produced 0 results, skip to synthesize
+        if (stepName === "search" && this.collectedSearchResults.length === 0) {
+          this.phaseLog.push("search produced 0 results, skipping to synthesize")
+          const synIdx = flow.indexOf("synthesize")
+          if (synIdx >= 0 && synIdx > i) {
+            i = synIdx - 1
+            i++
+            continue
+          }
+        }
+
         const shouldFinalize = decision === "done" &&
           !["check_sitemap", "check_github"].some(s => flow.slice(i + 1).includes(s))
 
@@ -127,6 +139,26 @@ export class ResearchAgent {
               i++
               continue
             }
+          }
+        }
+
+        // Handle need_sitemap: jump to check_sitemap if not yet run
+        if (decision === "need_sitemap") {
+          const sitemapIdx = flow.indexOf("check_sitemap")
+          if (sitemapIdx >= 0 && sitemapIdx > i) {
+            this.phaseLog.push("evaluate_depth suggests sitemap exploration, jumping to check_sitemap")
+            i = sitemapIdx
+            continue
+          }
+        }
+
+        // Handle need_github: jump to check_github if not yet run
+        if (decision === "need_github") {
+          const githubIdx = flow.indexOf("check_github")
+          if (githubIdx >= 0 && githubIdx > i) {
+            this.phaseLog.push("evaluate_depth suggests GitHub exploration, jumping to check_github")
+            i = githubIdx
+            continue
           }
         }
       } catch (e) {
@@ -191,6 +223,7 @@ export class ResearchAgent {
       tierToLlmConfig(this.modelTier.small),
       warning,
     )
+    this.researchType = result.researchType || "concept"
     this.phaseLog.push(
       `analyzed query: keywords=[${result.coreKeywords.join(", ")}], subQueries=[${result.subQueries.join(", ")}], type=${result.researchType}`,
     )
@@ -311,6 +344,7 @@ export class ResearchAgent {
       results,
       tierToLlmConfig(this.modelTier.large),
       warning,
+      this.researchType,
     )
 
     const validIndices = evalResult.selectedIndices.filter(
@@ -503,6 +537,7 @@ export class ResearchAgent {
         tierToLlmConfig(this.modelTier.large),
         this.qualityScore,
         this.coverageScore,
+        this.researchType,
       )
 
       if (result.isFallback) {
@@ -519,7 +554,8 @@ export class ResearchAgent {
       : this.collectedSearchResults.slice(0, 10)
 
     if (topResults.length === 0) {
-      return "未能获取到相关内容。"
+      const isZh = /[\u4e00-\u9fff]/.test(this.query)
+      return isZh ? "未能获取到相关内容。" : "No relevant content found."
     }
 
     const contextText = topResults
@@ -556,6 +592,8 @@ export class ResearchAgent {
   }
 
   private buildFallbackSummary(): string {
+    const isZh = /[\u4e00-\u9fff]/.test(this.query)
+    const sourceLabel = isZh ? "来源" : "Source"
     if (this.deepReadResults.length > 0) {
       return this.deepReadResults
         .filter((r) => r.success)
@@ -566,7 +604,7 @@ export class ResearchAgent {
             .filter((l) => l.trim().length > 20)
             .slice(0, 5)
             .join("\n")
-          return `### [${i + 1}] ${r.title}\n来源: ${r.url}\n\n${lines}`
+          return `### [${i + 1}] ${r.title}\n${sourceLabel}: ${r.url}\n\n${lines}`
         })
         .join("\n\n---\n\n")
     }

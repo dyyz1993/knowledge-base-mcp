@@ -47,7 +47,17 @@ export async function evaluateDepth(
 ): Promise<DepthEvaluation> {
   const contentSummary = deepReadResults
     .map((item) => {
-      const preview = item.content.slice(0, 300)
+      // Show structured preview: first 400 + headings + tail 200 for long content
+      let preview: string
+      if (item.content.length > 1200) {
+        const headings = (item.content.match(/^#{1,3}\s+.+$/gm) || []).slice(0, 8).join(" | ")
+        const start = item.content.slice(0, 400)
+        const end = item.content.slice(-200)
+        preview = `${start}\n...[truncated ${item.content.length - 600} chars]...\n${end}`
+        if (headings) preview += `\nHeadings: ${headings}`
+      } else {
+        preview = item.content.slice(0, 800)
+      }
       return `Title: ${item.title}\nURL: ${item.url}\nLength: ${item.content.length} chars\nPreview: ${preview}`
     })
     .join("\n\n---\n\n")

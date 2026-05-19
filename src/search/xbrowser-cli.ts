@@ -60,12 +60,72 @@ interface JsonMapResponse {
 function buildBaseArgs(config: XBrowserConfig): string[] {
   const args: string[] = []
   if (config.cdpEndpoint) {
-    args.push("--cdp", config.cdpEndpoint)
+    args.push("--cdp", resolveCdpUrl(config.cdpEndpoint))
   }
   if (config.headless) {
     args.push("--headless")
   }
   return args
+}
+
+/** Cache the resolved CDP URL to avoid repeated HTTP calls */
+let cachedCdpUrl: string | null = null
+let cachedCdpUrlTime = 0
+const CDP_URL_TTL = 5 * 60 * 1000 // 5 minutes
+
+/**
+ * Resolve a CDP base URL (e.g. ws://localhost:9221) to a full browser websocket URL.
+ * If the URL already contains "/devtools/browser/", return as-is.
+ * Otherwise, fetch /json/version to get the webSocketDebuggerUrl.
+ */
+function resolveCdpUrl(cdpEndpoint: string): string {
+  // Already a full browser URL
+  if (cdpEndpoint.includes("/devtools/browser/")) {
+    return cdpEndpoint
+  }
+
+  // Use cached value if fresh
+  const now = Date.now()
+  if (cachedCdpUrl && now - cachedCdpUrlTime < CDP_URL_TTL) {
+    return cachedCdpUrl
+  }
+
+  // Try to resolve synchronously via HTTP (Bun supports sync fetch in some contexts)
+  // But since we can't do sync HTTP, we'll just return the base URL and let xbrowser handle it
+  // For now, try common pattern: if it's ws://host:port, try http://host:port/json/version
+  try {
+    const httpUrl = cdpEndpoint.replace(/^ws/, "http") + "/json/version"
+    // We can't do sync fetch here, so we'll cache from the first successful resolution
+    // Return the endpoint as-is for now — the caller should pre-resolve
+    return cdpEndpoint
+  } catch {
+    return cdpEndpoint
+  }
+}
+
+/**
+ * Async version: resolve CDP URL by fetching /json/version.
+ * Should be called once at startup or when constructing the CLI.
+ */
+export async function resolveCdpEndpoint(cdpEndpoint: string): Promise<string> {
+  if (!cdpEndpoint || cdpEndpoint.includes("/devtools/browser/")) {
+    return cdpEndpoint
+  }
+
+  try {
+    const httpUrl = cdpEndpoint.replace(/^ws/, "http") + "/json/version"
+    const resp = await fetch(httpUrl, { signal: AbortSignal.timeout(3000) })
+    const data = await resp.json() as { webSocketDebuggerUrl?: string }
+    if (data.webSocketDebuggerUrl) {
+      cachedCdpUrl = data.webSocketDebuggerUrl
+      cachedCdpUrlTime = Date.now()
+      console.log(`[xbrowser-cli] Resolved CDP: ${cdpEndpoint} -> ${cachedCdpUrl}`)
+      return cachedCdpUrl
+    }
+  } catch (e) {
+    console.log(`[xbrowser-cli] Failed to resolve CDP URL from ${cdpEndpoint}: ${e instanceof Error ? e.message : e}`)
+  }
+  return cdpEndpoint
 }
 
 async function runCommand(
@@ -121,6 +181,65 @@ function parseJsonOutput<T>(raw: string): T {
   throw new Error("No JSON found in xbrowser output")
 }
 
+/** Strip ANSI escape codes from string */
+function stripAnsi(str: string): string {
+  return str.replace(/\x1b\[[0-9;]*m/g, "")
+}
+
+/** Parse xbrowser YAML-like output into structured data */
+function parseYamlOutput(raw: string): SearchResult[] {
+  const clean = stripAnsi(raw)
+  const lines = clean.split("\n")
+  const results: SearchResult[] = []
+  let current: Partial<SearchResult> | null = null
+
+  for (const line of lines) {
+    const trimmedLine = line.trim()
+
+    // New result item: "1. title: xxx" or just numbered item
+    const itemMatch = trimmedLine.match(/^(\d+)\.\s+title:\s*(.+)/)
+    if (itemMatch) {
+      if (current && current.title && current.url) {
+        results.push(current as SearchResult)
+      }
+      current = { title: itemMatch[2], url: "", snippet: "" }
+      continue
+    }
+
+    if (!current) {
+      // Try "title: xxx" without number prefix
+      const titleMatch = trimmedLine.match(/^title:\s*(.+)/)
+      if (titleMatch) {
+        current = { title: titleMatch[1], url: "", snippet: "" }
+      }
+      continue
+    }
+
+    const urlMatch = trimmedLine.match(/^url:\s*(.+)/)
+    if (urlMatch) {
+      current.url = urlMatch[1]
+      continue
+    }
+
+    const snippetMatch = trimmedLine.match(/^snippet:\s*(.+)/)
+    if (snippetMatch) {
+      current.snippet = snippetMatch[1]
+      continue
+    }
+
+    // Multi-line snippet continuation
+    if (current.snippet && trimmedLine && !trimmedLine.match(/^(query|engine|results|total|timestamp|position):/)) {
+      current.snippet += " " + trimmedLine
+    }
+  }
+
+  if (current && current.title && current.url) {
+    results.push(current as SearchResult)
+  }
+
+  return results
+}
+
 function extractString(val: unknown, field: string): string {
   if (typeof val === "string") return val
   return ""
@@ -128,15 +247,27 @@ function extractString(val: unknown, field: string): string {
 
 export class XBrowserCLI {
   private config: XBrowserConfig
+  private cdpResolved = false
 
   constructor(config: XBrowserConfig) {
     this.config = config
+  }
+
+  /** Ensure CDP endpoint is resolved to full browser URL */
+  private async ensureCdpResolved(): Promise<void> {
+    if (this.cdpResolved) return
+    if (this.config.cdpEndpoint && !this.config.cdpEndpoint.includes("/devtools/browser/")) {
+      this.config.cdpEndpoint = await resolveCdpEndpoint(this.config.cdpEndpoint)
+    }
+    this.cdpResolved = true
   }
 
   async search(query: string, limit = 10): Promise<SearchResult[]> {
     if (!this.config.enabled) return []
 
     try {
+      await this.ensureCdpResolved()
+
       const args = [
         "search",
         query,
@@ -153,31 +284,37 @@ export class XBrowserCLI {
       console.log(`[xbrowser-cli] raw output for engine=${this.config.engine}: length=${raw.length}, preview=${raw.substring(0, 200)}`)
 
       let parsed: unknown
+      let items: unknown[]
       try {
         parsed = parseJsonOutput<unknown>(raw)
-      } catch (e) {
-        console.log(`[xbrowser-cli] parseJson failed engine=${this.config.engine} query="${query}": ${(e as Error).message}, raw(${raw.length}): ${raw.substring(0, 200)}`)
-        return []
-      }
 
-      let items: unknown[]
-      if (Array.isArray(parsed)) {
-        items = parsed
-      } else if (typeof parsed === "object" && parsed !== null) {
-        const obj = parsed as Record<string, unknown>
-        if (Array.isArray(obj.results)) {
-          items = obj.results
-        } else if (obj.data && typeof obj.data === "object" && !Array.isArray(obj.data)) {
-          const inner = obj.data as Record<string, unknown>
-          items = Array.isArray(inner.results) ? inner.results : []
-        } else if (Array.isArray(obj.data)) {
-          items = obj.data
+        if (Array.isArray(parsed)) {
+          items = parsed
+        } else if (typeof parsed === "object" && parsed !== null) {
+          const obj = parsed as Record<string, unknown>
+          if (Array.isArray(obj.results)) {
+            items = obj.results
+          } else if (obj.data && typeof obj.data === "object" && !Array.isArray(obj.data)) {
+            const inner = obj.data as Record<string, unknown>
+            items = Array.isArray(inner.results) ? inner.results : []
+          } else if (Array.isArray(obj.data)) {
+            items = obj.data
+          } else {
+            console.log(`[xbrowser-cli] Object response has no results/data keys: ${JSON.stringify(Object.keys(obj))}`)
+            return []
+          }
         } else {
-          console.log(`[xbrowser-cli] Object response has no results/data keys: ${JSON.stringify(Object.keys(obj))}`)
+          console.log(`[xbrowser-cli] Unexpected parsed type: ${typeof parsed}`)
           return []
         }
-      } else {
-        console.log(`[xbrowser-cli] Unexpected parsed type: ${typeof parsed}`)
+      } catch {
+        // JSON parse failed, try YAML-like parsing
+        const yamlResults = parseYamlOutput(raw)
+        if (yamlResults.length > 0) {
+          console.log(`[xbrowser-cli] parsed ${yamlResults.length} results from YAML output`)
+          return yamlResults
+        }
+        console.log(`[xbrowser-cli] parseJson and parseYaml both failed for engine=${this.config.engine} query="${query}"`)
         return []
       }
 
@@ -205,8 +342,9 @@ export class XBrowserCLI {
     if (!this.config.enabled) return null
 
     try {
+      await this.ensureCdpResolved()
+
       const args = [
-        "scrape",
         url,
         "--format",
         format,
@@ -243,8 +381,9 @@ export class XBrowserCLI {
     if (!this.config.enabled) return []
 
     try {
+      await this.ensureCdpResolved()
+
       const args = [
-        "map",
         url,
         "--json",
         ...buildBaseArgs(this.config),
@@ -285,6 +424,8 @@ export class XBrowserCLI {
 
     const timeout = options?.timeout ?? 60000
     try {
+      await this.ensureCdpResolved()
+
       const args = [
         "ai-search",
         query,
@@ -321,8 +462,9 @@ export class XBrowserCLI {
     if (!this.config.enabled) return []
 
     try {
+      await this.ensureCdpResolved()
+
       const args = [
-        "crawl",
         url,
         "--limit",
         String(limit),
