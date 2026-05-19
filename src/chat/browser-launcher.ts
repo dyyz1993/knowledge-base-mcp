@@ -44,7 +44,9 @@ function findPlaywrightChromium(cacheDir: string): string | null {
       const p = `${cacheDir}\\${chromiumEntry}\\chrome-win\\chrome.exe`
       return existsSync(p) ? p : null
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[browser-launcher]", e instanceof Error ? e.message : String(e))
+  }
   return null
 }
 

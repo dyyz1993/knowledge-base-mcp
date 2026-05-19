@@ -51,8 +51,8 @@ function readIndex(): IndexFile {
     cachedIndex = idx
     cacheTimestamp = now
     return idx
-  } catch {
-    // Index file missing or corrupted — attempt recovery from .md files
+  } catch (e) {
+    console.warn("[storage] readIndex: index file missing or corrupted, attempting recovery:", e instanceof Error ? e.message : String(e))
     const recovered = recoverIndexFromDisk()
     if (recovered && Object.keys(recovered.documents).length > 0) {
       cachedIndex = recovered
@@ -104,12 +104,13 @@ function recoverIndexFromDisk(): IndexFile | null {
         if (frontmatter?.id && frontmatter?.title) {
           idx.documents[frontmatter.id] = frontmatter as DocMeta
         }
-      } catch {
-        // Skip unreadable files
+      } catch (e) {
+        console.warn("[storage] recoverIndexFromDisk: skipping unreadable file:", e instanceof Error ? e.message : String(e))
       }
     }
     return idx
-  } catch {
+  } catch (e) {
+    console.warn("[storage] recoverIndexFromDisk: failed to read knowledge dir:", e instanceof Error ? e.message : String(e))
     return null
   }
 }
@@ -166,6 +167,10 @@ export function writeDoc(
   meta: Omit<DocMeta, "id" | "file_path" | "created_at"> & { id?: string; file_path?: string; created_at?: number },
   content: string,
 ): DocMeta {
+  if (typeof content !== 'string' || !content.trim()) {
+    throw new Error(`writeDoc: content must be a non-empty string, got: ${typeof content} (${String(content).slice(0, 50)})`)
+  }
+
   // Invalidate cache to get latest from disk (multi-process safety)
   invalidateCache()
   const idx = readIndex()
@@ -200,7 +205,9 @@ export function writeDoc(
   writeIndex(idx)
   updateOutline(doc.source_project || "", idx)
 
-  indexDoc(id, docToSearchableText(doc)).catch(() => {})
+  indexDoc(id, docToSearchableText(doc)).catch(e => {
+    console.warn("[storage] writeDoc: async vector indexing failed:", e instanceof Error ? e.message : String(e))
+  })
 
   return doc
 }
@@ -244,7 +251,8 @@ function readDocContent(filePath: string): string {
     const raw = readFileSync(filePath, "utf-8")
     const { content } = parseFrontmatter(raw)
     return content
-  } catch {
+  } catch (e) {
+    console.warn("[storage] readDocContent: failed to read file:", filePath, e instanceof Error ? e.message : String(e))
     return ""
   }
 }
@@ -273,8 +281,8 @@ function contentQualityBoost(filePath: string): number {
     if (len >= 3000) boost += 5
     else if (len >= 2000) boost += 4
     else if (len >= 500) boost += 2
-  } catch {
-    // can't read file, no boost
+  } catch (e) {
+    console.warn("[storage] contentQualityBoost: failed to read file for boost:", e instanceof Error ? e.message : String(e))
   }
   return boost
 }
@@ -391,7 +399,8 @@ export async function searchDocsCombined(
   let p2Results: (DocMeta & { score: number })[] = []
   try {
     p2Results = await searchDocsSemantic(query, limit * 2)
-  } catch {
+  } catch (e) {
+    console.warn("[storage] searchDocsCombined: semantic search failed, skipping:", e instanceof Error ? e.message : String(e))
   }
 
   const combined = new Map<string, DocMeta & { score: number }>()
@@ -511,7 +520,8 @@ export function listAllOutlines(): { project: string; name: string; doc_count: n
           doc_count: data.docs?.length || 0,
           updated_at: data.updated_at || 0,
         }
-      } catch {
+      } catch (e) {
+        console.warn("[storage] listAllOutlines: skipping unreadable outline file:", e instanceof Error ? e.message : String(e))
         return null
       }
     })
@@ -541,7 +551,8 @@ function readMissLog(): MissEntry[] {
   try {
     if (!existsSync(MISS_LOG_PATH)) return []
     return JSON.parse(readFileSync(MISS_LOG_PATH, "utf-8"))
-  } catch {
+  } catch (e) {
+    console.warn("[storage] readMissLog: failed to read miss log:", e instanceof Error ? e.message : String(e))
     return []
   }
 }

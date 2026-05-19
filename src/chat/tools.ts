@@ -492,7 +492,8 @@ export async function executeTool(
         const lines = treeOutput.trim().split("\n")
         const tree = buildTree(lines)
         results.push(`${projectName}/\n${tree}`)
-      } catch {
+      } catch (e) {
+        console.warn("[tools]", e instanceof Error ? e.message : String(e))
         results.push("(无法获取目录结构)")
       }
 
@@ -513,7 +514,9 @@ export async function executeTool(
           const srcOutput = await Bun.$`find ${srcPath} -maxdepth 2 -type f -not -path '*/node_modules/*' | head -50`.text()
           results.push(`\n## src/ 文件结构`)
           results.push(srcOutput)
-        } catch {}
+        } catch (e) {
+          console.warn("[tools]", e instanceof Error ? e.message : String(e))
+        }
       }
 
       const scanContent = results.join("\n")
@@ -603,14 +606,17 @@ export async function executeTool(
         let baseHost = ""
         try {
           baseHost = new URL(url).hostname
-        } catch {}
+        } catch (e) {
+          console.warn("[tools]", e instanceof Error ? e.message : String(e))
+        }
 
         const filtered = [...new Set(links)]
           .filter(link => {
             try {
               const u = new URL(link, url)
               return u.hostname === baseHost || u.hostname.endsWith(`.${baseHost}`)
-            } catch {
+            } catch (e) {
+              console.warn("[tools]", e instanceof Error ? e.message : String(e))
               return false
             }
           })
@@ -636,7 +642,9 @@ export async function executeTool(
       let baseHost = ""
       try {
         baseHost = new URL(url).hostname
-      } catch {}
+      } catch (e) {
+        console.warn("[tools]", e instanceof Error ? e.message : String(e))
+      }
 
       const visited = new Set<string>()
       const results: string[] = []
@@ -693,7 +701,9 @@ export async function executeTool(
               if ((u.hostname === baseHost || u.hostname.endsWith(`.${baseHost}`)) && !visited.has(u.href)) {
                 queue.push({ url: u.href, depth: item.depth + 1 })
               }
-            } catch {}
+        } catch (e) {
+          console.warn("[tools]", e instanceof Error ? e.message : String(e))
+        }
           }
         }
       } catch (e: unknown) {
@@ -768,7 +778,7 @@ export async function executeTool(
           structure: structure.trim(),
         })
       } catch (e: unknown) {
-        try { rmSync(targetDir, { recursive: true }) } catch {}
+        try { rmSync(targetDir, { recursive: true }) } catch (e) { console.warn("[tools]", e instanceof Error ? e.message : String(e)) }
         return `克隆失败: ${e instanceof Error ? e.message : String(e)}`
       }
     }
@@ -887,14 +897,16 @@ export async function executeTool(
             const sources = (result.sources || []).map(s => `- [${s.title}](${s.url})`).slice(0, 10).join("\n")
             const fullSummary = result.summary + (sources ? `\n\n## 参考资料\n${sources}` : "")
 
-            writeDoc({
-              title: `研究: ${query}`,
-              content: fullSummary,
-              tags: ["research", "auto-saved", result.mode, "web-ingested"],
-              keywords: allKw,
-              intent: `Auto-research for "${query}" (${result.mode}, Q:${result.finalQualityScore}/C:${result.finalCoverageScore})`,
-              project_description: "Research results",
-            }, undefined)
+            writeDoc(
+              {
+                title: `研究: ${query}`,
+                tags: ["research", "auto-saved", result.mode, "web-ingested"],
+                keywords: allKw,
+                intent: `Auto-research for "${query}" (${result.mode}, Q:${result.finalQualityScore}/C:${result.finalCoverageScore})`,
+                project_description: "Research results",
+              },
+              fullSummary,
+            )
             saveNote = "\n\n✅ 已自动存入知识库"
           } catch (e) {
             console.error("[kb_research] Auto-save failed:", e instanceof Error ? e.message : e)

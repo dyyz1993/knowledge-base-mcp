@@ -101,7 +101,9 @@ function parseResponse(raw: string, query: string): AnalyzeQueryResult {
       researchType: validTypes.includes(researchType || "") ? researchType as AnalyzeQueryResult["researchType"] : "concept",
       language: validLangs.includes(language || "") ? language as AnalyzeQueryResult["language"] : (/[\u4e00-\u9fff]/.test(query) ? "zh" : "en"),
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[analyze-query]", e instanceof Error ? e.message : String(e))
+  }
   return buildFallback(query)
 }
 

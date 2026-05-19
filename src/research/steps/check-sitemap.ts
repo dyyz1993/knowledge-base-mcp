@@ -48,7 +48,7 @@ export async function checkSitemap(
           validSites.push({ base: cleanBase, sitemapUrl })
           break
         }
-      } catch { continue }
+      } catch (e) { console.warn("[check-sitemap]", e instanceof Error ? e.message : String(e)); continue }
     }
   }
 
@@ -74,9 +74,11 @@ export async function checkSitemap(
         if (u.hostname === new URL(best.base).hostname) {
           allPaths.push(u.pathname)
         }
-      } catch { continue }
+      } catch (e) { console.warn("[check-sitemap]", e instanceof Error ? e.message : String(e)); continue }
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[check-sitemap]", e instanceof Error ? e.message : String(e))
+  }
 
   if (allPaths.length === 0) {
     return { isDocSite: true, sitemapUrl: best.sitemapUrl, relevantPaths: [], priority: [] }

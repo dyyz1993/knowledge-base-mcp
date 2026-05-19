@@ -36,7 +36,7 @@ function parseSkillMd(raw: string, dirName: string): ParsedSkill {
       if (idx === -1) continue
       const key = line.slice(0, idx).trim().toLowerCase()
       let val: string = line.slice(idx + 1).trim()
-      try { val = JSON.parse(val) } catch {}
+      try { val = JSON.parse(val) } catch (e) { console.warn("[skill-scanner]", e instanceof Error ? e.message : String(e)) }
       if (key === "name") name = val || name
       if (key === "description") description = val
       if (key === "triggers") {
@@ -84,8 +84,8 @@ export function scanSkillPaths(paths: string[]): ScanResult {
     let entries: string[]
     try {
       entries = readdirSync(dir)
-    } catch (e: any) {
-      result.errors.push(`Cannot read ${dir}: ${e.message}`)
+    } catch (e: unknown) {
+      result.errors.push(`Cannot read ${dir}: ${e instanceof Error ? e.message : String(e)}`)
       continue
     }
 
@@ -131,8 +131,8 @@ export function scanSkillPaths(paths: string[]): ScanResult {
         )
 
         result.imported++
-      } catch (e: any) {
-        result.errors.push(`${entry}: ${e.message}`)
+      } catch (e: unknown) {
+        result.errors.push(`${entry}: ${e instanceof Error ? e.message : String(e)}`)
       }
     }
   }

@@ -52,7 +52,9 @@ export async function checkGithub(
       if (resp.ok) {
         allTargetPaths.push(`${fullName}/README.md`)
       }
-    } catch {}
+    } catch (e) {
+      console.warn("[check-github]", e instanceof Error ? e.message : String(e))
+    }
 
     // Check root directory for docs/examples
     try {
@@ -78,7 +80,9 @@ export async function checkGithub(
           allTargetPaths.push(`${fullName}/${f.path}`)
         }
       }
-    } catch {}
+    } catch (e) {
+      console.warn("[check-github]", e instanceof Error ? e.message : String(e))
+    }
 
     // Check docs/ directory
     try {
@@ -97,7 +101,9 @@ export async function checkGithub(
           }
         }
       }
-    } catch {}
+    } catch (e) {
+      console.warn("[check-github]", e instanceof Error ? e.message : String(e))
+    }
   }
 
   return {
@@ -150,7 +156,9 @@ export async function fetchGitHubFile(
     if (resp.ok) {
       return await resp.text()
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[check-github]", e instanceof Error ? e.message : String(e))
+  }
 
   return ""
 }

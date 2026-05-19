@@ -7,7 +7,9 @@ function extractJson(text: string): string | null {
   try {
     JSON.parse(cleaned)
     return cleaned
-  } catch {}
+  } catch (e) {
+    console.warn("[evaluate-depth]", e instanceof Error ? e.message : String(e))
+  }
   let depth = 0
   let start = -1
   let lastValid: string | null = null
@@ -22,7 +24,9 @@ function extractJson(text: string): string | null {
         try {
           JSON.parse(candidate)
           lastValid = candidate
-        } catch {}
+        } catch (e) {
+          console.warn("[evaluate-depth]", e instanceof Error ? e.message : String(e))
+        }
       }
     }
   }
@@ -31,7 +35,7 @@ function extractJson(text: string): string | null {
     const partial = cleaned.slice(braceStart)
     const fixed = partial.replace(/[,]\s*([}\]])/g, "$1").replace(/\}\s*$/, "}")
     if (fixed.startsWith("{")) {
-      try { JSON.parse(fixed); lastValid = fixed } catch {}
+      try { JSON.parse(fixed); lastValid = fixed } catch (e) { console.warn("[evaluate-depth]", e instanceof Error ? e.message : String(e)) }
     }
   }
   return lastValid
@@ -112,7 +116,9 @@ Now evaluate. Return ONLY the JSON object:
         updatedOutline: String(parsed.updatedOutline || outline),
         missingTopics: Array.isArray(parsed.missingTopics) ? parsed.missingTopics.map(String) : [],
       }
-    } catch {}
+    } catch (e) {
+      console.warn("[evaluate-depth]", e instanceof Error ? e.message : String(e))
+    }
   }
 
   return {

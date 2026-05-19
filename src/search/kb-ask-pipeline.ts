@@ -16,7 +16,7 @@ const MAX_LOOPS = 2
 const HIGH_SCORE_THRESHOLD = 45
 const LOW_SCORE_THRESHOLD = 20
 
-interface AskResult {
+export interface AskResult {
   from_kb: boolean
   id?: string
   title?: string
@@ -221,7 +221,7 @@ IMPORTANT: Evaluate based on SUBSTANCE, not just topic match. A document titled 
   }
 }
 
-function multiSearch(queries: string[], limit = 5): (DocMeta & { score: number; snippet?: string; matched_by: string[] })[] {
+export function multiSearch(queries: string[], limit = 5): (DocMeta & { score: number; snippet?: string; matched_by: string[] })[] {
   const seen = new Map<string, DocMeta & { score: number; snippet?: string; matched_by: string[] }>()
 
   for (const q of queries) {
@@ -239,7 +239,7 @@ function multiSearch(queries: string[], limit = 5): (DocMeta & { score: number; 
   return Array.from(seen.values()).sort((a, b) => b.score - a.score)
 }
 
-function buildWebSearchSuggestion(
+export function buildWebSearchSuggestion(
   reason: string,
   searchQuery: string,
   missingAspects: string[],
@@ -247,7 +247,7 @@ function buildWebSearchSuggestion(
   return { reason, search_query: searchQuery, missing_aspects: missingAspects }
 }
 
-function buildSearchPipelineSources(): SearchSource[] {
+export function buildSearchPipelineSources(): SearchSource[] {
   const config = loadConfig()
   const sources: SearchSource[] = []
 
@@ -323,7 +323,7 @@ async function augmentWithWebSearch(
   return baseResult
 }
 
-function buildMissResponse(query: string, allQueriesUsed: string[], loopsUsed: number): AskResult {
+export function buildMissResponse(query: string, allQueriesUsed: string[], loopsUsed: number): AskResult {
   const miss = recordMiss(query)
 
   return {

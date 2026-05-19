@@ -9,10 +9,14 @@ export function parseFrontmatter(raw: string): { meta: Partial<DocMeta>; content
     const idx = line.indexOf(":")
     if (idx === -1) continue
     const key = line.slice(0, idx).trim()
-    let val: any = line.slice(idx + 1).trim()
+    let val: string = line.slice(idx + 1).trim()
     try {
-      val = JSON.parse(val)
-    } catch {}
+      if (val !== "undefined" && val !== "null" && (val.startsWith("{") || val.startsWith("[") || val.startsWith('"') || val.startsWith("'") || /^\d/.test(val) || val === "true" || val === "false")) {
+        val = JSON.parse(val) as string
+      }
+    } catch {
+      // Not valid JSON, keep as string
+    }
     meta[key] = val
   }
   return { meta: meta as Partial<DocMeta>, content: content.trim() }

@@ -50,7 +50,7 @@ export function readMessages(id: string): ChatMessage[] {
   if (!existsSync(path)) return []
   const lines = readFileSync(path, "utf-8").trim().split("\n").filter(Boolean)
   return lines.slice(1).map(line => {
-    try { return JSON.parse(line) as ChatMessage } catch { return null }
+    try { return JSON.parse(line) as ChatMessage } catch (e) { console.warn("[store-sessions]", e instanceof Error ? e.message : String(e)); return null }
   }).filter((m): m is ChatMessage => m !== null && m.role && m.content !== undefined && ["user", "assistant", "thinking", "tool_call", "tool_result", "suggestions", "usage"].includes(m.role))
 }
 
@@ -62,7 +62,9 @@ export function readSession(id: string): ChatSession | null {
   try {
     const parsed = JSON.parse(firstLine)
     if (parsed.type === "session") return { id: parsed.id, name: parsed.name, createdAt: parsed.createdAt, model: parsed.model, sharedUrl: parsed.sharedUrl }
-  } catch {}
+  } catch (e) {
+    console.warn("[store-sessions]", e instanceof Error ? e.message : String(e))
+  }
   return null
 }
 
@@ -79,7 +81,9 @@ export function updateSessionSharedUrl(id: string, sharedUrl: string) {
       lines[0] = JSON.stringify(header)
       writeFileSync(path, lines.join("\n") + "\n")
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[store-sessions]", e instanceof Error ? e.message : String(e))
+  }
 }
 
 export function updateSessionName(id: string, name: string) {
@@ -95,7 +99,9 @@ export function updateSessionName(id: string, name: string) {
       lines[0] = JSON.stringify(header)
       writeFileSync(path, lines.join("\n") + "\n")
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[store-sessions]", e instanceof Error ? e.message : String(e))
+  }
 }
 
 export function updateSessionModel(id: string, model: { provider: string; id: string }) {
@@ -111,7 +117,9 @@ export function updateSessionModel(id: string, model: { provider: string; id: st
       lines[0] = JSON.stringify(header)
       writeFileSync(path, lines.join("\n") + "\n")
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[store-sessions]", e instanceof Error ? e.message : String(e))
+  }
 }
 
 export function listSessions(): (ChatSession & { messageCount: number })[] {
@@ -132,7 +140,7 @@ export function listSessions(): (ChatSession & { messageCount: number })[] {
         const fileSize = statSync(filePath).size
         const estimatedLines = Math.max(1, Math.round(fileSize / 256))
         return { id: header.id, name: header.name, createdAt: header.createdAt, model: header.model, sharedUrl: header.sharedUrl, messageCount: estimatedLines - 1 }
-      } catch { return null }
+      } catch (e) { console.warn("[store-sessions]", e instanceof Error ? e.message : String(e)); return null }
     })
     .filter((s): s is ChatSession & { messageCount: number } => s !== null)
     .sort((a, b) => b.createdAt - a.createdAt)

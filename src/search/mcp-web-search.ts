@@ -16,13 +16,36 @@ export interface WebReadResult {
 const SEARCH_ENDPOINT = "https://open.bigmodel.cn/api/mcp/web_search_prime/mcp"
 const READER_ENDPOINT = "https://open.bigmodel.cn/api/mcp/web_reader/mcp"
 
+/** Errors that indicate quota/rate limit — cannot recover by retrying. */
+const QUOTA_PATTERNS = /429|rate.?limit|quota|exceeded|too many|limit reached/i
+/** Errors worth retrying with backoff. */
+const RETRY_PATTERNS = /ECONNREFUSED|ETIMEDOUT|ETIMEDOUT|fetch failed|500|502|503|504|network/i
+
 export class McpWebSearch {
   private searchClient: Client | null = null
   private readerClient: Client | null = null
   private apiKey: string
+  private _searchDisabled = false   // quota exceeded, stop trying
+  private _readerDisabled = false
+  private _disabledReason = ""
 
   constructor(apiKey: string) {
     this.apiKey = apiKey
+  }
+
+  /** Whether search is currently available (not quota-exceeded). */
+  get searchAvailable(): boolean {
+    return !this._searchDisabled
+  }
+
+  /** Whether reader is currently available. */
+  get readerAvailable(): boolean {
+    return !this._readerDisabled
+  }
+
+  /** Human-readable reason if disabled. */
+  get disabledReason(): string {
+    return this._disabledReason
   }
 
   private async getSearchClient(): Promise<Client> {
@@ -51,39 +74,78 @@ export class McpWebSearch {
     return this.readerClient
   }
 
-  async search(query: string, maxResults = 5): Promise<WebSearchResult[]> {
-    try {
-      const client = await this.getSearchClient()
-      const result = await client.callTool({
-        name: "web_search_prime",
-        arguments: {
-          search_query: query,
-          location: "cn",
-          content_size: "medium",
-        },
-      })
-
-      const content = result.content as Array<{ type: string; text: string }> | undefined
-      if (!content?.[0]?.text) return []
-
-      let parsed: unknown = JSON.parse(content[0].text)
-      if (typeof parsed === "string") {
-        try { parsed = JSON.parse(parsed) } catch { return [] }
-      }
-      if (!Array.isArray(parsed)) return []
-
-      return parsed.slice(0, maxResults).map((item: Record<string, unknown>) => ({
-        title: (item.title as string) || "",
-        link: (item.link as string) || (item.url as string) || "",
-        content: (item.content as string) || (item.snippet as string) || "",
-      }))
-    } catch (e: unknown) {
-      console.error("MCP web search error:", e instanceof Error ? e.message : e)
-      return []
+  private classifyError(e: unknown): { message: string; isQuota: boolean; isRetryable: boolean } {
+    const message = e instanceof Error ? e.message : String(e)
+    return {
+      message,
+      isQuota: QUOTA_PATTERNS.test(message),
+      isRetryable: RETRY_PATTERNS.test(message),
     }
   }
 
+  async search(query: string, maxResults = 5): Promise<WebSearchResult[]> {
+    if (this._searchDisabled) {
+      console.warn(`[mcp-search] Skipped (disabled: ${this._disabledReason})`)
+      return []
+    }
+
+    const maxRetries = 2
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const client = await this.getSearchClient()
+        const result = await client.callTool({
+          name: "web_search_prime",
+          arguments: {
+            search_query: query,
+            location: "cn",
+            content_size: "medium",
+          },
+        })
+
+        const content = result.content as Array<{ type: string; text: string }> | undefined
+        if (!content?.[0]?.text) return []
+
+        let parsed: unknown = JSON.parse(content[0].text)
+        if (typeof parsed === "string") {
+          try { parsed = JSON.parse(parsed) } catch { return [] }
+        }
+        if (!Array.isArray(parsed)) return []
+
+        return parsed.slice(0, maxResults).map((item: Record<string, unknown>) => ({
+          title: (item.title as string) || "",
+          link: (item.link as string) || (item.url as string) || "",
+          content: (item.content as string) || (item.snippet as string) || "",
+        }))
+      } catch (e: unknown) {
+        const { message, isQuota, isRetryable } = this.classifyError(e)
+
+        if (isQuota) {
+          this._searchDisabled = true
+          this._disabledReason = message.slice(0, 100)
+          console.warn(`[mcp-search] Quota/rate limited, disabling search: ${message.slice(0, 80)}`)
+          return []
+        }
+
+        if (isRetryable && attempt < maxRetries) {
+          const backoff = Math.pow(2, attempt) * 1000
+          console.warn(`[mcp-search] Retry ${attempt + 1}/${maxRetries} after ${backoff}ms: ${message.slice(0, 60)}`)
+          await new Promise(r => setTimeout(r, backoff))
+          continue
+        }
+
+        console.error(`[mcp-search] Error (attempt ${attempt + 1}): ${message.slice(0, 100)}`)
+        return []
+      }
+    }
+    return []
+  }
+
   async readUrl(url: string): Promise<WebReadResult | null> {
+    if (this._readerDisabled) {
+      console.warn(`[mcp-reader] Skipped (disabled: ${this._disabledReason})`)
+      return null
+    }
+
     try {
       const client = await this.getReaderClient()
       const result = await client.callTool({
@@ -109,7 +171,14 @@ export class McpWebSearch {
         url,
       }
     } catch (e: unknown) {
-      console.error("MCP web reader error:", e instanceof Error ? e.message : e)
+      const { message, isQuota } = this.classifyError(e)
+      if (isQuota) {
+        this._readerDisabled = true
+        this._disabledReason = message.slice(0, 100)
+        console.warn(`[mcp-reader] Quota/rate limited, disabling reader: ${message.slice(0, 80)}`)
+      } else {
+        console.error(`[mcp-reader] Error: ${message.slice(0, 100)}`)
+      }
       return null
     }
   }

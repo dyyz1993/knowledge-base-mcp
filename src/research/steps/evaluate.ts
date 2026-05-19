@@ -10,7 +10,9 @@ function extractJsonObject(text: string): string | null {
   try {
     JSON.parse(cleaned)
     return cleaned
-  } catch {}
+  } catch (e) {
+    console.warn("[evaluate]", e instanceof Error ? e.message : String(e))
+  }
   // Brace-matching fallback: find outermost valid JSON object
   let depth = 0
   let start = -1
@@ -26,7 +28,9 @@ function extractJsonObject(text: string): string | null {
         try {
           JSON.parse(candidate)
           lastValid = candidate
-        } catch {}
+        } catch (e) {
+          console.warn("[evaluate]", e instanceof Error ? e.message : String(e))
+        }
       }
     }
   }

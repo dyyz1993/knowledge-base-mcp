@@ -21,12 +21,15 @@ export class WebSearchPrimeSource implements SearchSource {
   name = "web-search-prime" as const
 
   available(): boolean {
-    return getMcpWebSearch() !== null
+    const client = getMcpWebSearch()
+    if (!client) return false
+    // If MCP detected quota exceeded, report unavailable so pipeline uses fallback sources
+    return client.searchAvailable
   }
 
   async search(query: string): Promise<SearchResult[]> {
     const client = getMcpWebSearch()
-    if (!client) return []
+    if (!client || !client.searchAvailable) return []
     const results = await client.search(query, 10)
     return results.map(r => ({
       title: r.title,

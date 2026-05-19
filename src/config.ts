@@ -197,7 +197,9 @@ export function loadConfig(): AppConfig {
         },
       }
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[config]", e instanceof Error ? e.message : String(e))
+  }
   return { ...DEFAULT_CONFIG, skills: { ...DEFAULT_CONFIG.skills, paths: DEFAULT_CONFIG.skills.paths.map(expandPath) } }
 }
 

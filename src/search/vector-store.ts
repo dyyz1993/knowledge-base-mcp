@@ -192,7 +192,9 @@ export function getStorageStats(): { count: number; dbSize: number; model: strin
   let dbSize = 0
   try {
     dbSize = statSync(dbPath()).size
-  } catch {}
+  } catch (e) {
+    console.warn("[vector-store]", e instanceof Error ? e.message : String(e))
+  }
   return {
     count: row.c,
     dbSize,

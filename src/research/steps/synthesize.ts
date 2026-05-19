@@ -60,7 +60,9 @@ Answer in the same language as the query.`
     if (result && result.trim().length >= 50) {
       return { text: result.trim(), isFallback: false }
     }
-  } catch {}
+  } catch (e) {
+    console.warn("[synthesize]", e instanceof Error ? e.message : String(e))
+  }
 
   return { text: deepReadResults
     .map((result, index) => {

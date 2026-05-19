@@ -176,7 +176,9 @@ export class ResearchEvolutionAgent {
             try {
               const d = JSON.parse(line.slice(5))
               if (d.phaseLog) result = d
-            } catch {}
+            } catch (e) {
+              console.warn("[orchestrator]", e instanceof Error ? e.message : String(e))
+            }
           }
         }
 

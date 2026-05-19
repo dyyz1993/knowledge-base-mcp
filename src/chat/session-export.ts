@@ -131,7 +131,9 @@ export function exportSession(sessionId: string): string | null {
     try {
       const args = JSON.parse(tc.args || "{}")
       if (args.path) allProjects.add(String(args.path))
-    } catch {}
+    } catch (e) {
+      console.warn("[session-export]", e instanceof Error ? e.message : String(e))
+    }
   }
 
   const lines: string[] = []
