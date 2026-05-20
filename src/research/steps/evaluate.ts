@@ -37,6 +37,12 @@ function extractJsonObject(text: string): string | null {
   return lastValid
 }
 
+/** Domains that are almost never relevant for technical research queries */
+const LOW_QUALITY_DOMAINS = [
+  "deployhq.com", "linkedin.com", "facebook.com", "twitter.com",
+  "pinterest.com", "instagram.com", "tiktok.com",
+]
+
 /** Score a result's snippet relevance to the query by keyword overlap */
 function snippetRelevance(query: string, result: SearchResult): number {
   const queryTerms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2)
@@ -48,7 +54,64 @@ function snippetRelevance(query: string, result: SearchResult): number {
   }
   // Boost by existing qualityScore
   score += (result.qualityScore || 0) * 0.5
+  // Penalize known low-quality / irrelevant domains
+  try {
+    const host = new URL(result.url).hostname.toLowerCase()
+    if (LOW_QUALITY_DOMAINS.some(d => host.endsWith(d))) score -= 30
+  } catch {}
   return score
+}
+
+/** Simplified retry: ask LLM for just indices, then use snippetRelevance as final fallback */
+async function retryEvaluateSimple(
+  query: string,
+  capped: SearchResult[],
+  largeModel: LlmConfig,
+): Promise<EvaluateResult> {
+  const fallback: EvaluateResult = {
+    selectedIndices: capped
+      .map((r, i) => ({ i, score: snippetRelevance(query, r) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map((r) => r.i),
+    outline: "",
+    sitemapHints: [],
+    githubHints: [],
+    initialAssessment: "",
+  }
+
+  try {
+    console.warn("[evaluate] Retrying with simplified prompt...")
+    const list = capped
+      .map((r, i) => `[${i}] ${r.title} | ${r.snippet.slice(0, 150)}`)
+      .join("\n")
+    const retryPrompt = `Pick the 5 most relevant result indices for: "${query}"\n${list}\n\nReturn ONLY a JSON array of indices, e.g. [0, 3, 5, 7, 9]. No other text.`
+
+    const retryRaw = await callLlm(
+      largeModel,
+      [
+        { role: "system", content: "Return only a JSON array of integers. No other text." },
+        { role: "user", content: retryPrompt },
+      ],
+      0.1,
+      200,
+    )
+
+    const cleaned = retryRaw.replace(/```json\s*|```/g, "").trim()
+    const indices = JSON.parse(cleaned) as number[]
+    if (Array.isArray(indices) && indices.length > 0) {
+      return {
+        selectedIndices: indices.filter((idx) => idx >= 0 && idx < capped.length),
+        outline: "",
+        sitemapHints: [],
+        githubHints: [],
+        initialAssessment: "",
+      }
+    }
+  } catch {
+    console.warn("[evaluate] Retry also failed, using snippet-relevance fallback")
+  }
+  return fallback
 }
 
 export async function evaluateResults(
@@ -87,14 +150,13 @@ Return ONLY valid JSON matching this structure:
   "initialAssessment": "brief assessment of result quality and what's likely missing"
 }`
 
+  const systemPrompt =
+    "You are a research evaluation assistant. You analyze search results and select the most valuable ones for deep reading.\n\nCRITICAL: Your response must contain ONLY a single JSON object. No explanation, no markdown, no extra text before or after the JSON. Start with { and end with }."
+
   const raw = await callLlm(
     largeModel,
     [
-      {
-        role: "system",
-        content:
-          "You are a research evaluation assistant. You analyze search results and select the most valuable ones for deep reading. Always respond with valid JSON only.",
-      },
+      { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
     0.2,
@@ -112,32 +174,12 @@ Return ONLY valid JSON matching this structure:
       try {
         parsed = JSON.parse(extracted) as EvaluateResult
       } catch {
-        // Both attempts failed — use relevance-based fallback
-        console.warn("[evaluate] JSON parse failed, using snippet-relevance fallback")
-        const ranked = capped
-          .map((r, i) => ({ i, score: snippetRelevance(query, r) }))
-          .sort((a, b) => b.score - a.score)
-        return {
-          selectedIndices: ranked.slice(0, 5).map((r) => r.i),
-          outline: "",
-          sitemapHints: [],
-          githubHints: [],
-          initialAssessment: "",
-        }
+        // Tertiary attempt: retry with simplified prompt
+        parsed = await retryEvaluateSimple(query, capped, largeModel)
       }
     } else {
-      // No JSON found at all — use relevance-based fallback
-      console.warn("[evaluate] No JSON found in LLM response, using snippet-relevance fallback")
-      const ranked = capped
-        .map((r, i) => ({ i, score: snippetRelevance(query, r) }))
-        .sort((a, b) => b.score - a.score)
-      return {
-        selectedIndices: ranked.slice(0, 5).map((r) => r.i),
-        outline: "",
-        sitemapHints: [],
-        githubHints: [],
-        initialAssessment: "",
-      }
+      // Tertiary attempt: retry with simplified prompt
+      parsed = await retryEvaluateSimple(query, capped, largeModel)
     }
   }
 

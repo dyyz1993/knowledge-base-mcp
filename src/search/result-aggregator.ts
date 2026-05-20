@@ -39,7 +39,23 @@ function identifySourceType(url: string): SourceType {
   }
 }
 
+function isSearchRedirect(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return (
+      host.includes("baidu.com/link") ||
+      host.includes("bing.com/ck/a") ||
+      host.includes("google.com/url") ||
+      host.includes("duckduckgo.com/l/")
+    )
+  } catch {
+    return false
+  }
+}
+
 function computeScore(result: SearchResult, query: string, crossSourceCount: number): number {
+  // Penalize search engine redirect URLs
+  if (isSearchRedirect(result.url)) return 10
   let score = 50
   switch (result.sourceType) {
     case "official": score += 30; break

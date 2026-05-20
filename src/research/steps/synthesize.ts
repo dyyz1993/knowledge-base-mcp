@@ -25,7 +25,7 @@ export async function synthesize(
     "You are a research assistant. Provide comprehensive, well-structured answers with citations. Use [1], [2] etc. to reference sources. Answer in the same language as the query."
 
   const codeInstruction = ["api", "code", "concept"].includes(researchType)
-    ? `2. **Must include code examples** — extract and reconstruct any code snippets from the content. Wrap ALL code in proper markdown code blocks with language tags (e.g. \`\`\`typescript, \`\`\`python). If the content describes APIs or functions, show usage examples with code blocks.`
+    ? `2. **MUST include at least 1 code example** — If the source content contains ANY code, extract it into a markdown code block with the correct language tag (e.g. \`\`\`typescript, \`\`\`bash). If no code is found in sources but the topic is API/framework-related, synthesize a minimal usage example. Without code examples, your answer will be considered incomplete.`
     : `2. Include code examples only if the source content contains actual code — wrap in proper markdown code blocks with language tags.`
 
   const userPrompt = `Based on the following deep-read content about "${query}":

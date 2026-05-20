@@ -19,8 +19,12 @@ function inferSourceType(url: string): SourceType {
 
 export class WebSearchPrimeSource implements SearchSource {
   name = "web-search-prime" as const
+  private consecutiveZeroCount = 0
+  private static readonly DISABLE_AFTER_CONSECUTIVE_ZEROS = 3
+  private disabled = false
 
   available(): boolean {
+    if (this.disabled) return false
     const client = getMcpWebSearch()
     if (!client) return false
     // If MCP detected quota exceeded, report unavailable so pipeline uses fallback sources
@@ -31,6 +35,17 @@ export class WebSearchPrimeSource implements SearchSource {
     const client = getMcpWebSearch()
     if (!client || !client.searchAvailable) return []
     const results = await client.search(query, 10)
+
+    if (results.length === 0) {
+      this.consecutiveZeroCount++
+      if (this.consecutiveZeroCount >= WebSearchPrimeSource.DISABLE_AFTER_CONSECUTIVE_ZEROS) {
+        this.disabled = true
+        console.warn(`[search] [web-search-prime] Disabled after ${this.consecutiveZeroCount} consecutive zero-result calls`)
+      }
+    } else {
+      this.consecutiveZeroCount = 0
+    }
+
     return results.map(r => ({
       title: r.title,
       url: r.link,

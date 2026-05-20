@@ -181,12 +181,22 @@ export async function deepReadUrls(
         .slice(0, 20000)
 
       if (bodyContent.length > 50) {
+        // Quality check: detect if content is mostly navigation/chrome
+        const meaningfulContent = bodyContent
+          .replace(/\b(Home|About|Contact|Login|Sign up|Menu|Navigation|Cookie|Privacy|Terms|Copyright)\b/gi, "")
+          .replace(/\s+/g, " ")
+          .trim()
+        const isLikelyNavigation = meaningfulContent.length < 300
+
         const result: DeepReadItem = {
           title,
           url: resp.url || fetchItem.url,
-          content: bodyContent,
-          success: true,
-          source: "fetch",
+          content: isLikelyNavigation ? "" : bodyContent,
+          success: !isLikelyNavigation,
+          source: isLikelyNavigation ? "failed" : "fetch",
+        }
+        if (isLikelyNavigation) {
+          console.log(`[deep-read] Content appears to be navigation/chrome for ${fetchItem.url}, marking as failed`)
         }
         deepReadCache.set(cacheKey, result)
         return result
