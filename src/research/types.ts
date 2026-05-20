@@ -59,6 +59,12 @@ export const DEEP_FLOW: StepName[] = [
   "check_sitemap",
   "check_github",
   "evaluate_depth",
+  // Second pass: targeted gap-filling search
+  "search",
+  "filter_results",
+  "evaluate",
+  "deep_read",
+  "evaluate_depth",
   "synthesize",
 ]
 

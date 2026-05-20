@@ -28,6 +28,8 @@ export class McpWebSearch {
   private _searchDisabled = false   // quota exceeded, stop trying
   private _readerDisabled = false
   private _disabledReason = ""
+  private _disabledAt = 0
+  private static readonly DISABLED_COOLDOWN_MS = 60_000 // retry after 60s
 
   constructor(apiKey: string) {
     this.apiKey = apiKey
@@ -35,6 +37,11 @@ export class McpWebSearch {
 
   /** Whether search is currently available (not quota-exceeded). */
   get searchAvailable(): boolean {
+    if (this._searchDisabled && Date.now() - this._disabledAt > McpWebSearch.DISABLED_COOLDOWN_MS) {
+      this._searchDisabled = false
+      this._disabledReason = ""
+      console.log("[mcp-search] Cooldown expired, re-enabling search")
+    }
     return !this._searchDisabled
   }
 
@@ -121,6 +128,7 @@ export class McpWebSearch {
 
         if (isQuota) {
           this._searchDisabled = true
+          this._disabledAt = Date.now()
           this._disabledReason = message.slice(0, 100)
           console.warn(`[mcp-search] Quota/rate limited, disabling search: ${message.slice(0, 80)}`)
           return []

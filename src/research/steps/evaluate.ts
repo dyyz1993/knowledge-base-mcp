@@ -1,41 +1,7 @@
 import type { EvaluateResult } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
 import type { SearchResult } from "../../search/types"
-
-/** Extract JSON object from text that may contain extra content around it */
-function extractJsonObject(text: string): string | null {
-  if (!text || !text.trim()) return null
-  // Try direct parse after stripping code fences
-  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
-  try {
-    JSON.parse(cleaned)
-    return cleaned
-  } catch (e) {
-    console.warn("[evaluate]", e instanceof Error ? e.message : String(e))
-  }
-  // Brace-matching fallback: find outermost valid JSON object
-  let depth = 0
-  let start = -1
-  let lastValid: string | null = null
-  for (let i = 0; i < cleaned.length; i++) {
-    if (cleaned[i] === "{") {
-      if (depth === 0) start = i
-      depth++
-    } else if (cleaned[i] === "}") {
-      depth--
-      if (depth === 0 && start >= 0) {
-        const candidate = cleaned.slice(start, i + 1)
-        try {
-          JSON.parse(candidate)
-          lastValid = candidate
-        } catch (e) {
-          console.warn("[evaluate]", e instanceof Error ? e.message : String(e))
-        }
-      }
-    }
-  }
-  return lastValid
-}
+import { extractJsonObject } from "../utils/json-parser.js"
 
 /** Domains that are almost never relevant for technical research queries */
 const LOW_QUALITY_DOMAINS = [

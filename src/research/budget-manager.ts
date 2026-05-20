@@ -28,6 +28,13 @@ export class BudgetManager {
     this.usedCost += cost.cost
   }
 
+  /** Refund budget for a step that failed after spending */
+  refund(stepName: StepName): void {
+    const cost = STEP_COSTS[stepName]
+    this.usedSteps = Math.max(0, this.usedSteps - 1)
+    this.usedCost = Math.max(0, this.usedCost - cost.cost)
+  }
+
   shouldWarn(): boolean {
     return this.usedCost / this.maxCost >= this.warningThreshold
   }

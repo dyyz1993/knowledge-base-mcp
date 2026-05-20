@@ -248,7 +248,14 @@ export async function deepReadUrls(
     }
   })
 
-  const settled = await Promise.all(readPromises)
+  // Execute with concurrency limit (batch of 5)
+  const BATCH_SIZE = 5
+  const settled: DeepReadItem[] = []
+  for (let bi = 0; bi < readPromises.length; bi += BATCH_SIZE) {
+    const batch = readPromises.slice(bi, bi + BATCH_SIZE)
+    const batchResults = await Promise.all(batch)
+    settled.push(...batchResults)
+  }
 
   const retried = settled.map(async (item, idx) => {
     if (item.success) return item

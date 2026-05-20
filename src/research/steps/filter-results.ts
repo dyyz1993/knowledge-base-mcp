@@ -27,7 +27,7 @@ Rules:
 
 function formatResults(results: SearchResult[]): string {
   return results
-    .slice(0, 30)
+    .slice(0, 20)
     .map(
       (r, i) =>
         `[${i}] ${r.title}\n  URL: ${r.url}\n  Snippet: ${r.snippet.slice(0, 200)}`,
@@ -36,17 +36,21 @@ function formatResults(results: SearchResult[]): string {
 }
 
 function parseResponse(raw: string): FilterResult[] {
-  const cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim()
-  const parsed = JSON.parse(cleaned)
-  if (!Array.isArray(parsed)) return []
-  return parsed.filter(
-    (item: unknown): item is FilterResult =>
-      typeof item === "object" &&
-      item !== null &&
-      typeof (item as FilterResult).index === "number" &&
-      typeof (item as FilterResult).relevanceScore === "number" &&
-      typeof (item as FilterResult).reason === "string",
-  )
+  try {
+    const cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim()
+    const parsed = JSON.parse(cleaned)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (item: unknown): item is FilterResult =>
+        typeof item === "object" &&
+        item !== null &&
+        typeof (item as FilterResult).index === "number" &&
+        typeof (item as FilterResult).relevanceScore === "number" &&
+        typeof (item as FilterResult).reason === "string",
+    )
+  } catch {
+    return []
+  }
 }
 
 function fallbackTopResults(results: SearchResult[]): SearchResult[] {
@@ -77,7 +81,7 @@ export async function filterResults(
         { role: "user", content: fullPrompt },
       ],
       0.1,
-      800,
+      1500,
     )
 
     if (!raw) return fallbackTopResults(results)

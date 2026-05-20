@@ -307,6 +307,7 @@ describe("McpWebSearch classifyError (indirect)", () => {
 
     ;(mcp as unknown as { _searchDisabled: boolean })._searchDisabled = true
     ;(mcp as unknown as { _disabledReason: string })._disabledReason = "429 rate limited"
+    ;(mcp as unknown as { _disabledAt: number })._disabledAt = Date.now()
 
     expect(mcp.searchAvailable).toBe(false)
     const results = await mcp.search("test")

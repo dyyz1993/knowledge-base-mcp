@@ -156,13 +156,13 @@ export class ResearchAgent {
               continue
             }
           } else {
-            i = this.findStepIndex(flow, "analyze_query")
-            if (i >= 0) {
+            const analyzeIdx = this.findStepIndex(flow, "analyze_query")
+            if (analyzeIdx >= 0) {
               const gapInfo = this.missingTopics.length
                 ? ` (targeting: ${this.missingTopics.slice(0, 3).join(", ")})`
                 : ""
               this.phaseLog.push(`looping back: re-searching with gap keywords${gapInfo}`)
-              i++
+              i = analyzeIdx // loop's own i++ will land on analyze_query
               continue
             }
           }
@@ -189,6 +189,7 @@ export class ResearchAgent {
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
+        this.budget.refund(stepName)
         this.emit(stepName, "failed")
         this.phaseLog.push(`${stepName}: failed (${msg})`)
 
@@ -484,8 +485,11 @@ export class ResearchAgent {
     })
 
     const successful = sitemapDR.filter(r => r.success)
-    this.deepReadResults.push(...successful)
-    this.phaseLog.push(`sitemap deep-read: ${successful.length}/${sitemapDR.length} pages read`)
+    // Deduplicate against existing deep-read results
+    const existingUrls = new Set(this.deepReadResults.map(r => r.url))
+    const newResults = successful.filter(r => !existingUrls.has(r.url))
+    this.deepReadResults.push(...newResults)
+    this.phaseLog.push(`sitemap deep-read: ${newResults.length}/${sitemapDR.length} pages read (${successful.length - newResults.length} deduped)`)
 
     return null
   }
@@ -533,8 +537,10 @@ export class ResearchAgent {
     }
 
     const successful = results.filter(r => r.success)
-    this.deepReadResults.push(...successful)
-    this.phaseLog.push(`github: ${successful.length}/${paths.length} files read`)
+    const existingUrls = new Set(this.deepReadResults.map(r => r.url))
+    const newResults = successful.filter(r => !existingUrls.has(r.url))
+    this.deepReadResults.push(...newResults)
+    this.phaseLog.push(`github: ${newResults.length}/${paths.length} files read (${successful.length - newResults.length} deduped)`)
 
     return null
   }
