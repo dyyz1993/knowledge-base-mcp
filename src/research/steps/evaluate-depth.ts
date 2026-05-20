@@ -121,11 +121,24 @@ Now evaluate. Return ONLY the JSON object:
     }
   }
 
+  // If LLM returned empty/whitespace, terminate rather than waste budget looping
+  if (!raw || !raw.trim()) {
+    return {
+      qualityScore: 4,
+      coverageScore: 4,
+      decision: "done",
+      reason: "LLM returned empty response, terminating to avoid budget waste",
+      nextTargets: [],
+      updatedOutline: outline,
+      missingTopics: [],
+    }
+  }
+
   return {
     qualityScore: 5,
     coverageScore: 5,
-    decision: "continue",
-    reason: `evaluation parse failed (raw: ${raw ? raw.slice(0, 100) : "(empty)"})`,
+    decision: "done",
+    reason: `evaluation parse failed (raw: ${raw.slice(0, 100)})`,
     nextTargets: [],
     updatedOutline: outline,
     missingTopics: [],

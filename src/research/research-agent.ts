@@ -50,6 +50,14 @@ export class ResearchAgent {
   private githubHints: string[] = []
   private sitemapResult: SitemapCheck | null = null
   private githubResult: GitHubCheck | null = null
+  private cachedConfig: ReturnType<typeof loadConfig> | null = null
+
+  private getConfig(): ReturnType<typeof loadConfig> {
+    if (!this.cachedConfig) {
+      this.cachedConfig = loadConfig()
+    }
+    return this.cachedConfig
+  }
 
   constructor(
     request: ResearchRequest,
@@ -75,8 +83,21 @@ export class ResearchAgent {
     this.startTime = Date.now()
     const flow = this.getFlow()
 
+    // Overall timeout protection
+    const maxDurationMs = this.mode === "quick" ? 300_000 : this.mode === "standard" ? 600_000 : 1_200_000
+
+    let timedOut = false
+
     let i = 0
     while (i < flow.length) {
+      // Check overall timeout
+      if (!timedOut && Date.now() - this.startTime > maxDurationMs) {
+        timedOut = true
+        this.phaseLog.push(`overall timeout reached (${maxDurationMs / 1000}s), forcing synthesize`)
+        const summary = await this.doSynthesize()
+        return this.buildResult(summary, true)
+      }
+
       const stepName = flow[i]
 
       if (this.budget.isCritical() && stepName !== "synthesize") {
@@ -129,6 +150,11 @@ export class ResearchAgent {
           this.loopCount++
           if (this.loopCount > 2) {
             this.phaseLog.push("max loops reached, proceeding to synthesize")
+            const synIdx = flow.indexOf("synthesize")
+            if (synIdx >= 0 && synIdx > i) {
+              i = synIdx
+              continue
+            }
           } else {
             i = this.findStepIndex(flow, "analyze_query")
             if (i >= 0) {
@@ -232,7 +258,7 @@ export class ResearchAgent {
   }
 
   private async stepSearch(): Promise<null> {
-    const config = loadConfig()
+    const config = this.getConfig()
     if (!config.searchPipeline?.enabled) {
       this.phaseLog.push("search: pipeline not enabled")
       return null
@@ -298,12 +324,23 @@ export class ResearchAgent {
     }
 
     const allResults: SearchResult[] = []
-    for (const q of queries) {
-      try {
-        const result = await pipeline.search(q, 15)
-        allResults.push(...result.results)
-      } catch {
-        this.phaseLog.push(`search failed for query: ${q}`)
+    // Run queries with limited concurrency (2) to avoid resource exhaustion
+    const concurrency = 2
+    for (let qi = 0; qi < queries.length; qi += concurrency) {
+      const batch = queries.slice(qi, qi + concurrency)
+      const batchResults = await Promise.all(
+        batch.map(async (q) => {
+          try {
+            const result = await pipeline.search(q, 15)
+            return result.results
+          } catch (e) {
+            this.phaseLog.push(`search failed for query: ${q}: ${e instanceof Error ? e.message : String(e)}`)
+            return [] as SearchResult[]
+          }
+        }),
+      )
+      for (const results of batchResults) {
+        allResults.push(...results)
       }
     }
 
@@ -368,7 +405,7 @@ export class ResearchAgent {
       ? this.selectedForRead.slice(0, 3)
       : this.selectedForRead
 
-    const config = loadConfig()
+    const config = this.getConfig()
     const deepResults = await deepReadUrls(urlsToRead, {
       xbrowserEnabled: config.searchPipeline?.sources.xbrowser.enabled ?? false,
       xbrowserCdp: config.searchPipeline?.sources.xbrowser.cdpEndpoint,
@@ -439,7 +476,7 @@ export class ResearchAgent {
 
     this.phaseLog.push(`sitemap: found ${this.sitemapResult.relevantPaths.length} paths, deep-reading ${urls.length}`)
 
-    const config = loadConfig()
+    const config = this.getConfig()
     const sitemapDR = await deepReadUrls(urls, {
       xbrowserEnabled: config.searchPipeline?.sources.xbrowser.enabled ?? false,
       xbrowserCdp: config.searchPipeline?.sources.xbrowser.cdpEndpoint,
@@ -450,7 +487,7 @@ export class ResearchAgent {
     this.deepReadResults.push(...successful)
     this.phaseLog.push(`sitemap deep-read: ${successful.length}/${sitemapDR.length} pages read`)
 
-    return successful.length > 3 ? "done" : null
+    return null
   }
 
   private async stepCheckGithub(): Promise<StepDecision> {
@@ -476,15 +513,22 @@ export class ResearchAgent {
 
     const results: DeepReadItem[] = []
     for (const p of paths) {
-      const content = await fetchGitHubFile(this.githubResult.repoUrl, p)
-      if (content && content.length > 50) {
-        results.push({
-          title: `${this.githubResult.repoUrl}/${p}`,
-          url: `${this.githubResult.repoUrl}/blob/main/${p}`,
-          content: content.slice(0, 15000),
-          success: true,
-          source: "github",
-        })
+      try {
+        const content = await fetchGitHubFile(this.githubResult.repoUrl, p)
+        if (content && content.length > 50) {
+          // Use raw.githubusercontent.com to avoid branch name issues (main vs master)
+          const rawUrl = this.githubResult.repoUrl
+            .replace("github.com", "raw.githubusercontent.com")
+          results.push({
+            title: `${this.githubResult.repoUrl}/${p}`,
+            url: `${rawUrl}/HEAD/${p}`,
+            content: content.slice(0, 15000),
+            success: true,
+            source: "github",
+          })
+        }
+      } catch (e) {
+        this.phaseLog.push(`github: failed to fetch ${p}: ${e instanceof Error ? e.message : String(e)}`)
       }
     }
 
@@ -686,11 +730,12 @@ export class ResearchAgent {
     const enrichedSummary = this.appendReferences(summary)
     const calibrated = this.calibrateScore(enrichedSummary, this.deepReadResults)
     const useSystemScore = this.qualityScore > 0 && !fallback
+    // Use LLM score as primary, heuristic as floor/ceiling sanity check
     const quality = useSystemScore
-      ? Math.round((this.qualityScore + calibrated.quality) / 2)
+      ? Math.max(Math.min(this.qualityScore, calibrated.quality + 2), calibrated.quality - 2)
       : calibrated.quality
     const coverage = useSystemScore
-      ? Math.round((this.coverageScore + calibrated.coverage) / 2)
+      ? Math.max(Math.min(this.coverageScore, calibrated.coverage + 2), calibrated.coverage - 2)
       : calibrated.coverage
 
     return {

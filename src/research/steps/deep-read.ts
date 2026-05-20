@@ -36,7 +36,47 @@ function normalizeUrl(url: string): string {
   }
 }
 
-const deepReadCache = new Map<string, DeepReadItem>()
+const MAX_CACHE_SIZE = 100
+
+class LRUCache<T> {
+  private map = new Map<string, { value: T; ts: number }>()
+
+  get(key: string): T | undefined {
+    const entry = this.map.get(key)
+    if (!entry) return undefined
+    // Refresh access time
+    entry.ts = Date.now()
+    return entry.value
+  }
+
+  set(key: string, value: T): void {
+    if (this.map.has(key)) {
+      const entry = this.map.get(key)!
+      entry.value = value
+      entry.ts = Date.now()
+      return
+    }
+    // Evict oldest if at capacity
+    if (this.map.size >= MAX_CACHE_SIZE) {
+      let oldestKey: string | null = null
+      let oldestTs = Infinity
+      for (const [k, v] of this.map) {
+        if (v.ts < oldestTs) {
+          oldestTs = v.ts
+          oldestKey = k
+        }
+      }
+      if (oldestKey) this.map.delete(oldestKey)
+    }
+    this.map.set(key, { value, ts: Date.now() })
+  }
+
+  clear(): void {
+    this.map.clear()
+  }
+}
+
+const deepReadCache = new LRUCache<DeepReadItem>()
 
 export function clearDeepReadCache(): void {
   deepReadCache.clear()

@@ -57,31 +57,38 @@ export async function checkSitemap(
   }
 
   const allPaths: string[] = []
-  const best = validSites[0]
 
-  try {
-    const resp = await fetch(best.sitemapUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
-      signal: AbortSignal.timeout(15000),
-    })
-    const xml = await resp.text()
+  // Try up to 3 valid sitemap sites, not just the first one
+  for (const site of validSites.slice(0, 3)) {
+    try {
+      const resp = await fetch(site.sitemapUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
+        signal: AbortSignal.timeout(10000),
+      })
+      const xml = await resp.text()
 
-    const urlMatches = xml.matchAll(/<loc>\s*(.*?)\s*<\/loc>/gi)
-    for (const m of urlMatches) {
-      const loc = m[1]
-      try {
-        const u = new URL(loc)
-        if (u.hostname === new URL(best.base).hostname) {
-          allPaths.push(u.pathname)
-        }
-      } catch (e) { console.warn("[check-sitemap]", e instanceof Error ? e.message : String(e)); continue }
+      const urlMatches = xml.matchAll(/<loc>\s*(.*?)\s*<\/loc>/gi)
+      const sitePaths: string[] = []
+      for (const m of urlMatches) {
+        const loc = m[1]
+        try {
+          const u = new URL(loc)
+          if (u.hostname === new URL(site.base).hostname) {
+            sitePaths.push(u.pathname)
+          }
+        } catch { continue }
+      }
+      if (sitePaths.length > 0) {
+        allPaths.push(...sitePaths)
+        break // Got paths from this sitemap, no need to try others
+      }
+    } catch {
+      continue // Try next valid site
     }
-  } catch (e) {
-    console.warn("[check-sitemap]", e instanceof Error ? e.message : String(e))
   }
 
   if (allPaths.length === 0) {
-    return { isDocSite: true, sitemapUrl: best.sitemapUrl, relevantPaths: [], priority: [] }
+    return { isDocSite: true, sitemapUrl: validSites[0].sitemapUrl, relevantPaths: [], priority: [] }
   }
 
   const uniquePaths = [...new Set(allPaths)]
