@@ -9,6 +9,7 @@ export async function synthesize(
   qualityScore: number,
   coverageScore: number,
   researchType: string = "concept",
+  remainingMs?: number,
 ): Promise<{ text: string; isFallback: boolean }> {
   const successfulResults = deepReadResults.filter(r => r.success)
   const maxTotalChars = 20000
@@ -54,7 +55,7 @@ Answer in the same language as the query.`
       ],
       0.3,
       4000,
-      120000,
+      remainingMs ? Math.min(120000, remainingMs) : 120000,
     )
 
     if (result && result.trim().length >= 50) {

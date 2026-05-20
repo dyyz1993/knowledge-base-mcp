@@ -27,12 +27,14 @@ export async function checkGithub(
     return { repoUrl: null, needsClone: false, targetPaths: [], searchKeywords: [] }
   }
 
-  // Process up to 3 repos
+  // Process up to 3 repos with parallel API calls per repo + rate-limit detection
   const allTargetPaths: string[] = []
   const allKeywords = query.toLowerCase().split(/[\s,，、]+/).filter(w => w.length > 1)
   let primaryRepoUrl = ""
+  let rateLimited = false
 
   for (const repoUrl of repoUrls.slice(0, 3)) {
+    if (rateLimited) break
     const match = repoUrl.match(GITHUB_REPO_PATTERN)
     if (!match) continue
     const fullName = match[1]
@@ -40,70 +42,62 @@ export async function checkGithub(
 
     if (!primaryRepoUrl) primaryRepoUrl = repoUrl
 
-    // Check README
-    try {
-      const resp = await fetch(`${apiBase}/readme`, {
-        headers: {
-          "User-Agent": "KB-MCP/1.0",
-          "Accept": "application/vnd.github.v3+json",
-        },
+    // Make 3 API calls in parallel per repo
+    const [readmeResult, rootResult, docsResult] = await Promise.allSettled([
+      fetch(`${apiBase}/readme`, {
+        headers: { "User-Agent": "KB-MCP/1.0", "Accept": "application/vnd.github.v3+json" },
         signal: AbortSignal.timeout(8000),
-      })
-      if (resp.ok) {
-        allTargetPaths.push(`${fullName}/README.md`)
-      }
-    } catch (e) {
-      console.warn("[check-github]", e instanceof Error ? e.message : String(e))
-    }
+      }).then(async (resp) => {
+        if (resp.status === 403) { rateLimited = true; return null }
+        if (resp.ok) return `${fullName}/README.md`
+        return null
+      }).catch(() => null),
 
-    // Check root directory for docs/examples
-    try {
-      const resp = await fetch(`${apiBase}/contents/`, {
-        headers: {
-          "User-Agent": "KB-MCP/1.0",
-          "Accept": "application/vnd.github.v3+json",
-        },
+      fetch(`${apiBase}/contents/`, {
+        headers: { "User-Agent": "KB-MCP/1.0", "Accept": "application/vnd.github.v3+json" },
         signal: AbortSignal.timeout(8000),
-      })
-      if (resp.ok) {
+      }).then(async (resp) => {
+        if (resp.status === 403) { rateLimited = true; return [] as string[] }
+        if (!resp.ok) return [] as string[]
         const entries = await resp.json() as Array<{ name: string; type: string; path: string }>
+        const paths: string[] = []
         const docDirs = entries.filter(e =>
           e.type === "dir" && /docs?|examples?|packages?\/core/i.test(e.name)
         )
-        for (const d of docDirs) {
-          allTargetPaths.push(`${fullName}/${d.path}`)
-        }
+        for (const d of docDirs) paths.push(`${fullName}/${d.path}`)
         const docFiles = entries.filter(e =>
           e.type === "file" && /\.(md|mdx)$/i.test(e.name)
         )
-        for (const f of docFiles) {
-          allTargetPaths.push(`${fullName}/${f.path}`)
-        }
-      }
-    } catch (e) {
-      console.warn("[check-github]", e instanceof Error ? e.message : String(e))
-    }
+        for (const f of docFiles) paths.push(`${fullName}/${f.path}`)
+        return paths
+      }).catch(() => [] as string[]),
 
-    // Check docs/ directory
-    try {
-      const resp = await fetch(`${apiBase}/contents/docs`, {
-        headers: {
-          "User-Agent": "KB-MCP/1.0",
-          "Accept": "application/vnd.github.v3+json",
-        },
+      fetch(`${apiBase}/contents/docs`, {
+        headers: { "User-Agent": "KB-MCP/1.0", "Accept": "application/vnd.github.v3+json" },
         signal: AbortSignal.timeout(8000),
-      })
-      if (resp.ok) {
-        const docs = await resp.json() as Array<{ name: string; type: string; path: string }>
-        for (const d of docs) {
-          if (d.type === "file" && /\.(md|mdx)$/i.test(d.name)) {
-            allTargetPaths.push(`${fullName}/${d.path}`)
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("[check-github]", e instanceof Error ? e.message : String(e))
+      }).then(async (resp) => {
+        if (resp.status === 403) { rateLimited = true; return [] as string[] }
+        if (!resp.ok) return [] as string[]
+        const entries = await resp.json() as Array<{ name: string; type: string; path: string }>
+        return entries
+          .filter(e => e.type === "file" && /\.(md|mdx)$/i.test(e.name))
+          .map(e => `${fullName}/docs/${e.path}`)
+      }).catch(() => [] as string[]),
+    ])
+
+    if (readmeResult.status === "fulfilled" && readmeResult.value) {
+      allTargetPaths.push(readmeResult.value)
     }
+    if (rootResult.status === "fulfilled" && Array.isArray(rootResult.value)) {
+      allTargetPaths.push(...rootResult.value)
+    }
+    if (docsResult.status === "fulfilled" && Array.isArray(docsResult.value)) {
+      allTargetPaths.push(...docsResult.value)
+    }
+  }
+
+  if (rateLimited) {
+    console.warn("[check-github] GitHub API rate limit detected, results may be incomplete")
   }
 
   return {

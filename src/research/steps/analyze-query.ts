@@ -154,12 +154,10 @@ function generateFallbackQueries(query: string): string[] {
  */
 function similarityRatio(a: string, b: string): number {
   if (a === b) return 1
-  const shorter = a.length < b.length ? a : b
-  const longer = a.length < b.length ? b : a
-  if (shorter.length === 0) return 0
-  let common = 0
-  for (let i = 0; i < shorter.length; i++) {
-    if (longer.includes(shorter[i])) common++
-  }
-  return common / longer.length
+  const setA = new Set(a.toLowerCase())
+  const setB = new Set(b.toLowerCase())
+  if (setA.size === 0 && setB.size === 0) return 0
+  let intersection = 0
+  for (const c of setA) { if (setB.has(c)) intersection++ }
+  return intersection / (setA.size + setB.size - intersection)
 }

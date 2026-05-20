@@ -1,6 +1,7 @@
 import type { FilterResult } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
 import type { SearchResult } from "../../search/types"
+import { extractJsonArray } from "../utils/json-parser.js"
 
 const SYSTEM_PROMPT =
   "You are a search result relevance evaluator. You assess how relevant each search result is to a given query. Always respond with valid JSON only."
@@ -36,9 +37,10 @@ function formatResults(results: SearchResult[]): string {
 }
 
 function parseResponse(raw: string): FilterResult[] {
+  const extracted = extractJsonArray(raw)
+  if (!extracted) return []
   try {
-    const cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim()
-    const parsed = JSON.parse(cleaned)
+    const parsed = JSON.parse(extracted)
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
       (item: unknown): item is FilterResult =>

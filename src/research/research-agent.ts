@@ -218,11 +218,10 @@ export class ResearchAgent {
   }
 
   private shouldSkipStep(stepName: StepName): string | null {
-    if (stepName === "check_sitemap" || stepName === "follow_paths") {
-      if (this.mode === "quick") return "not applicable for quick mode"
-    }
+    // Defensive: skip steps not in the current flow (shouldn't happen but guards against flow drift)
+    // Quick flow omits check_sitemap/check_github by design — no skip needed since they're not in the array
     if (stepName === "clone_index" || stepName === "code_search") {
-      if (this.mode === "quick" || this.mode === "standard") return "only for deep mode"
+      return "only available in deep flow with explicit inclusion"
     }
     return null
   }
@@ -580,6 +579,9 @@ export class ResearchAgent {
     const hasDeepRead = this.deepReadResults.filter((r) => r.success).length > 0
 
     if (hasDeepRead) {
+      const remainingMs = maxDurationMs > 0
+        ? maxDurationMs - (Date.now() - this.startTime)
+        : undefined
       const result = await synthesize(
         this.query,
         this.deepReadResults,
@@ -588,6 +590,7 @@ export class ResearchAgent {
         this.qualityScore,
         this.coverageScore,
         this.researchType,
+        remainingMs && remainingMs > 0 ? remainingMs : undefined,
       )
 
       if (result.isFallback) {

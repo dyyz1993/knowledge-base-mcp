@@ -1,44 +1,22 @@
 import type { DepthEvaluation, DeepReadItem, StepDecision } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
+import { extractJsonObject } from "../utils/json-parser.js"
 
+/** Enhanced JSON extraction with trailing-comma fix for LLM responses */
 function extractJson(text: string): string | null {
+  const extracted = extractJsonObject(text)
+  if (extracted) return extracted
+  // Additional fix: try to repair trailing commas
   if (!text || !text.trim()) return null
-  let cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
-  try {
-    JSON.parse(cleaned)
-    return cleaned
-  } catch (e) {
-    console.warn("[evaluate-depth]", e instanceof Error ? e.message : String(e))
+  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
+  if (!cleaned.includes("{")) return null
+  const braceStart = cleaned.indexOf("{")
+  const partial = cleaned.slice(braceStart)
+  const fixed = partial.replace(/[,]\s*([}\]])/g, "$1").replace(/\}\s*$/, "}")
+  if (fixed.startsWith("{")) {
+    try { JSON.parse(fixed); return fixed } catch {}
   }
-  let depth = 0
-  let start = -1
-  let lastValid: string | null = null
-  for (let i = 0; i < cleaned.length; i++) {
-    if (cleaned[i] === "{") {
-      if (depth === 0) start = i
-      depth++
-    } else if (cleaned[i] === "}") {
-      depth--
-      if (depth === 0 && start >= 0) {
-        const candidate = cleaned.slice(start, i + 1)
-        try {
-          JSON.parse(candidate)
-          lastValid = candidate
-        } catch (e) {
-          console.warn("[evaluate-depth]", e instanceof Error ? e.message : String(e))
-        }
-      }
-    }
-  }
-  if (!lastValid && cleaned.includes("{")) {
-    const braceStart = cleaned.indexOf("{")
-    const partial = cleaned.slice(braceStart)
-    const fixed = partial.replace(/[,]\s*([}\]])/g, "$1").replace(/\}\s*$/, "}")
-    if (fixed.startsWith("{")) {
-      try { JSON.parse(fixed); lastValid = fixed } catch (e) { console.warn("[evaluate-depth]", e instanceof Error ? e.message : String(e)) }
-    }
-  }
-  return lastValid
+  return null
 }
 
 export async function evaluateDepth(

@@ -28,27 +28,40 @@ export async function checkSitemap(
 
   const validSites: Array<{ base: string; sitemapUrl: string }> = []
 
-  for (const site of candidates.slice(0, 8)) {
-    let cleanBase: string
-    try {
-      const u = new URL(site)
-      cleanBase = `${u.protocol}//${u.host}`
-    } catch {
-      cleanBase = site.replace(/\/+$/, "")
-    }
-    for (const sitemapPath of ["/sitemap.xml", "/sitemap-index.xml", "/docs/sitemap.xml"]) {
-      const sitemapUrl = `${cleanBase}${sitemapPath}`
-      try {
-        const resp = await fetch(sitemapUrl, {
-          method: "HEAD",
-          headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
-          signal: AbortSignal.timeout(5000),
-        })
-        if (resp.ok && (resp.headers.get("content-type")?.includes("xml") || resp.url.endsWith(".xml"))) {
-          validSites.push({ base: cleanBase, sitemapUrl })
-          break
+  // Probe sitemaps in parallel batches (4 concurrent) for speed
+  const candidateList = candidates.slice(0, 8)
+  const BATCH = 4
+  for (let bi = 0; bi < candidateList.length; bi += BATCH) {
+    const batch = candidateList.slice(bi, bi + BATCH)
+    const probeResults = await Promise.allSettled(
+      batch.map(async (site) => {
+        let cleanBase: string
+        try {
+          const u = new URL(site)
+          cleanBase = `${u.protocol}//${u.host}`
+        } catch {
+          cleanBase = site.replace(/\/+$/, "")
         }
-      } catch (e) { console.warn("[check-sitemap]", e instanceof Error ? e.message : String(e)); continue }
+        for (const sitemapPath of ["/sitemap.xml", "/sitemap-index.xml", "/docs/sitemap.xml"]) {
+          const sitemapUrl = `${cleanBase}${sitemapPath}`
+          try {
+            const resp = await fetch(sitemapUrl, {
+              method: "HEAD",
+              headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
+              signal: AbortSignal.timeout(5000),
+            })
+            if (resp.ok && (resp.headers.get("content-type")?.includes("xml") || resp.url.endsWith(".xml"))) {
+              return { base: cleanBase, sitemapUrl }
+            }
+          } catch { continue }
+        }
+        return null
+      }),
+    )
+    for (const r of probeResults) {
+      if (r.status === "fulfilled" && r.value) {
+        validSites.push(r.value)
+      }
     }
   }
 
@@ -119,7 +132,7 @@ export async function checkSitemap(
 
   return {
     isDocSite: relevantPaths.length > 0,
-    sitemapUrl: best.sitemapUrl,
+    sitemapUrl: validSites[0].sitemapUrl,
     relevantPaths,
     priority,
   }
