@@ -985,5 +985,47 @@ Answer in the same language as the query.`
     return
   }
 
+  // ── Site Ingestion (SSE) ──
+  if (url.pathname === "/api/ingest-site" && req.method === "POST") {
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
+
+    const { url: siteUrl, maxPages, concurrency, tags, projectName } = body
+    if (!siteUrl) { json(res, { error: "url is required" }, 400); return }
+
+    // SSE response
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    })
+
+    const send = (event: string, data: unknown) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    }
+
+    // Import and run ingestSite in background
+    import("../ingest/site-ingester.js").then(({ ingestSite }) => {
+      return ingestSite(
+        {
+          url: siteUrl,
+          maxPages: maxPages || 100,
+          concurrency: concurrency || 5,
+          tags: tags || [],
+          projectName: projectName || undefined,
+        },
+        (progress) => send("progress", progress),
+      )
+    }).then((result) => {
+      send("done", result)
+      res.end()
+    }).catch((err) => {
+      send("error", { error: err instanceof Error ? err.message : String(err) })
+      res.end()
+    })
+
+    return
+  }
+
   json(res, { error: "Not Found" }, 404)
 }
