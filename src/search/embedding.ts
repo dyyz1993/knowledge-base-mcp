@@ -77,10 +77,10 @@ export async function embed(text: string): Promise<number[]> {
       result = await embedExternal(text)
     } catch (e) {
       console.error("External embedding failed, falling back to local:", e)
-      result = embedLocal(text)
+      result = await embedLocal(text)
     }
   } else {
-    result = embedLocal(text)
+    result = await embedLocal(text)
   }
 
   const ms = Date.now() - t0

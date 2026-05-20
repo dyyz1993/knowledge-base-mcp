@@ -10,7 +10,7 @@ import { handleShareSession } from "../chat/api-share.js"
 import { handleScanSkills, handleGetSkillPaths, handleUpdateSkillPaths } from "../chat/api-skills.js"
 import { handleBrowserDetect } from "../chat/api-browser.js"
 import { getAllKeywords } from "../storage/index.js"
-import { readBody, json } from "./helpers.js"
+import { readBody, json, parseBody } from "./helpers.js"
 import { handleStreamableHttp, handleSSE, handleSSEMessage } from "./handle-mcp.js"
 import { handleRestAPI } from "./handle-api.js"
 
@@ -33,12 +33,23 @@ export function startHttp(port: number, noMcp: boolean) {
     ".ico": "image/x-icon",
   }
 
+  // API key authentication — set KB_API_KEY env to enable
+  const apiKey = process.env.KB_API_KEY
+  const requireAuth = !!apiKey
+
+  function checkAuth(req: any): boolean {
+    if (!requireAuth) return true
+    const auth = req.headers["authorization"] || ""
+    return auth === `Bearer ${apiKey}`
+  }
+
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, `http://${req.headers.host}`)
 
     try {
       if (!noMcp && url.pathname === "/mcp") {
-        const body = req.method === "POST" ? JSON.parse(await readBody(req)) : undefined
+        const body = req.method === "POST" ? await parseBody(req, res) : undefined
+        if (body === null && req.method === "POST") return // parseBody already sent error
         await handleStreamableHttp(req, res, body)
         return
       }
@@ -47,12 +58,18 @@ export function startHttp(port: number, noMcp: boolean) {
         return
       }
       if (!noMcp && url.pathname === "/messages" && req.method === "POST") {
-        const body = JSON.parse(await readBody(req))
+        const body = await parseBody(req, res)
+        if (body === null) return
         await handleSSEMessage(req, res, body)
         return
       }
       if (url.pathname === "/health") {
         json(res, { status: "ok", service: "knowledge-base-mcp", version: VERSION })
+        return
+      }
+      // Auth gate for all non-health endpoints
+      if (requireAuth && !checkAuth(req)) {
+        json(res, { error: "Unauthorized" }, 401)
         return
       }
       if (url.pathname === "/api/chat" && req.method === "POST") return handleChat(req, res)
@@ -123,4 +140,6 @@ export function startHttp(port: number, noMcp: boolean) {
       console.log(`  Web UI:         http://localhost:${port}`)
     }
   })
+
+  return server
 }

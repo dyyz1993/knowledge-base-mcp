@@ -209,3 +209,10 @@ export function resetDb(): void {
     db = null
   }
 }
+
+export function closeDb(): void {
+  if (db) {
+    try { db.close() } catch { /* already closed */ }
+    db = null
+  }
+}

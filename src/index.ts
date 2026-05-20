@@ -6,9 +6,10 @@ try { _version = JSON.parse(readFileSync(join(import.meta.dir, "package.json"), 
 const VERSION = _version
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
-import { initDb } from "./search/vector-store.js"
+import { initDb, closeDb } from "./search/vector-store.js"
 import { registerTools } from "./mcp/register-tools.js"
 import { startHttp } from "./http/start.js"
+import { flushStats } from "./statistics/index.js"
 
 const noMcp = process.argv.includes("--no-mcp")
 
@@ -17,6 +18,27 @@ const mcp = noMcp ? null : (() => {
   registerTools(server)
   return server
 })()
+
+// Graceful shutdown
+let httpServer: ReturnType<typeof startHttp> | null = null
+
+async function shutdown(signal: string) {
+  console.log(`\n[shutdown] Received ${signal}, shutting down gracefully...`)
+  try {
+    flushStats()
+    closeDb()
+    if (httpServer) {
+      httpServer.close()
+      console.log("[shutdown] HTTP server closed")
+    }
+  } catch (e) {
+    console.error("[shutdown] Error during shutdown:", e)
+  }
+  process.exit(0)
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"))
+process.on("SIGINT", () => shutdown("SIGINT"))
 
 async function main() {
   initDb()
@@ -34,7 +56,7 @@ async function main() {
   } else {
     const portIdx = process.argv.indexOf("--port")
     const port = portIdx !== -1 ? parseInt(process.argv[portIdx + 1]) : 19877
-    startHttp(port, noMcp)
+    httpServer = startHttp(port, noMcp)
   }
 }
 

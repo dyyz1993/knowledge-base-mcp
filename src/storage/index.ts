@@ -38,6 +38,27 @@ let cachedIndex: IndexFile | null = null
 let cacheTimestamp = 0
 const CACHE_TTL = 5000 // 5 seconds — stale cache threshold
 
+// Write serialization: prevents TOCTOU races while keeping writes synchronous
+// when no concurrent write is in progress (critical for test compatibility)
+let writing = false
+const pendingWrites: Array<() => void> = []
+
+function serializedWrite(fn: () => void): void {
+  if (!writing) {
+    writing = true
+    try {
+      fn()
+    } finally {
+      writing = false
+      // Drain any queued writes
+      const next = pendingWrites.shift()
+      if (next) serializedWrite(next)
+    }
+  } else {
+    pendingWrites.push(fn)
+  }
+}
+
 function readIndex(): IndexFile {
   ensureDir(KNOWLEDGE_DIR)
   const now = Date.now()
@@ -84,7 +105,7 @@ function atomicWriteIndex(idx: IndexFile) {
 function writeIndex(idx: IndexFile) {
   cachedIndex = idx
   cacheTimestamp = Date.now()
-  atomicWriteIndex(idx)
+  serializedWrite(() => atomicWriteIndex(idx))
 }
 
 /**
@@ -559,7 +580,11 @@ function readMissLog(): MissEntry[] {
 
 function writeMissLog(log: MissEntry[]) {
   ensureDir(KNOWLEDGE_DIR)
-  writeFileSync(MISS_LOG_PATH, JSON.stringify(log, null, 2))
+  serializedWrite(() => {
+    const tmpPath = MISS_LOG_PATH + ".tmp"
+    writeFileSync(tmpPath, JSON.stringify(log, null, 2))
+    renameSync(tmpPath, MISS_LOG_PATH)
+  })
 }
 
 export function recordMiss(query: string): { total_misses: number; recurring: boolean } {

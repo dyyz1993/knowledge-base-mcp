@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs"
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs"
 import { join } from "node:path"
 
 const STATS_DIR = `${process.env.HOME}/.kb-chat/stats`
@@ -6,6 +6,21 @@ const SEARCH_STATS_PATH = `${STATS_DIR}/search.json`
 const LLM_STATS_PATH = `${STATS_DIR}/llm.json`
 const EMBEDDING_STATS_PATH = `${STATS_DIR}/embedding.json`
 const MCP_STATS_PATH = `${STATS_DIR}/mcp.json`
+
+// Debounced write: coalesces rapid calls into a single write every 10s
+const _flushTimers = new Map<string, ReturnType<typeof setTimeout>>()
+function debouncedWrite(path: string, data: string) {
+  const existing = _flushTimers.get(path)
+  if (existing) clearTimeout(existing)
+  _flushTimers.set(path, setTimeout(() => {
+    _flushTimers.delete(path)
+    try {
+      const tmp = path + ".tmp"
+      writeFileSync(tmp, data)
+      renameSync(tmp, path)
+    } catch { /* ignore write errors */ }
+  }, 10_000))
+}
 
 function ensureStatsDir() {
   if (!existsSync(STATS_DIR)) {
@@ -85,14 +100,23 @@ export class SearchStatistics {
     if (existsSync(SEARCH_STATS_PATH)) {
       try {
         this.stats = JSON.parse(readFileSync(SEARCH_STATS_PATH, "utf-8"))
-      } catch {
+      } catch (e) {
+        console.warn("[stats] Failed to load search stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
     }
   }
 
-  private save() {
+  public save() {
     this.stats.updatedAt = Date.now()
-    writeFileSync(SEARCH_STATS_PATH, JSON.stringify(this.stats, null, 2))
+    debouncedWrite(SEARCH_STATS_PATH, JSON.stringify(this.stats, null, 2))
+  }
+
+  /** Force immediate write to disk (for shutdown) */
+  public saveNow() {
+    this.stats.updatedAt = Date.now()
+    const tmp = SEARCH_STATS_PATH + ".tmp"
+    writeFileSync(tmp, JSON.stringify(this.stats, null, 2))
+    renameSync(tmp, SEARCH_STATS_PATH)
   }
 
   recordSourceCall(name: string, count: number, timeMs: number, error = false) {
@@ -163,14 +187,22 @@ export class LLMStatistics {
     if (existsSync(LLM_STATS_PATH)) {
       try {
         this.stats = JSON.parse(readFileSync(LLM_STATS_PATH, "utf-8"))
-      } catch {
+      } catch (e) {
+        console.warn("[stats] Failed to load LLM stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
     }
   }
 
-  private save() {
+  public save() {
     this.stats.updatedAt = Date.now()
-    writeFileSync(LLM_STATS_PATH, JSON.stringify(this.stats, null, 2))
+    debouncedWrite(LLM_STATS_PATH, JSON.stringify(this.stats, null, 2))
+  }
+
+  public saveNow() {
+    this.stats.updatedAt = Date.now()
+    const tmp = LLM_STATS_PATH + ".tmp"
+    writeFileSync(tmp, JSON.stringify(this.stats, null, 2))
+    renameSync(tmp, LLM_STATS_PATH)
   }
 
   recordCall(model: string, tokens: number, timeMs: number, cost: number = 0) {
@@ -232,14 +264,22 @@ export class EmbeddingStatistics {
     if (existsSync(EMBEDDING_STATS_PATH)) {
       try {
         this.stats = JSON.parse(readFileSync(EMBEDDING_STATS_PATH, "utf-8"))
-      } catch {
+      } catch (e) {
+        console.warn("[stats] Failed to load embedding stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
     }
   }
 
-  private save() {
+  public save() {
     this.stats.updatedAt = Date.now()
-    writeFileSync(EMBEDDING_STATS_PATH, JSON.stringify(this.stats, null, 2))
+    debouncedWrite(EMBEDDING_STATS_PATH, JSON.stringify(this.stats, null, 2))
+  }
+
+  public saveNow() {
+    this.stats.updatedAt = Date.now()
+    const tmp = EMBEDDING_STATS_PATH + ".tmp"
+    writeFileSync(tmp, JSON.stringify(this.stats, null, 2))
+    renameSync(tmp, EMBEDDING_STATS_PATH)
   }
 
   recordCall(tokens: number, timeMs: number) {
@@ -286,14 +326,22 @@ export class MCPStatistics {
     if (existsSync(MCP_STATS_PATH)) {
       try {
         this.stats = JSON.parse(readFileSync(MCP_STATS_PATH, "utf-8"))
-      } catch {
+      } catch (e) {
+        console.warn("[stats] Failed to load MCP stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
     }
   }
 
-  private save() {
+  public save() {
     this.stats.updatedAt = Date.now()
-    writeFileSync(MCP_STATS_PATH, JSON.stringify(this.stats, null, 2))
+    debouncedWrite(MCP_STATS_PATH, JSON.stringify(this.stats, null, 2))
+  }
+
+  public saveNow() {
+    this.stats.updatedAt = Date.now()
+    const tmp = MCP_STATS_PATH + ".tmp"
+    writeFileSync(tmp, JSON.stringify(this.stats, null, 2))
+    renameSync(tmp, MCP_STATS_PATH)
   }
 
   recordToolCall(name: string, args: Record<string, unknown> = {}, timeMs: number, error = false) {
@@ -366,3 +414,11 @@ export const searchStats = globalThis.__kb_searchStats__
 export const llmStats = globalThis.__kb_llmStats__
 export const embeddingStats = globalThis.__kb_embeddingStats__
 export const mcpStats = globalThis.__kb_mcpStats__
+
+/** Flush all stats to disk on shutdown (immediate write, no debounce) */
+export function flushStats(): void {
+  try { searchStats.saveNow() } catch { /* ignore */ }
+  try { llmStats.saveNow() } catch { /* ignore */ }
+  try { embeddingStats.saveNow() } catch { /* ignore */ }
+  try { mcpStats.saveNow() } catch { /* ignore */ }
+}

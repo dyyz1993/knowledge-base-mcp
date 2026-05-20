@@ -7,10 +7,28 @@ import { randomUUID } from "node:crypto"
 import { readBody, json } from "./helpers.js"
 import { registerTools } from "../mcp/register-tools.js"
 
-type StreamableSession = { server: McpServer, transport: StreamableHTTPServerTransport }
+type StreamableSession = { server: McpServer, transport: StreamableHTTPServerTransport, createdAt: number }
 const streamableSessions = new Map<string, StreamableSession>()
-type SSESession = { server: McpServer, transport: SSEServerTransport }
+type SSESession = { server: McpServer, transport: SSEServerTransport, createdAt: number }
 const sseSessions = new Map<string, SSESession>()
+
+// Periodic cleanup: remove stale sessions older than 1 hour
+const SESSION_TTL = 3_600_000 // 1 hour
+setInterval(() => {
+  const now = Date.now()
+  for (const [sid, session] of streamableSessions) {
+    if (now - session.createdAt > SESSION_TTL) {
+      try { session.transport.close?.() } catch { /* ignore */ }
+      streamableSessions.delete(sid)
+    }
+  }
+  for (const [sid, session] of sseSessions) {
+    if (now - session.createdAt > SESSION_TTL) {
+      try { session.transport.close?.() } catch { /* ignore */ }
+      sseSessions.delete(sid)
+    }
+  }
+}, 60_000).unref() // check every minute, don't prevent process exit
 
 export async function handleStreamableHttp(req: IncomingMessage, res: ServerResponse, body: unknown) {
   const sessionId = req.headers["mcp-session-id"] as string | undefined
@@ -31,7 +49,7 @@ export async function handleStreamableHttp(req: IncomingMessage, res: ServerResp
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sid) => {
-        streamableSessions.set(sid, { server, transport })
+        streamableSessions.set(sid, { server, transport, createdAt: Date.now() })
       },
     })
     transport.onclose = () => {
@@ -47,11 +65,12 @@ export async function handleStreamableHttp(req: IncomingMessage, res: ServerResp
 
 export async function handleSSE(req: IncomingMessage, res: ServerResponse) {
   const transport = new SSEServerTransport("/messages", res)
-  sseSessions.set(transport.sessionId, { server: null!, transport })
+  const now = Date.now()
+  sseSessions.set(transport.sessionId, { server: null!, transport, createdAt: now })
   res.on("close", () => sseSessions.delete(transport.sessionId))
   const server = new McpServer({ name: "knowledge-base", version: "1.0.0" })
   registerTools(server)
-  sseSessions.set(transport.sessionId, { server, transport })
+  sseSessions.set(transport.sessionId, { server, transport, createdAt: now })
   await server.connect(transport)
 }
 

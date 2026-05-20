@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs"
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
 
@@ -205,5 +205,7 @@ export function loadConfig(): AppConfig {
 
 export function saveConfig(config: AppConfig): void {
   if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true })
-  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf-8")
+  const tmpPath = CONFIG_PATH + ".tmp"
+  writeFileSync(tmpPath, JSON.stringify(config, null, 2), "utf-8")
+  renameSync(tmpPath, CONFIG_PATH)
 }
