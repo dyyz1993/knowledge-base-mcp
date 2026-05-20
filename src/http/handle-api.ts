@@ -12,7 +12,7 @@ import { getConfiguredModels } from "../chat/api-models.js"
 import { loadConfig, saveConfig } from "../config.js"
 import type { AppConfig } from "../config.js"
 import type { SearchSource } from "../search/types.js"
-import { readBody, json } from "./helpers.js"
+import { readBody, json, parseBody } from "./helpers.js"
 import { renderRecentHtml } from "./render.js"
 
 export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL) {
@@ -41,12 +41,14 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     return
   }
   if (url.pathname === "/api/docs" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     json(res, readDoc(body.id, false))
     return
   }
   if (url.pathname === "/api/docs/write" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const { title, content, tags, keywords, intent, project_description } = body
     if (!title || !content) {
       json(res, { error: "title and content are required" }, 400)
@@ -68,7 +70,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     return
   }
   if (url.pathname === "/api/search/semantic" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     try {
       const results = await searchDocsSemantic(body.query, body.limit || 10)
       json(res, results.map(d => ({
@@ -86,7 +89,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     return
   }
   if (url.pathname === "/api/search" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     if (body.query) {
       try {
         json(res, await searchDocsCombined(body.query, body.keywords, body.tags, body.limit))
@@ -170,7 +174,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     return
   }
   if (url.pathname === "/api/stats/reset" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const type = body.type || "all"
     if (type === "search" || type === "all") searchStats.reset()
     if (type === "llm" || type === "all") llmStats.reset()
@@ -254,7 +259,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     return
   }
   if (url.pathname === "/api/config" && req.method === "PUT") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const current = loadConfig()
     const update = body
 
@@ -303,7 +309,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     return
   }
   if (url.pathname === "/api/kb-ask" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const query = body.query
     if (!query || typeof query !== "string") {
       json(res, { error: "Missing or invalid 'query' field" }, 400)
@@ -315,7 +322,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     return
   }
   if (url.pathname === "/api/web-read" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const targetUrl = body.url
     if (!targetUrl) {
       json(res, { error: "Missing 'url' field" }, 400)
@@ -355,7 +363,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     return
   }
   if (url.pathname === "/api/kb-ingest" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const { url: docUrl, title, content, tags, keywords } = body
     if (!title || !content) {
       json(res, { error: "Missing required fields: title, content" }, 400)
@@ -386,7 +395,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     return
   }
   if (url.pathname === "/api/ask-search" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const query = body.query
     if (!query) { json(res, { error: "Missing 'query'" }, 400); return }
 
@@ -437,7 +447,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
   }
 
   if (url.pathname === "/api/ask-deep-read" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const targetUrl = body.url
     if (!targetUrl) { json(res, { error: "Missing 'url'" }, 400); return }
 
@@ -495,7 +506,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
   }
 
   if (url.pathname === "/api/ask-summarize" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const { query, content, title, url: sourceUrl, tags, keywords } = body
     if (!content || !title) { json(res, { error: "Missing 'content' or 'title'" }, 400); return }
 
@@ -526,7 +538,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
   }
 
   if (url.pathname === "/api/ask-research" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const query = body.query as string | undefined
     if (!query) { json(res, { error: "Missing 'query'" }, 400); return }
 
@@ -787,7 +800,8 @@ Answer in the same language as the query.`
   }
 
   if (url.pathname === "/api/agent-research" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const query = body.query as string | undefined
     if (!query) { json(res, { error: "Missing 'query'" }, 400); return }
 
@@ -834,7 +848,8 @@ Answer in the same language as the query.`
   }
 
   if (url.pathname === "/api/research-evolve" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const config = loadConfig()
     if (!config.searchPipeline?.enabled) {
       json(res, { error: "Search pipeline not enabled" }, 503)
@@ -880,7 +895,8 @@ Answer in the same language as the query.`
   }
 
   if (url.pathname === "/api/ask-work-key" && req.method === "POST") {
-    const body = JSON.parse(await readBody(req))
+    const body = (await parseBody(req, res)) as Record<string, any>
+    if (body === null) return
     const { query, results } = body
     if (!query || !results || !Array.isArray(results)) {
       json(res, { error: "Missing 'query' or 'results'" }, 400)

@@ -47,9 +47,19 @@ export function startHttp(port: number, noMcp: boolean) {
     const url = new URL(req.url!, `http://${req.headers.host}`)
 
     try {
+      // Health check: always accessible, no auth required
+      if (url.pathname === "/health") {
+        json(res, { status: "ok", service: "knowledge-base-mcp", version: VERSION })
+        return
+      }
+      // Auth gate: all endpoints except /health require authentication when KB_API_KEY is set
+      if (requireAuth && !checkAuth(req)) {
+        json(res, { error: "Unauthorized" }, 401)
+        return
+      }
       if (!noMcp && url.pathname === "/mcp") {
         const body = req.method === "POST" ? await parseBody(req, res) : undefined
-        if (body === null && req.method === "POST") return // parseBody already sent error
+        if (body === null && req.method === "POST") return
         await handleStreamableHttp(req, res, body)
         return
       }
@@ -61,15 +71,6 @@ export function startHttp(port: number, noMcp: boolean) {
         const body = await parseBody(req, res)
         if (body === null) return
         await handleSSEMessage(req, res, body)
-        return
-      }
-      if (url.pathname === "/health") {
-        json(res, { status: "ok", service: "knowledge-base-mcp", version: VERSION })
-        return
-      }
-      // Auth gate for all non-health endpoints
-      if (requireAuth && !checkAuth(req)) {
-        json(res, { error: "Unauthorized" }, 401)
         return
       }
       if (url.pathname === "/api/chat" && req.method === "POST") return handleChat(req, res)
