@@ -223,7 +223,8 @@ export async function deepReadUrls(
       if (bodyContent.length > 50) {
         // Quality check: detect if content is mostly navigation/chrome
         const meaningfulContent = bodyContent
-          .replace(/\b(Home|About|Contact|Login|Sign up|Menu|Navigation|Cookie|Privacy|Terms|Copyright)\b/gi, "")
+          .replace(/\b(Home|About|Contact|Login|Sign up|Menu|Navigation|Cookie|Privacy|Terms|Copyright|Search|Skip to content|Toggle)\b/gi, "")
+          .replace(/(首页|关于|联系|登录|注册|导航|隐私|条款|版权|菜单|搜索|跳转|切换|返回顶部|更多|分享|关注|下载|客服)/g, "")
           .replace(/\s+/g, " ")
           .trim()
         const isLikelyNavigation = meaningfulContent.length < 300
@@ -304,13 +305,13 @@ async function tryCacheFallback(url: string, fallbackTitle: string): Promise<Dee
       if (!resp.ok) continue
 
       const html = await resp.text()
-      const bodyContent = html
+      const bodyContent = decodeHtmlEntities(html
         .replace(/<script[\s\S]*?<\/script>/gi, "")
         .replace(/<style[\s\S]*?<\/style>/gi, "")
         .replace(/<[^>]+>/g, " ")
         .replace(/\s+/g, " ")
         .trim()
-        .slice(0, 20000)
+        .slice(0, 20000))
 
       if (bodyContent.length > 200) {
         return {

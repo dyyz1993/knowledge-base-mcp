@@ -69,7 +69,7 @@ export async function filterResults(
 ): Promise<SearchResult[]> {
   if (results.length === 0) return []
 
-  const capped = results.slice(0, 30)
+  const capped = results.slice(0, 20)
   const formatted = formatResults(capped)
 
   const warningLine = warningPrompt ? `\nAdditional context: ${warningPrompt}` : ""

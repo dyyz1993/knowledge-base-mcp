@@ -7,7 +7,6 @@ export type StepName =
   | "evaluate"
   | "deep_read"
   | "check_sitemap"
-  | "follow_paths"
   | "evaluate_depth"
   | "check_github"
   | "clone_index"
@@ -30,7 +29,6 @@ export const STEP_COSTS: Record<StepName, StepCost> = {
   evaluate: { model: "large", cost: 2 },
   deep_read: { model: "none", cost: 1 },
   check_sitemap: { model: "small", cost: 1 },
-  follow_paths: { model: "none", cost: 1 },
   evaluate_depth: { model: "large", cost: 2 },
   check_github: { model: "small", cost: 1 },
   clone_index: { model: "none", cost: 2 },

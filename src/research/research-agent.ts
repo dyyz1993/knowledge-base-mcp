@@ -8,6 +8,7 @@ import type {
   DeepReadItem,
   StepDecision,
 } from "./types"
+import type { SearchResult, SourceName, SourceType } from "../search/types"
 import { QUICK_FLOW, STANDARD_FLOW, DEEP_FLOW } from "./types"
 import { BudgetManager } from "./budget-manager"
 import { inferModelTier, tierToLlmConfig } from "./model-tier"
@@ -21,7 +22,6 @@ import { synthesize } from "./steps/synthesize"
 import { checkSitemap } from "./steps/check-sitemap"
 import { checkGithub, fetchGitHubFile } from "./steps/check-github"
 import { loadConfig } from "../config"
-import type { SearchResult } from "../search/types"
 import type { SitemapCheck, GitHubCheck } from "./types"
 
 type ProgressCallback = (progress: ResearchProgress) => void
@@ -51,6 +51,7 @@ export class ResearchAgent {
   private sitemapResult: SitemapCheck | null = null
   private githubResult: GitHubCheck | null = null
   private cachedConfig: ReturnType<typeof loadConfig> | null = null
+  private maxDurationMs = 0
 
   private getConfig(): ReturnType<typeof loadConfig> {
     if (!this.cachedConfig) {
@@ -84,16 +85,16 @@ export class ResearchAgent {
     const flow = this.getFlow()
 
     // Overall timeout protection
-    const maxDurationMs = this.mode === "quick" ? 300_000 : this.mode === "standard" ? 600_000 : 1_200_000
+    this.maxDurationMs = this.mode === "quick" ? 300_000 : this.mode === "standard" ? 600_000 : 1_200_000
 
     let timedOut = false
 
     let i = 0
     while (i < flow.length) {
       // Check overall timeout
-      if (!timedOut && Date.now() - this.startTime > maxDurationMs) {
+      if (!timedOut && Date.now() - this.startTime > this.maxDurationMs) {
         timedOut = true
-        this.phaseLog.push(`overall timeout reached (${maxDurationMs / 1000}s), forcing synthesize`)
+        this.phaseLog.push(`overall timeout reached (${this.maxDurationMs / 1000}s), forcing synthesize`)
         const summary = await this.doSynthesize()
         return this.buildResult(summary, true)
       }
@@ -131,15 +132,13 @@ export class ResearchAgent {
         if (stepName === "search" && this.collectedSearchResults.length === 0) {
           this.phaseLog.push("search produced 0 results, skipping to synthesize")
           const synIdx = flow.indexOf("synthesize")
-          if (synIdx >= 0 && synIdx > i) {
-            i = synIdx - 1
-            i++
+          if (synIdx >= 0) {
+            i = synIdx
             continue
           }
         }
 
-        const shouldFinalize = decision === "done" &&
-          !["check_sitemap", "check_github"].some(s => flow.slice(i + 1).includes(s))
+        const shouldFinalize = decision === "done"
 
         if (shouldFinalize || stepName === "synthesize") {
           const summary = await this.doSynthesize()
@@ -344,10 +343,13 @@ export class ResearchAgent {
       }
     }
 
+    // Use shared normalizeUrl for consistent dedup (matching deep-read cache behavior)
+    const { normalizeUrl } = await import("../search/utils.js")
     const seen = new Set<string>()
     this.collectedSearchResults = allResults.filter((r) => {
-      if (seen.has(r.url)) return false
-      seen.add(r.url)
+      const key = normalizeUrl(r.url)
+      if (seen.has(key)) return false
+      seen.add(key)
       return true
     })
 
@@ -452,7 +454,7 @@ export class ResearchAgent {
     return result.decision as StepDecision
   }
 
-  private async stepCheckSitemap(): Promise<StepDecision> {
+  private async stepCheckSitemap(): Promise<StepDecision | null> {
     const hints = this.sitemapHints.length > 0
       ? this.sitemapHints
       : this.extractDocSiteUrls()
@@ -472,7 +474,7 @@ export class ResearchAgent {
 
     const base = this.sitemapResult.sitemapUrl?.replace(/\/sitemap.*$/, "") || hints[0]
     const paths = this.sitemapResult.relevantPaths.slice(0, 15)
-    const urls = paths.map(p => ({ title: p.split("/").pop() || p, url: `${base}${p}`, snippet: "", source: "sitemap", sourceType: "official", qualityScore: 90 }))
+    const urls: SearchResult[] = paths.map(p => ({ title: p.split("/").pop() || p, url: `${base}${p}`, snippet: "", source: "sitemap" as SourceName, sourceType: "official" as SourceType, qualityScore: 90 }))
 
     this.phaseLog.push(`sitemap: found ${this.sitemapResult.relevantPaths.length} paths, deep-reading ${urls.length}`)
 
@@ -493,7 +495,7 @@ export class ResearchAgent {
     return null
   }
 
-  private async stepCheckGithub(): Promise<StepDecision> {
+  private async stepCheckGithub(): Promise<StepDecision | null> {
     const hints = this.githubHints.length > 0
       ? this.githubHints
       : this.extractGithubUrls()
@@ -579,8 +581,8 @@ export class ResearchAgent {
     const hasDeepRead = this.deepReadResults.filter((r) => r.success).length > 0
 
     if (hasDeepRead) {
-      const remainingMs = maxDurationMs > 0
-        ? maxDurationMs - (Date.now() - this.startTime)
+      const remainingMs = this.maxDurationMs > 0
+        ? this.maxDurationMs - (Date.now() - this.startTime)
         : undefined
       const result = await synthesize(
         this.query,

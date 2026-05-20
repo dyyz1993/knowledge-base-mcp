@@ -1,4 +1,4 @@
-export type SourceName = "web-search-prime" | "xbrowser" | "xbrowser-bing" | "xbrowser-google" | "xbrowser-baidu" | "xbrowser-duckduckgo" | "llm-direct" | "url-fetch" | "plugin" | "tavily" | "serper" | "ai-search"
+export type SourceName = "web-search-prime" | "xbrowser" | "xbrowser-bing" | "xbrowser-google" | "xbrowser-baidu" | "xbrowser-duckduckgo" | "llm-direct" | "url-fetch" | "plugin" | "tavily" | "serper" | "ai-search" | "sitemap" | "github" | "cache"
 export type SourceType = "official" | "documentation" | "platform" | "blog" | "repository" | "llm-knowledge" | "unknown"
 
 export interface SearchResult {
