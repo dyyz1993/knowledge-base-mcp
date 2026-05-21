@@ -88,7 +88,13 @@ Now evaluate. Return ONLY the JSON object:
       return {
         qualityScore: Math.max(0, Math.min(10, Number(parsed.qualityScore) || 5)),
         coverageScore: Math.max(0, Math.min(10, Number(parsed.coverageScore) || 5)),
-        decision: validDecisions.includes(parsed.decision) ? parsed.decision : "continue",
+        decision: (() => {
+          const d = parsed.decision
+          if (d === "continue" && (Number(parsed.qualityScore) || 5) < 5 && (parsed.missingTopics?.length || 0) > 5) {
+            return "need_more_search"
+          }
+          return validDecisions.includes(d) ? d : "continue"
+        })(),
         reason: String(parsed.reason || ""),
         nextTargets: Array.isArray(parsed.nextTargets) ? parsed.nextTargets.map(String) : [],
         updatedOutline: String(parsed.updatedOutline || outline),

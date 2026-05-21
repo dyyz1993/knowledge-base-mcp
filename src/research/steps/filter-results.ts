@@ -61,6 +61,35 @@ function fallbackTopResults(results: SearchResult[]): SearchResult[] {
     .slice(0, 15)
 }
 
+const BATCH_SIZE = 7
+
+async function scoreBatch(
+  query: string,
+  batch: SearchResult[],
+  batchOffset: number,
+  smallModel: LlmConfig,
+  warningPrompt?: string,
+): Promise<FilterResult[]> {
+  const formatted = formatResults(batch)
+  const warningLine = warningPrompt ? `\nAdditional context: ${warningPrompt}` : ""
+  const fullPrompt = buildUserPrompt(query, formatted) + warningLine
+
+  const raw = await callLlm(
+    smallModel,
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: fullPrompt },
+    ],
+    0.1,
+    1500,
+  )
+
+  if (!raw) return []
+
+  const filterData = parseResponse(raw)
+  return filterData.map(f => ({ ...f, index: f.index + batchOffset }))
+}
+
 export async function filterResults(
   query: string,
   results: SearchResult[],
@@ -70,27 +99,20 @@ export async function filterResults(
   if (results.length === 0) return []
 
   const capped = results.slice(0, 20)
-  const formatted = formatResults(capped)
-
-  const warningLine = warningPrompt ? `\nAdditional context: ${warningPrompt}` : ""
-  const fullPrompt = buildUserPrompt(query, formatted) + warningLine
 
   try {
-    const raw = await callLlm(
-      smallModel,
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: fullPrompt },
-      ],
-      0.1,
-      1500,
+    const batches: SearchResult[][] = []
+    for (let i = 0; i < capped.length; i += BATCH_SIZE) {
+      batches.push(capped.slice(i, i + BATCH_SIZE))
+    }
+
+    const batchPromises = batches.map((batch, batchIdx) =>
+      scoreBatch(query, batch, batchIdx * BATCH_SIZE, smallModel, warningPrompt),
     )
+    const batchResults = await Promise.all(batchPromises)
+    const allFilterData = batchResults.flat()
 
-    if (!raw) return fallbackTopResults(results)
-
-    const filterData = parseResponse(raw)
-
-    const scored = filterData
+    const scored = allFilterData
       .filter((f) => f.relevanceScore >= 5)
       .sort((a, b) => b.relevanceScore - a.relevanceScore)
       .slice(0, 15)

@@ -498,10 +498,25 @@ export class ResearchAgent {
         .filter(r => /\/docs|\/guide|\/getting-started/.test(r.url))
         .map(r => { try { return `${new URL(r.url).protocol}//${new URL(r.url).host}` } catch { return "" } })
         .filter(Boolean)
-      // Use the most frequent official domain
+      // Score domains: frequency + query keyword match + shorter hostname bonus
+      const queryKeywords = this.query.toLowerCase().split(/\s+/).filter(w => w.length >= 3)
       const domainCounts = new Map<string, number>()
       for (const d of docDomains) domainCounts.set(d, (domainCounts.get(d) || 0) + 1)
-      const bestDomain = [...domainCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+      const bestDomain = [...domainCounts.entries()]
+        .map(([domain, count]) => {
+          let score = count
+          try {
+            const hostname = new URL(domain).hostname.toLowerCase()
+            if (queryKeywords.some(kw => hostname.includes(kw))) score += 5
+            const parts = hostname.split(".")
+            const mainPart = parts.length > 2 ? parts.slice(-2).join(".") : hostname
+            score -= mainPart.split(".").length > 1 ? 0 : 0
+            score += Math.max(0, 3 - (hostname.replace(/\.[a-z]{2,}$/, "").split(".").length - 1) * 1.5)
+            if (hostname.split(".").length <= 3) score += 3
+          } catch { /* ignore */ }
+          return { domain, score }
+        })
+        .sort((a, b) => b.score - a.score)[0]?.domain
       if (bestDomain) {
         this.phaseLog.push(`sitemap: using official domain ${bestDomain} instead of aggregator ${sitemapBase}`)
         base = bestDomain
