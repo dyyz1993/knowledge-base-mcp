@@ -64,6 +64,8 @@ interface QualityEvaluation {
 }
 
 function resolvePiConfig(): LlmConfig | null {
+  // Allow tests to disable LLM via env var
+  if (process.env.KB_NO_LLM) return null
   const configured = getConfiguredModels()
   const usable = configured.filter(m => m.apiKey && m.baseUrl)
   if (usable.length === 0) return null

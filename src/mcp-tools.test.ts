@@ -9,7 +9,6 @@ const PORT = 19888
 const BASE = `http://localhost:${PORT}`
 let serverProcess: ReturnType<typeof spawn> | null = null
 let sessionId = ""
-let llmAvailable = false
 
 function mcpRequest(method: string, params: any = {}, id = 1): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -55,37 +54,13 @@ function parseResult(resp: any): any {
   return text ? JSON.parse(text) : null
 }
 
-async function isLlmReachable(): Promise<boolean> {
-  try {
-    const { getConfiguredModels } = await import("../src/chat/api-models.js")
-    const models = getConfiguredModels()
-    const usable = models.filter((m: any) => m.apiKey && m.baseUrl)
-    if (usable.length === 0) return false
-
-    const { callLlm } = await import("../src/search/llm-caller.js")
-    const model = usable[0]
-    await callLlm(
-      { baseUrl: model.baseUrl, apiKey: model.apiKey, model: model.id },
-      [{ role: "user", content: "ping" }],
-      0,
-      5,
-      8000,
-    )
-    return true
-  } catch {
-    return false
-  }
-}
-
 beforeAll(async () => {
   if (skipCI) return
 
-  llmAvailable = await isLlmReachable()
-
-  // 启动测试服务器
+  // 启动测试服务器 (with KB_NO_LLM to force fallbackSearch path)
   serverProcess = spawn("bun", ["run", "dist/index.js", "--http", "--port", String(PORT)], {
     stdio: "pipe",
-    env: { ...process.env },
+    env: { ...process.env, KB_NO_LLM: "1" },
   })
 
   // 等待服务器启动
@@ -241,7 +216,7 @@ describeMcp("MCP tools: file_read / file_grep / file_exists", () => {
 describeMcp("MCP tools: kb_ask / kb_ingest_url (自进化闭环)", () => {
   const testQuery = `E2E_Miss_Test_${Date.now()}_${Math.random().toString(36).slice(2)}`
 
-  it.skipIf(!llmAvailable)("step 1: kb_ask should miss and return Miss Task", async () => {
+  it("step 1: kb_ask should miss and return Miss Task", async () => {
     const resp = await callTool("kb_ask", { query: testQuery, max_web_results: 0 })
     const result = parseResult(resp)
     expect([false, true]).toContain(result.from_kb)
@@ -250,7 +225,7 @@ describeMcp("MCP tools: kb_ask / kb_ingest_url (自进化闭环)", () => {
     if (result.auto_saved) return
     expect(result.miss).toBe(true)
     expect(result.miss_stats?.total_unresolved).toBeGreaterThanOrEqual(0)
-  }, 120000)
+  }, 30000)
 
   it("step 2: kb_ingest_url should store and resolve miss", async () => {
     const resp = await callTool("kb_ingest_url", {
@@ -266,12 +241,12 @@ describeMcp("MCP tools: kb_ask / kb_ingest_url (自进化闭环)", () => {
     expect(result.miss_resolved).toBe(true)
   })
 
-  it.skipIf(!llmAvailable)("step 3: kb_ask should now hit KB directly", async () => {
+  it("step 3: kb_ask should now hit KB directly", async () => {
     const resp = await callTool("kb_ask", { query: testQuery, max_web_results: 0 })
     const result = parseResult(resp)
     expect(result.from_kb).toBe(true)
     expect(result.score).toBeGreaterThan(0)
-  }, 120000)
+  }, 30000)
 })
 
 describeMcp("MCP tools: kb_suggest / kb_stale_check", () => {
