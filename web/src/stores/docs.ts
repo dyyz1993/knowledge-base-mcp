@@ -39,7 +39,8 @@ export const useDocStore = create<DocState>((set) => ({
       return
     }
     const res = await searchDocs(query)
-    set({ searchResults: res.documents || [], searchQuery: query })
+    const results = Array.isArray(res) ? res : res.documents || []
+    set({ searchResults: results, searchQuery: query })
   },
 
   setSearchQuery: (q) => set({ searchQuery: q }),
