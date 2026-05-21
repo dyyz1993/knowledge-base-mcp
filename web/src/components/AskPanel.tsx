@@ -19,13 +19,13 @@ export default function AskPanel() {
 
   const handleSubmit = () => {
     const q = input.trim()
-    if (!q || loading) return
+    if (!q || useAskStore.getState().loading) return
     setInput("")
     ask(q)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       handleSubmit()
     }

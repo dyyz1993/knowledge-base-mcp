@@ -441,6 +441,7 @@ export interface AskResult {
   hint?: string
   miss?: boolean
   query?: string
+  error?: string
   web_results?: WebSearchItem[]
   total_misses?: number
   recurring?: boolean
