@@ -453,11 +453,12 @@ export interface IngestResult {
   miss_resolved: boolean
 }
 
-export async function smartAsk(query: string): Promise<AskResult> {
+export async function smartAsk(query: string, signal?: AbortSignal): Promise<AskResult> {
   const res = await fetch(`${BASE}/api/kb-ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
+    signal,
   })
   return res.json()
 }
@@ -524,11 +525,12 @@ export interface SummarizeResult {
   title: string
 }
 
-export async function askSearch(query: string, model?: { provider: string; id: string }): Promise<PipelineSearchResponse> {
+export async function askSearch(query: string, model?: { provider: string; id: string }, signal?: AbortSignal): Promise<PipelineSearchResponse> {
   const res = await fetch(`${BASE}/api/ask-search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, model }),
+    signal,
   })
   return res.json()
 }
@@ -573,11 +575,12 @@ export interface ResearchResult {
   phaseLog: string[]
 }
 
-export async function askResearch(query: string, model?: { provider: string; id: string }): Promise<ResearchResult> {
+export async function askResearch(query: string, model?: { provider: string; id: string }, signal?: AbortSignal): Promise<ResearchResult> {
   const res = await fetch(`${BASE}/api/ask-research`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, model }),
+    signal,
   })
   return res.json()
 }
@@ -616,12 +619,14 @@ export function agentResearch(
   model?: { provider: string; id: string },
   smallModel?: { provider: string; id: string },
   onProgress?: (progress: AgentResearchProgress) => void,
+  signal?: AbortSignal,
 ): Promise<AgentResearchResult> {
   return new Promise((resolve, reject) => {
     fetch(`${BASE}/api/agent-research`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query, mode, model, smallModel }),
+      signal,
     }).then((res) => {
       if (!res.ok) {
         reject(new Error(`HTTP ${res.status}`))

@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from "react"
-import { Send, Sparkles, Database, Globe, Save, ChevronDown, ChevronUp, Trash2, ExternalLink, Loader2, Search, BookOpen, Key, FlaskConical, CheckCircle2, XCircle, Circle, Loader, Zap, Brain, Cpu } from "lucide-react"
+import { Send, Sparkles, Database, Globe, Save, ChevronDown, ChevronUp, Trash2, ExternalLink, Loader2, Search, BookOpen, Key, FlaskConical, CheckCircle2, XCircle, Circle, Loader, Zap, Brain, Cpu, Square, AlertCircle } from "lucide-react"
 import { useAskStore } from "../stores/ask"
 import { useChatStore } from "../stores/chat"
 import { webRead, askDeepRead } from "../services/api"
 import type { AskResult, WebSearchItem, PipelineSearchResponse, PipelineSearchResult, ResearchResult, AgentResearchResult, AgentResearchProgress, ResearchMode } from "../services/api"
 
 export default function AskPanel() {
-  const { messages, loading, ask, research, agentResearchAction, clear } = useAskStore()
+  const { messages, loading, ask, research, agentResearchAction, cancel, clear } = useAskStore()
   const { models, currentModel, setModel: setChatModel } = useChatStore()
   const [input, setInput] = useState("")
   const [researchMode, setResearchMode] = useState<ResearchMode>("standard")
@@ -76,12 +76,45 @@ export default function AskPanel() {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-3">
-            <Sparkles size={40} className="text-zinc-700" />
-            <div className="text-center">
-              <p className="text-sm font-medium text-zinc-400">智能问答 — 你的知识助手</p>
-              <p className="text-xs mt-1">描述你想了解的问题或需求，先搜知识库</p>
-              <p className="text-xs text-zinc-600 mt-2">未命中时会引导你联网搜索并存储为新知识</p>
+          <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-4 px-4">
+            <Sparkles size={36} className="text-zinc-600" />
+            <div className="text-center max-w-sm">
+              <p className="text-sm font-medium text-zinc-300 mb-1">智能问答</p>
+              <p className="text-xs text-zinc-500 leading-relaxed">
+                输入问题后先搜索知识库，命中则直接返回答案；未命中则自动联网搜索并引导存储为新知识。
+              </p>
+            </div>
+            <div className="w-full max-w-sm space-y-2.5 mt-1">
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Send size={12} className="text-amber-400" />
+                  <span className="text-[11px] font-medium text-amber-400">普通查询</span>
+                  <span className="text-[9px] text-zinc-600 ml-auto">琥珀色按钮</span>
+                </div>
+                <p className="text-[10px] text-zinc-500 leading-relaxed">先搜知识库 → 未命中自动联网搜索 → 可一键存入知识库</p>
+              </div>
+              <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <FlaskConical size={12} className="text-purple-400" />
+                  <span className="text-[11px] font-medium text-purple-400">Agent 深度研究</span>
+                  <span className="text-[9px] text-zinc-600 ml-auto">紫色按钮</span>
+                </div>
+                <p className="text-[10px] text-zinc-500 leading-relaxed">多步骤自动研究，支持 sitemap/GitHub 深度分析，生成结构化报告</p>
+                <div className="flex gap-1.5 mt-1.5">
+                  <span className="flex items-center gap-0.5 text-[9px] text-zinc-600"><Zap size={8} /> 快速</span>
+                  <span className="text-[9px] text-zinc-700">·</span>
+                  <span className="flex items-center gap-0.5 text-[9px] text-zinc-600"><Brain size={8} /> 标准</span>
+                  <span className="text-[9px] text-zinc-700">·</span>
+                  <span className="flex items-center gap-0.5 text-[9px] text-zinc-600"><Cpu size={8} /> 深度</span>
+                </div>
+              </div>
+              <div className="rounded-lg border border-zinc-800/50 bg-zinc-950/50 px-3 py-2">
+                <p className="text-[10px] text-zinc-600 mb-1">试试这些查询：</p>
+                <div className="space-y-0.5">
+                  <p className="text-[10px] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors" onClick={() => setInput("如何配置 semantic search？")}>"如何配置 semantic search？"</p>
+                  <p className="text-[10px] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors" onClick={() => setInput("Remotion 视频渲染的最佳实践")}>"Remotion 视频渲染的最佳实践"</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -98,14 +131,13 @@ export default function AskPanel() {
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 text-sm text-zinc-400 flex items-center gap-2">
-              <div className="flex gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "300ms" }} />
-              </div>
-              搜索中...
-            </div>
+            <button
+              onClick={cancel}
+              className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-xs text-zinc-400 flex items-center gap-2 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
+            >
+              <Square size={12} className="text-red-400" />
+              停止查询
+            </button>
           </div>
         )}
         <div ref={bottomRef} />
@@ -171,14 +203,35 @@ export default function AskPanel() {
 }
 
 function ResultCard({ msg, expanded, onToggle }: {
-  msg: { id: string; content: string; result?: AskResult; searchResult?: PipelineSearchResponse; researchResult?: ResearchResult; agentResearchResult?: AgentResearchResult; agentResearchProgress?: AgentResearchProgress[] }
+  msg: { id: string; content: string; result?: AskResult; searchResult?: PipelineSearchResponse; researchResult?: ResearchResult; agentResearchResult?: AgentResearchResult; agentResearchProgress?: AgentResearchProgress[]; errorDetail?: string }
   expanded: boolean
   onToggle: () => void
 }) {
+  const [showError, setShowError] = useState(false)
   const result = msg.result
 
+  if (msg.errorDetail && !result && !msg.searchResult && !msg.researchResult && !msg.agentResearchResult) {
+    return (
+      <div className="max-w-[95%] md:max-w-[85%] rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-red-500 overflow-hidden">
+        <div className="px-3 py-2 flex items-center gap-2">
+          <AlertCircle size={13} className="text-red-400" />
+          <span className="text-sm text-red-300">{msg.content}</span>
+        </div>
+        <div className="px-3 pb-2">
+          <button onClick={() => setShowError(!showError)} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300">
+            {showError ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+            查看详情
+          </button>
+          {showError && (
+            <div className="mt-1 p-2 rounded bg-zinc-950 text-[10px] text-zinc-400 whitespace-pre-wrap break-all">{msg.errorDetail}</div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   if (msg.agentResearchResult || (msg.agentResearchProgress && msg.agentResearchProgress.length > 0)) {
-    return <AgentResearchCard result={msg.agentResearchResult} progress={msg.agentResearchProgress} />
+    return <AgentResearchCard result={msg.agentResearchResult} progress={msg.agentResearchProgress} errorDetail={msg.errorDetail} />
   }
 
   if (msg.researchResult) {
@@ -339,12 +392,14 @@ const STEP_LABELS: Record<string, string> = {
   synthesize: "总结生成",
 }
 
-function AgentResearchCard({ result, progress }: {
+function AgentResearchCard({ result, progress, errorDetail }: {
   result?: AgentResearchResult
   progress?: AgentResearchProgress[]
+  errorDetail?: string
 }) {
   const [showSources, setShowSources] = useState(false)
   const [showOutline, setShowOutline] = useState(false)
+  const [showError, setShowError] = useState(false)
 
   const steps = progress || []
   const latestPerStep = new Map<string, AgentResearchProgress>()
@@ -403,6 +458,22 @@ function AgentResearchCard({ result, progress }: {
           )}
         </div>
       </div>
+
+      {!isComplete && errorDetail && (
+        <div className="px-3 py-2 border-t border-zinc-800">
+          <div className="flex items-center gap-1.5 mb-1">
+            <AlertCircle size={11} className="text-red-400" />
+            <span className="text-[10px] text-red-300">研究失败</span>
+          </div>
+          <button onClick={() => setShowError(!showError)} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300">
+            {showError ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+            查看详情
+          </button>
+          {showError && (
+            <div className="mt-1 p-2 rounded bg-zinc-950 text-[10px] text-zinc-400 whitespace-pre-wrap break-all">{errorDetail}</div>
+          )}
+        </div>
+      )}
 
       {isComplete && result.summary && (
         <div className="px-3 py-3 border-t border-zinc-800">

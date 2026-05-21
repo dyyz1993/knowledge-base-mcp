@@ -326,8 +326,13 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
       return
     }
     const maxWebResults = typeof body.max_web_results === "number" ? body.max_web_results : 3
-    const result = await kbAskPipeline(query, maxWebResults)
-    json(res, result)
+    try {
+      const result = await kbAskPipeline(query, maxWebResults)
+      json(res, result)
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e)
+      json(res, { from_kb: false, hint: "查询失败", error: errorMessage })
+    }
     return
   }
   if (url.pathname === "/api/web-read" && req.method === "POST") {
@@ -819,6 +824,10 @@ Answer in the same language as the query.`
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
     }
 
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n')
+    }, 10000)
+
     try {
       const { ResearchAgent } = await import("../research/research-agent.js")
       const agent = new ResearchAgent(
@@ -838,9 +847,11 @@ Answer in the same language as the query.`
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       sendSSE("error", { error: msg })
+    } finally {
+      clearInterval(heartbeat)
+      res.end()
     }
 
-    res.end()
     return
   }
 
@@ -864,6 +875,10 @@ Answer in the same language as the query.`
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
     }
 
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n')
+    }, 10000)
+
     try {
       const { ResearchEvolutionAgent } = await import("../research/evolution/orchestrator.js")
       const agent = new ResearchEvolutionAgent(
@@ -885,9 +900,11 @@ Answer in the same language as the query.`
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       sendSSE("error", { error: msg })
+    } finally {
+      clearInterval(heartbeat)
+      res.end()
     }
 
-    res.end()
     return
   }
 
@@ -1001,7 +1018,10 @@ Answer in the same language as the query.`
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
     }
 
-    // Import and run ingestSite in background
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n')
+    }, 10000)
+
     import("../ingest/site-ingester.js").then(({ ingestSite }) => {
       return ingestSite(
         {
@@ -1015,9 +1035,11 @@ Answer in the same language as the query.`
       )
     }).then((result) => {
       send("done", result)
+      clearInterval(heartbeat)
       res.end()
     }).catch((err) => {
       send("error", { error: err instanceof Error ? err.message : String(err) })
+      clearInterval(heartbeat)
       res.end()
     })
 

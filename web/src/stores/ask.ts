@@ -11,6 +11,7 @@ interface Message {
   researchResult?: ResearchResult
   agentResearchResult?: AgentResearchResult
   agentResearchProgress?: AgentResearchProgress[]
+  errorDetail?: string
   timestamp: number
 }
 
@@ -24,20 +25,32 @@ interface AskState {
   ingest: (url: string, title: string, content: string, tags?: string[]) => Promise<void>
   ingestFromSearch: (query: string, title: string, content: string, url?: string) => Promise<void>
   generateWorkKey: (query: string, results: import("../services/api").PipelineSearchResult[]) => Promise<void>
+  cancel: () => void
   clear: () => void
 }
 
 let msgId = 0
+let abortController: AbortController | null = null
 
 function getModel() {
   return useChatStore.getState().currentModel
 }
 
-export const useAskStore = create<AskState>((set) => ({
+export const useAskStore = create<AskState>((set, get) => ({
   messages: [],
   loading: false,
 
+  cancel: () => {
+    if (abortController) {
+      abortController.abort()
+      abortController = null
+    }
+    set({ loading: false })
+  },
+
   ask: async (query) => {
+    const ac = new AbortController()
+    abortController = ac
     const userMsg: Message = {
       id: `msg-${++msgId}`,
       role: "user",
@@ -47,7 +60,20 @@ export const useAskStore = create<AskState>((set) => ({
     set((s) => ({ messages: [...s.messages, userMsg], loading: true }))
 
     try {
-      const result = await smartAsk(query)
+      const result = await smartAsk(query, ac.signal)
+      if (ac.signal.aborted) return
+      if (result.error) {
+        const errorMsg: Message = {
+          id: `msg-${++msgId}`,
+          role: "system",
+          content: result.hint || "查询失败",
+          result,
+          errorDetail: result.error,
+          timestamp: Date.now(),
+        }
+        set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
+        return
+      }
       if (result.from_kb) {
         const systemMsg: Message = {
           id: `msg-${++msgId}`,
@@ -59,7 +85,8 @@ export const useAskStore = create<AskState>((set) => ({
         set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
       } else {
         try {
-          const searchResult = await askSearch(query, getModel() || undefined)
+          const searchResult = await askSearch(query, getModel() || undefined, ac.signal)
+          if (ac.signal.aborted) return
           const systemMsg: Message = {
             id: `msg-${++msgId}`,
             role: "system",
@@ -70,6 +97,7 @@ export const useAskStore = create<AskState>((set) => ({
           }
           set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
         } catch {
+          if (ac.signal.aborted) return
           const systemMsg: Message = {
             id: `msg-${++msgId}`,
             role: "system",
@@ -80,18 +108,27 @@ export const useAskStore = create<AskState>((set) => ({
           set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
         }
       }
-    } catch {
+    } catch (e: unknown) {
+      if (ac.signal.aborted) return
+      const errorDetail = e instanceof Error ? e.message : String(e)
+      const isAbort = errorDetail === "AbortError" || (e instanceof DOMException && e.name === "AbortError")
+      if (isAbort) return
       const errorMsg: Message = {
         id: `msg-${++msgId}`,
         role: "system",
         content: "查询失败，请重试",
+        errorDetail,
         timestamp: Date.now(),
       }
       set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
+    } finally {
+      if (abortController === ac) abortController = null
     }
   },
 
   search: async (query) => {
+    const ac = new AbortController()
+    abortController = ac
     const userMsg: Message = {
       id: `msg-${++msgId}`,
       role: "user",
@@ -101,7 +138,8 @@ export const useAskStore = create<AskState>((set) => ({
     set((s) => ({ messages: [...s.messages, userMsg], loading: true }))
 
     try {
-      const searchResult = await askSearch(query, getModel() || undefined)
+      const searchResult = await askSearch(query, getModel() || undefined, ac.signal)
+      if (ac.signal.aborted) return
       const systemMsg: Message = {
         id: `msg-${++msgId}`,
         role: "system",
@@ -110,18 +148,27 @@ export const useAskStore = create<AskState>((set) => ({
         timestamp: Date.now(),
       }
       set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
-    } catch {
+    } catch (e: unknown) {
+      if (ac.signal.aborted) return
+      const errorDetail = e instanceof Error ? e.message : String(e)
+      const isAbort = errorDetail === "AbortError" || (e instanceof DOMException && e.name === "AbortError")
+      if (isAbort) return
       const errorMsg: Message = {
         id: `msg-${++msgId}`,
         role: "system",
         content: "搜索失败，请重试",
+        errorDetail,
         timestamp: Date.now(),
       }
       set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
+    } finally {
+      if (abortController === ac) abortController = null
     }
   },
 
   research: async (query) => {
+    const ac = new AbortController()
+    abortController = ac
     const userMsg: Message = {
       id: `msg-${++msgId}`,
       role: "user",
@@ -131,7 +178,8 @@ export const useAskStore = create<AskState>((set) => ({
     set((s) => ({ messages: [...s.messages, userMsg], loading: true }))
 
     try {
-      const researchResult = await askResearch(query, getModel() || undefined)
+      const researchResult = await askResearch(query, getModel() || undefined, ac.signal)
+      if (ac.signal.aborted) return
       const systemMsg: Message = {
         id: `msg-${++msgId}`,
         role: "system",
@@ -140,14 +188,21 @@ export const useAskStore = create<AskState>((set) => ({
         timestamp: Date.now(),
       }
       set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
-    } catch {
+    } catch (e: unknown) {
+      if (ac.signal.aborted) return
+      const errorDetail = e instanceof Error ? e.message : String(e)
+      const isAbort = errorDetail === "AbortError" || (e instanceof DOMException && e.name === "AbortError")
+      if (isAbort) return
       const errorMsg: Message = {
         id: `msg-${++msgId}`,
         role: "system",
         content: "深度研究失败，请重试",
+        errorDetail,
         timestamp: Date.now(),
       }
       set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
+    } finally {
+      if (abortController === ac) abortController = null
     }
   },
 
@@ -217,6 +272,8 @@ export const useAskStore = create<AskState>((set) => ({
   },
 
   agentResearchAction: async (query, mode) => {
+    const ac = new AbortController()
+    abortController = ac
     const userMsg: Message = {
       id: `msg-${++msgId}`,
       role: "user",
@@ -255,7 +312,10 @@ export const useAskStore = create<AskState>((set) => ({
             return { messages: msgs }
           })
         },
+        ac.signal,
       )
+
+      if (ac.signal.aborted) return
 
       set((s) => {
         const msgs = [...s.messages]
@@ -270,15 +330,21 @@ export const useAskStore = create<AskState>((set) => ({
         }
         return { messages: msgs, loading: false }
       })
-    } catch {
+    } catch (e: unknown) {
+      if (ac.signal.aborted) return
+      const errorDetail = e instanceof Error ? e.message : String(e)
+      const isAbort = errorDetail === "AbortError" || (e instanceof DOMException && e.name === "AbortError")
+      if (isAbort) return
       set((s) => {
         const msgs = [...s.messages]
         const idx = msgs.findIndex((m) => m.id === progressMsgId)
         if (idx >= 0) {
-          msgs[idx] = { ...msgs[idx], content: "Agent 研究失败，请重试" }
+          msgs[idx] = { ...msgs[idx], content: "Agent 研究失败，请重试", errorDetail }
         }
         return { messages: msgs, loading: false }
       })
+    } finally {
+      if (abortController === ac) abortController = null
     }
   },
 
