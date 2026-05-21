@@ -161,7 +161,7 @@ export class ResearchAgent {
                 ? ` (targeting: ${this.missingTopics.slice(0, 3).join(", ")})`
                 : ""
               this.phaseLog.push(`looping back: re-searching with gap keywords${gapInfo}`)
-              i = searchIdx - 1 // -1 because the loop does i++ after continue
+              i = searchIdx - 1 // -1 because the while loop does i++ after continue, landing on searchIdx
               continue
             }
           }
@@ -487,38 +487,58 @@ export class ResearchAgent {
     // Derive base URL: prefer official domain from search results over sitemap host
     const sitemapBase = this.sitemapResult.sitemapUrl?.replace(/\/sitemap.*$/, "") || hints[0]
     let base = sitemapBase
-    // Try to find a more authoritative domain from search results
-    const AGGREGATOR_PATTERNS = ["docsmith", "aigne", "wikiless", "archive", "mirror", "proxy"]
-    const isSitemapAggregator = AGGREGATOR_PATTERNS.some(p => sitemapBase.toLowerCase().includes(p))
-    if (isSitemapAggregator) {
-      // Find best non-aggregator domain from search results that has /docs in URL
-      const docDomains = this.collectedSearchResults
-        .filter(r => !AGGREGATOR_PATTERNS.some(p => r.url.toLowerCase().includes(p)))
-        .filter(r => /\/docs|\/guide|\/getting-started/.test(r.url))
+    // Pick the best domain for sitemap deep-read:
+    // Strategy: use the domain from evaluate-selected URLs (already LLM-vetted as most relevant)
+    // Fall back to LLM query if needed, then heuristic
+    const evaluateDomains = this.selectedForRead
+      .map(r => { try { return `${new URL(r.url).protocol}//${new URL(r.url).host}` } catch { return "" } })
+      .filter(Boolean)
+    const uniqueEvaluateDomains = [...new Set(evaluateDomains)]
+    if (uniqueEvaluateDomains.length > 0) {
+      // Prefer the most common domain from evaluate results
+      const domainCounts = new Map<string, number>()
+      for (const d of uniqueEvaluateDomains) domainCounts.set(d, (domainCounts.get(d) || 0) + 1)
+      const topDomain = [...domainCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+      if (topDomain !== sitemapBase) {
+        this.phaseLog.push(`sitemap: using evaluate-selected domain ${topDomain} (was ${sitemapBase})`)
+        base = topDomain
+      }
+    } else {
+      // No evaluate results — try LLM to pick from all doc-like domains in search results
+      const allDomains = this.collectedSearchResults
+        .filter(r => /\/docs|\/guide|\/getting-started|\/api|\/tutorial/.test(r.url))
         .map(r => { try { return `${new URL(r.url).protocol}//${new URL(r.url).host}` } catch { return "" } })
         .filter(Boolean)
-      // Score domains: frequency + query keyword match + shorter hostname bonus
-      const queryKeywords = this.query.toLowerCase().split(/\s+/).filter(w => w.length >= 3)
-      const domainCounts = new Map<string, number>()
-      for (const d of docDomains) domainCounts.set(d, (domainCounts.get(d) || 0) + 1)
-      const bestDomain = [...domainCounts.entries()]
-        .map(([domain, count]) => {
-          let score = count
-          try {
-            const hostname = new URL(domain).hostname.toLowerCase()
-            if (queryKeywords.some(kw => hostname.includes(kw))) score += 5
-            const parts = hostname.split(".")
-            const mainPart = parts.length > 2 ? parts.slice(-2).join(".") : hostname
-            score -= mainPart.split(".").length > 1 ? 0 : 0
-            score += Math.max(0, 3 - (hostname.replace(/\.[a-z]{2,}$/, "").split(".").length - 1) * 1.5)
-            if (hostname.split(".").length <= 3) score += 3
-          } catch { /* ignore */ }
-          return { domain, score }
-        })
-        .sort((a, b) => b.score - a.score)[0]?.domain
-      if (bestDomain) {
-        this.phaseLog.push(`sitemap: using official domain ${bestDomain} instead of aggregator ${sitemapBase}`)
-        base = bestDomain
+      const uniqueDomains = [...new Set(allDomains)].slice(0, 8)
+      if (uniqueDomains.length > 1) {
+        try {
+          const { callLlm } = await import("../search/llm-caller.js")
+          const domainList = uniqueDomains.map((d, i) => `[${i}] ${d}`).join("\n")
+          const prompt = `Research query: "${this.query}"
+
+Which domain is the OFFICIAL documentation site for the main technology?
+Return ONLY the domain URL, nothing else. If none, return "none".
+
+Domains:
+${domainList}`
+          const raw = await callLlm(
+            tierToLlmConfig(this.modelTier.small),
+            [{ role: "system", content: "Return only a single URL or 'none'. No explanation." }, { role: "user", content: prompt }],
+            0.1, 100, 10000,
+          )
+          const cleaned = raw.trim().replace(/^["']|["']$/g, "")
+          if (cleaned !== "none" && uniqueDomains.some(d => {
+            try { return cleaned.includes(new URL(d).hostname) } catch { return false }
+          })) {
+            const picked = cleaned.startsWith("http") ? cleaned : uniqueDomains.find(d => { try { return d.includes(cleaned) } catch { return false } }) || sitemapBase
+            if (picked !== sitemapBase) {
+              this.phaseLog.push(`sitemap: LLM picked ${picked} over ${sitemapBase}`)
+              base = picked
+            }
+          }
+        } catch {
+          // LLM failed, keep sitemapBase
+        }
       }
     }
     const paths = this.sitemapResult.relevantPaths.slice(0, 15)
