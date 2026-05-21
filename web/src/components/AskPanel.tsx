@@ -312,6 +312,16 @@ function ResultCard({ msg, expanded, onToggle }: {
 
 function ResearchResultCard({ researchResult }: { researchResult: ResearchResult }) {
   const [showSources, setShowSources] = useState(false)
+  const [expandedSnippets, setExpandedSnippets] = useState<Set<number>>(new Set())
+
+  const toggleSnippet = (i: number) => {
+    setExpandedSnippets(prev => {
+      const next = new Set(prev)
+      if (next.has(i)) next.delete(i)
+      else next.add(i)
+      return next
+    })
+  }
 
   return (
     <div className="max-w-[85%] w-full rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-purple-500 overflow-hidden">
@@ -363,7 +373,13 @@ function ResearchResultCard({ researchResult }: { researchResult: ResearchResult
               <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-400 hover:text-blue-300 truncate block">
                 {item.title}
               </a>
-              <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2">{item.snippet}</p>
+              <p className={`text-[10px] text-zinc-500 mt-0.5 ${expandedSnippets.has(i) ? "" : "line-clamp-2"}`}>{item.snippet}</p>
+              {item.snippet && item.snippet.length > 80 && (
+                <button onClick={() => toggleSnippet(i)} className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500 hover:text-zinc-300">
+                  {expandedSnippets.has(i) ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                  {expandedSnippets.has(i) ? "收起" : "展开"}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -565,6 +581,7 @@ function PipelineResultItem({ item, query, onIngest }: {
   const [reading, setReading] = useState(false)
   const [detail, setDetail] = useState<string | null>(null)
   const [detailTitle, setDetailTitle] = useState<string>("")
+  const [expanded, setExpanded] = useState(false)
 
   const handleDeepRead = async () => {
     if (reading) return
@@ -618,7 +635,13 @@ function PipelineResultItem({ item, query, onIngest }: {
                 {item.sourceType}
               </span>
             </div>
-            <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2">{item.snippet}</p>
+            <p className={`text-[10px] text-zinc-500 mt-0.5 ${expanded ? "" : "line-clamp-2"}`}>{item.snippet}</p>
+            {item.snippet && item.snippet.length > 80 && (
+              <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500 hover:text-zinc-300">
+                {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                {expanded ? "收起" : "展开"}
+              </button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 mt-1.5">
@@ -673,6 +696,7 @@ function WebResultItem({ item, query }: { item: WebSearchItem; query: string }) 
   const [reading, setReading] = useState(false)
   const [detail, setDetail] = useState<string | null>(null)
   const [showIngest, setShowIngest] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
   const handleRead = async () => {
     if (reading) return
@@ -713,7 +737,13 @@ function WebResultItem({ item, query }: { item: WebSearchItem; query: string }) 
           </a>
           <ExternalLink size={10} className="text-zinc-600 shrink-0 mt-0.5" />
         </div>
-        <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2">{item.content}</p>
+        <p className={`text-[10px] text-zinc-500 mt-0.5 ${expanded ? "" : "line-clamp-2"}`}>{item.content}</p>
+        {item.content && item.content.length > 80 && (
+          <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500 hover:text-zinc-300">
+            {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+            {expanded ? "收起" : "展开"}
+          </button>
+        )}
       </div>
       <div className="px-2.5 py-1.5 border-t border-zinc-800 flex items-center gap-2">
         <button
