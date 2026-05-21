@@ -38,7 +38,17 @@ function ensureDir(dir: string) {
 
 let cachedIndex: IndexFile | null = null
 let cacheTimestamp = 0
-const CACHE_TTL = 5000 // 5 seconds — stale cache threshold
+let cachedCacheTtl = 5000
+let cacheTtlConfigTimestamp = 0
+
+function getCacheTtlMs(): number {
+  const now = Date.now()
+  if (now - cacheTtlConfigTimestamp > 60000) {
+    try { cachedCacheTtl = loadConfig().storage.cacheTtlMs } catch {}
+    cacheTtlConfigTimestamp = now
+  }
+  return cachedCacheTtl
+}
 
 // Write serialization: prevents TOCTOU races while keeping writes synchronous
 // when no concurrent write is in progress (critical for test compatibility)
@@ -66,7 +76,7 @@ function readIndex(): IndexFile {
   const now = Date.now()
 
   // Use cache if fresh (< 5s old)
-  if (cachedIndex && (now - cacheTimestamp) < CACHE_TTL) return cachedIndex
+  if (cachedIndex && (now - cacheTimestamp) < getCacheTtlMs()) return cachedIndex
 
   try {
     const raw = readFileSync(getIndexPath(), "utf-8")
@@ -453,7 +463,7 @@ export async function searchDocsCombined(
 
   const normalize = (results: (DocMeta & { score: number })[]): (DocMeta & { score: number })[] => {
     if (results.length === 0) return results
-    const max = Math.max(...results.map(r => r.score))
+    const max = results.reduce((m, r) => Math.max(m, r.score), 0)
     if (max <= 0) return results
     return results.map(r => ({ ...r, score: r.score / max }))
   }

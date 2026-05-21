@@ -75,6 +75,21 @@ export interface SearchPipelineConfig {
   maxResults: number
 }
 
+export interface StorageConfig {
+  cacheTtlMs: number
+}
+
+export interface TimeoutsConfig {
+  webReadMs: number
+  deepReadMs: number
+}
+
+export interface AskPipelineConfig {
+  maxLoops: number
+  highScoreThreshold: number
+  lowScoreThreshold: number
+}
+
 export interface AppConfig {
   embedding: EmbeddingConfig
   search: SearchConfig
@@ -82,6 +97,9 @@ export interface AppConfig {
   browser: BrowserConfig
   webSearch: WebSearchConfig
   searchPipeline: SearchPipelineConfig
+  storage: StorageConfig
+  timeouts: TimeoutsConfig
+  askPipeline: AskPipelineConfig
 }
 
 const DEFAULT_SKILL_PATHS = [
@@ -153,6 +171,18 @@ const DEFAULT_CONFIG: AppConfig = {
     },
     maxResults: 10,
   },
+  storage: {
+    cacheTtlMs: 5000,
+  },
+  timeouts: {
+    webReadMs: 15000,
+    deepReadMs: 10000,
+  },
+  askPipeline: {
+    maxLoops: 2,
+    highScoreThreshold: 45,
+    lowScoreThreshold: 20,
+  },
 }
 
 function expandPath(p: string): string {
@@ -195,12 +225,15 @@ export function loadConfig(): AppConfig {
             aiSearch: { ...DEFAULT_CONFIG.searchPipeline.sources.aiSearch, ...raw.searchPipeline?.sources?.aiSearch },
           },
         },
+        storage: { ...DEFAULT_CONFIG.storage, ...raw.storage },
+        timeouts: { ...DEFAULT_CONFIG.timeouts, ...raw.timeouts },
+        askPipeline: { ...DEFAULT_CONFIG.askPipeline, ...raw.askPipeline },
       }
     }
   } catch (e) {
     console.warn("[config]", e instanceof Error ? e.message : String(e))
   }
-  return { ...DEFAULT_CONFIG, skills: { ...DEFAULT_CONFIG.skills, paths: DEFAULT_CONFIG.skills.paths.map(expandPath) } }
+  return { ...DEFAULT_CONFIG, skills: { ...DEFAULT_CONFIG.skills, paths: DEFAULT_CONFIG.skills.paths.map(expandPath) }, storage: { ...DEFAULT_CONFIG.storage }, timeouts: { ...DEFAULT_CONFIG.timeouts }, askPipeline: { ...DEFAULT_CONFIG.askPipeline } }
 }
 
 export function saveConfig(config: AppConfig): void {

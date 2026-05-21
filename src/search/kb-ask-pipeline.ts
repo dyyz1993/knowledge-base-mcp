@@ -12,9 +12,10 @@ import { createXBrowserSources } from "./source-xbrowser"
 import { AiSearchSource } from "./source-ai-search"
 import { SearchPipeline } from "./search-pipeline"
 
-const MAX_LOOPS = 2
-const HIGH_SCORE_THRESHOLD = 45
-const LOW_SCORE_THRESHOLD = 20
+function getAskPipelineConfig() {
+  const config = loadConfig()
+  return config.askPipeline
+}
 
 export interface AskResult {
   from_kb: boolean
@@ -213,8 +214,8 @@ IMPORTANT: Evaluate based on SUBSTANCE, not just topic match. A document titled 
   } catch {
     return {
       relevanceScore: docMeta.score,
-      isRelevant: docMeta.score >= HIGH_SCORE_THRESHOLD,
-      completeness: docMeta.score >= HIGH_SCORE_THRESHOLD ? "partial" : "incomplete",
+      isRelevant: docMeta.score >= getAskPipelineConfig().highScoreThreshold,
+      completeness: docMeta.score >= getAskPipelineConfig().highScoreThreshold ? "partial" : "incomplete",
       missingAspects: [],
       suggestedRewrite: null,
       webSearchRecommended: true,
@@ -356,6 +357,7 @@ export async function kbAskPipeline(
 ): Promise<AskResult> {
   const llm = resolvePiConfig()
   const allQueriesUsed: string[] = [query]
+  const { maxLoops, highScoreThreshold, lowScoreThreshold } = getAskPipelineConfig()
 
   if (!llm) {
     return fallbackSearch(query, allQueriesUsed)
@@ -373,7 +375,7 @@ export async function kbAskPipeline(
 
   const seenDocIds = new Set<string>()
 
-  for (let loop = 0; loop <= MAX_LOOPS; loop++) {
+  for (let loop = 0; loop <= maxLoops; loop++) {
     const searchQueries = loop === 0
       ? [query, intent.rewrittenQuery, ...intent.subQueries.slice(0, 3)]
       : [intent.rewrittenQuery, ...intent.missingAspects.map((a: string) => `${query} ${a}`)]
@@ -388,13 +390,13 @@ export async function kbAskPipeline(
     const results = multiSearch(allQueries, 5)
 
     if (results.length === 0) {
-      if (loop >= MAX_LOOPS) break
+      if (loop >= maxLoops) break
       continue
     }
 
     const best = results[0]
 
-    if (best.score >= HIGH_SCORE_THRESHOLD) {
+    if (best.score >= highScoreThreshold) {
       const full = readDoc(best.id, false)
       const content = full ? full.content : ""
 
@@ -481,7 +483,7 @@ export async function kbAskPipeline(
       }
     }
 
-    if (best.score >= LOW_SCORE_THRESHOLD) {
+    if (best.score >= lowScoreThreshold) {
       if (seenDocIds.has(best.id) && loop > 0) {
         const full = readDoc(best.id, false)
         const content = full ? full.content : ""
@@ -545,7 +547,7 @@ export async function kbAskPipeline(
           return baseResult
         }
 
-        if (loop >= MAX_LOOPS) {
+        if (loop >= maxLoops) {
           const lowResult: AskResult = {
             from_kb: true,
             id: best.id,
@@ -594,7 +596,7 @@ export async function kbAskPipeline(
       continue
     }
 
-    if (loop >= MAX_LOOPS) break
+    if (loop >= maxLoops) break
   }
 
   // KB miss — try web search before returning miss response
@@ -615,7 +617,7 @@ export async function kbAskPipeline(
           from_kb: false,
           web_results: webResultRefs,
           content: webContent,
-          loops_used: MAX_LOOPS,
+          loops_used: maxLoops,
           queries_used: allQueriesUsed,
           hint: `知识库未命中，已联网搜索到 ${webResults.length} 条摘要（深度研究会自动存储完整内容）`,
         }
@@ -628,7 +630,7 @@ export async function kbAskPipeline(
     if (researchResult) return researchResult
   }
 
-  return buildMissResponse(query, allQueriesUsed, MAX_LOOPS)
+  return buildMissResponse(query, allQueriesUsed, maxLoops)
 }
 
 async function autoResearch(query: string, allQueriesUsed: string[]): Promise<AskResult | null> {
@@ -690,7 +692,7 @@ async function autoResearch(query: string, allQueriesUsed: string[]): Promise<As
       content: result.summary.slice(0, 8000),
       quality: result.finalQualityScore >= 7 ? "high" : "medium",
       completeness: result.finalCoverageScore >= 7 ? "complete" : "partial",
-      loops_used: MAX_LOOPS,
+      loops_used: getAskPipelineConfig().maxLoops,
       queries_used: allQueriesUsed,
       auto_saved: true,
       hint: `🔍 自动深度研究完成 (Q=${result.finalQualityScore}/10, C=${result.finalCoverageScore}/10, 深读=${drSuccess}/${dr.length}, ${(result.durationMs / 1000).toFixed(0)}s)`,
@@ -704,8 +706,9 @@ function fallbackSearch(
   query: string,
   queriesUsed: string[],
 ): AskResult {
+  const { highScoreThreshold, lowScoreThreshold } = getAskPipelineConfig()
   const results = searchDocs(query, undefined, undefined, 3)
-  const highScoreHits = results.filter(r => r.score >= LOW_SCORE_THRESHOLD)
+  const highScoreHits = results.filter(r => r.score >= lowScoreThreshold)
 
   if (highScoreHits.length > 0) {
     const best = highScoreHits[0]
@@ -716,7 +719,7 @@ function fallbackSearch(
       title: best.title,
       score: best.score,
       content: full ? full.content.slice(0, 4000) : best.snippet || best.intent,
-      quality: best.score >= HIGH_SCORE_THRESHOLD ? "high" : "medium",
+      quality: best.score >= highScoreThreshold ? "high" : "medium",
       completeness: "partial",
       loops_used: 0,
       queries_used: queriesUsed,

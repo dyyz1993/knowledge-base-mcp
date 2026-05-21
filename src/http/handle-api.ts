@@ -12,7 +12,7 @@ import { getConfiguredModels } from "../chat/api-models.js"
 import { loadConfig, saveConfig } from "../config.js"
 import type { AppConfig } from "../config.js"
 import type { SearchSource } from "../search/types.js"
-import { readBody, json, parseBody } from "./helpers.js"
+import { readBody, json, parseBody, validateUrl, htmlToPlainText } from "./helpers.js"
 import { renderRecentHtml } from "./render.js"
 
 export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL) {
@@ -294,6 +294,9 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
           plugin: { ...current.searchPipeline?.sources?.plugin, ...update.searchPipeline?.sources?.plugin },
         },
       },
+      storage: { ...current.storage, ...update.storage },
+      timeouts: { ...current.timeouts, ...update.timeouts },
+      askPipeline: { ...current.askPipeline, ...update.askPipeline },
     }
 
     saveConfig(merged)
@@ -343,21 +346,18 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
         return
       }
     }
+    const { safe, reason } = validateUrl(targetUrl)
+    if (!safe) { json(res, { error: `URL blocked: ${reason}` }, 400); return }
+    const config = loadConfig()
     try {
       const resp = await fetch(targetUrl, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(config.timeouts.webReadMs),
       })
       const html = await resp.text()
       const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
       const title = titleMatch ? titleMatch[1].trim() : targetUrl
-      const bodyContent = html
-        .replace(/<script[\s\S]*?<\/script>/gi, "")
-        .replace(/<style[\s\S]*?<\/style>/gi, "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 20000)
+      const bodyContent = htmlToPlainText(html).slice(0, 20000)
       if (bodyContent.length > 50) {
         json(res, { success: true, title, content: bodyContent, url: targetUrl })
         return
@@ -486,21 +486,18 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
       }
     }
 
+    const { safe, reason } = validateUrl(targetUrl)
+    if (!safe) { json(res, { error: `URL blocked: ${reason}` }, 400); return }
+
     try {
       const resp = await fetch(targetUrl, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(config.timeouts.webReadMs),
       })
       const html = await resp.text()
       const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
       const title = titleMatch ? titleMatch[1].trim() : targetUrl
-      const bodyContent = html
-        .replace(/<script[\s\S]*?<\/script>/gi, "")
-        .replace(/<style[\s\S]*?<\/style>/gi, "")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 20000)
+      const bodyContent = htmlToPlainText(html).slice(0, 20000)
       if (bodyContent.length > 50) {
         json(res, { success: true, title, content: bodyContent, url: targetUrl })
         return
@@ -703,18 +700,12 @@ Return ONLY a JSON array of the selected indices, e.g. [0, 3, 5, 8, 12]. No othe
 
         const resp = await fetch(item.url, {
           headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
-          signal: AbortSignal.timeout(10000),
+          signal: AbortSignal.timeout(config.timeouts.deepReadMs),
         })
         const html = await resp.text()
         const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
         const title = titleMatch ? titleMatch[1].trim() : item.title
-        const bodyContent = html
-          .replace(/<script[\s\S]*?<\/script>/gi, "")
-          .replace(/<style[\s\S]*?<\/style>/gi, "")
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 20000)
+        const bodyContent = htmlToPlainText(html).slice(0, 20000)
         if (bodyContent.length > 50) {
           return { url: item.url, title, content: bodyContent }
         }
