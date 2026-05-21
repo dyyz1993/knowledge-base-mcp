@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from "node:http"
-import { writeDoc, readDoc, searchDocs, listDocs, getOutline, listAllOutlines, searchDocsSemantic, searchDocsCombined, getAllKeywords, listRecentDocs, resolveMiss, rebuildAllVectors } from "../storage/index.js"
+import { writeDoc, readDoc, searchDocs, listDocs, getOutline, listAllOutlines, searchDocsSemantic, searchDocsCombined, getAllKeywords, listRecentDocs, resolveMiss, rebuildAllVectors, deleteDoc } from "../storage/index.js"
 import { searchStats, llmStats, embeddingStats, mcpStats } from "../statistics/index.js"
 import { getStorageStats } from "../search/vector-store.js"
 import { kbAskPipeline } from "../search/kb-ask-pipeline.js"
@@ -38,6 +38,12 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
   if (url.pathname.startsWith("/api/doc/") && req.method === "GET") {
     const id = url.pathname.slice("/api/doc/".length)
     json(res, readDoc(id, false))
+    return
+  }
+  if (url.pathname.startsWith("/api/doc/") && req.method === "DELETE") {
+    const id = url.pathname.slice("/api/doc/".length)
+    const ok = deleteDoc(id)
+    json(res, { deleted: ok, id })
     return
   }
   if (url.pathname === "/api/docs" && req.method === "POST") {

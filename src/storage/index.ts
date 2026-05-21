@@ -407,7 +407,15 @@ export async function searchDocsCombined(
   }
 
   if (searchMode === "semantic") {
-    return searchDocsSemantic(query, limit)
+    try {
+      return await Promise.race([
+        searchDocsSemantic(query, limit),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("semantic search timeout")), 8000)),
+      ])
+    } catch {
+      // Fallback to keyword search when semantic fails
+      return searchDocs(query, keywords, tags, limit)
+    }
   }
 
   const p0Results = searchDocs(query, keywords, tags, limit * 2)
@@ -419,7 +427,11 @@ export async function searchDocsCombined(
 
   let p2Results: (DocMeta & { score: number })[] = []
   try {
-    p2Results = await searchDocsSemantic(query, limit * 2)
+    // Timeout protection: semantic search should not block longer than 8s
+    p2Results = await Promise.race([
+      searchDocsSemantic(query, limit * 2),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("semantic search timeout")), 8000)),
+    ])
   } catch (e) {
     console.warn("[storage] searchDocsCombined: semantic search failed, skipping:", e instanceof Error ? e.message : String(e))
   }
