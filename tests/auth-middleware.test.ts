@@ -64,11 +64,8 @@ describe("Auth middleware", () => {
   // Tests WITH auth (server already started in beforeAll)
   test("/health returns 200 without auth", async () => {
     const res = await fetch(`http://localhost:${AUTH_PORT}/health`)
-    const text = await res.text()
-    // If AUTH_PORT is wrong, we'll see an HTML error page instead of JSON
-    if (!text.startsWith("{")) throw new Error(`AUTH_PORT=${AUTH_PORT} returned non-JSON: ${text.slice(0, 100)}`)
-    const body = JSON.parse(text)
     expect(res.status).toBe(200)
+    const body = await res.json()
     expect(body.status).toBe("ok")
     expect(body.service).toBe("knowledge-base-mcp")
   })
