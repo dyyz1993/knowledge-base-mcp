@@ -39,6 +39,11 @@ function cleanDir() {
   resetDb()
 }
 
+// Ensure KB_DIR stays on our test dir (other test files may override it)
+beforeEach(() => {
+  process.env.KB_DIR = testDir
+})
+
 afterAll(() => {
   if (existsSync(testDir)) rmSync(testDir, { recursive: true })
 })

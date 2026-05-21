@@ -1,8 +1,9 @@
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
-const BASE_DIR = `${process.env.HOME}/.kb-chat`
-const SESSIONS_DIR = `${BASE_DIR}/sessions`
+function getSessionsDir(): string {
+  return `${process.env.HOME}/.kb-chat/sessions`
+}
 
 export interface ChatSession {
   id: string
@@ -24,11 +25,11 @@ export interface ChatMessage {
 }
 
 function ensureBase() {
-  if (!existsSync(SESSIONS_DIR)) mkdirSync(SESSIONS_DIR, { recursive: true })
+  if (!existsSync(getSessionsDir())) mkdirSync(getSessionsDir(), { recursive: true })
 }
 
 function sessionPath(id: string) {
-  return join(SESSIONS_DIR, `${id}.jsonl`)
+  return join(getSessionsDir(), `${id}.jsonl`)
 }
 
 export function createSession(name?: string): ChatSession {
@@ -124,11 +125,11 @@ export function updateSessionModel(id: string, model: { provider: string; id: st
 
 export function listSessions(): (ChatSession & { messageCount: number })[] {
   ensureBase()
-  if (!existsSync(SESSIONS_DIR)) return []
-  return readdirSync(SESSIONS_DIR)
+  if (!existsSync(getSessionsDir())) return []
+  return readdirSync(getSessionsDir())
     .filter(f => f.endsWith(".jsonl"))
     .map(f => {
-      const filePath = join(SESSIONS_DIR, f)
+      const filePath = join(getSessionsDir(), f)
       try {
         const fd = openSync(filePath, "r")
         const buffer = Buffer.alloc(4096)

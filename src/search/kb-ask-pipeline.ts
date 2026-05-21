@@ -596,33 +596,35 @@ export async function kbAskPipeline(
   }
 
   // KB miss — try web search before returning miss response
-  try {
-    const webResults = await searchViaPipeline(
-      intent?.rewrittenQuery || query,
-      maxWebResults,
-    )
+  if (maxWebResults > 0) {
+    try {
+      const webResults = await searchViaPipeline(
+        intent?.rewrittenQuery || query,
+        maxWebResults,
+      )
 
-    if (webResults.length > 0) {
-      const webContent = webResults.map(r => `## ${r.title}\n${r.snippet}\nSource: ${r.url}`).join("\n\n")
-      const webResultRefs = webResults.map(r => ({ id: "", title: r.title, url: r.url, source: r.source }))
+      if (webResults.length > 0) {
+        const webContent = webResults.map(r => `## ${r.title}\n${r.snippet}\nSource: ${r.url}`).join("\n\n")
+        const webResultRefs = webResults.map(r => ({ id: "", title: r.title, url: r.url, source: r.source }))
 
-      resolveMiss(query)
+        resolveMiss(query)
 
-      return {
-        from_kb: false,
-        web_results: webResultRefs,
-        content: webContent,
-        loops_used: MAX_LOOPS,
-        queries_used: allQueriesUsed,
-        hint: `知识库未命中，已联网搜索到 ${webResults.length} 条摘要（深度研究会自动存储完整内容）`,
+        return {
+          from_kb: false,
+          web_results: webResultRefs,
+          content: webContent,
+          loops_used: MAX_LOOPS,
+          queries_used: allQueriesUsed,
+          hint: `知识库未命中，已联网搜索到 ${webResults.length} 条摘要（深度研究会自动存储完整内容）`,
+        }
       }
+    } catch {
+      // web search failed — try auto research
     }
-  } catch {
-    // web search failed — try auto research
-  }
 
-  const researchResult = await autoResearch(query, allQueriesUsed)
-  if (researchResult) return researchResult
+    const researchResult = await autoResearch(query, allQueriesUsed)
+    if (researchResult) return researchResult
+  }
 
   return buildMissResponse(query, allQueriesUsed, MAX_LOOPS)
 }

@@ -523,7 +523,7 @@ export function registerTools(server: McpServer) {
       auto_save: z.boolean().optional().default(true).describe("是否自动存入知识库（默认 true）"),
     },
     async (args) => {
-      const result = await kbAskPipeline(args.query, args.max_web_results || 3)
+      const result = await kbAskPipeline(args.query, args.max_web_results ?? 3)
 
       if (result.from_kb) {
         return {

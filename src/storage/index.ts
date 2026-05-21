@@ -5,8 +5,10 @@ import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
 import { loadVectors, indexDoc, rebuildAllVectors, initDb } from "../search/vector-store"
 import { loadConfig } from "../config"
 
-const KNOWLEDGE_DIR = process.env.KB_DIR || `${process.env.HOME}/.knowledge`
-const INDEX_PATH = `${KNOWLEDGE_DIR}/index.json`
+/** Dynamic paths — always read KB_DIR from env at call time for test isolation */
+function getKbDir(): string { return process.env.KB_DIR || `${process.env.HOME}/.knowledge` }
+function getIndexPath(): string { return `${getKbDir()}/index.json` }
+function getMissLogPath(): string { return `${getKbDir()}/miss-log.json` }
 
 export interface DocMeta {
   id: string
@@ -60,14 +62,14 @@ function serializedWrite(fn: () => void): void {
 }
 
 function readIndex(): IndexFile {
-  ensureDir(KNOWLEDGE_DIR)
+  ensureDir(getKbDir())
   const now = Date.now()
 
   // Use cache if fresh (< 5s old)
   if (cachedIndex && (now - cacheTimestamp) < CACHE_TTL) return cachedIndex
 
   try {
-    const raw = readFileSync(INDEX_PATH, "utf-8")
+    const raw = readFileSync(getIndexPath(), "utf-8")
     const idx = JSON.parse(raw) as IndexFile
     cachedIndex = idx
     cacheTimestamp = now
@@ -97,9 +99,9 @@ function invalidateCache() {
 }
 
 function atomicWriteIndex(idx: IndexFile) {
-  const tmpPath = INDEX_PATH + ".tmp"
+  const tmpPath = getIndexPath() + ".tmp"
   writeFileSync(tmpPath, JSON.stringify(idx, null, 2))
-  renameSync(tmpPath, INDEX_PATH)
+  renameSync(tmpPath, getIndexPath())
 }
 
 function writeIndex(idx: IndexFile) {
@@ -114,13 +116,13 @@ function writeIndex(idx: IndexFile) {
  */
 function recoverIndexFromDisk(): IndexFile | null {
   try {
-    const files = readdirSync(KNOWLEDGE_DIR).filter(f => f.endsWith(".md"))
+    const files = readdirSync(getKbDir()).filter(f => f.endsWith(".md"))
     if (files.length === 0) return null
 
     const idx: IndexFile = { version: 1, documents: {} }
     for (const file of files) {
       try {
-        const raw = readFileSync(`${KNOWLEDGE_DIR}/${file}`, "utf-8")
+        const raw = readFileSync(`${getKbDir()}/${file}`, "utf-8")
         const { frontmatter } = parseFrontmatterWithMeta(raw)
         if (frontmatter?.id && frontmatter?.title) {
           idx.documents[frontmatter.id] = frontmatter as DocMeta
@@ -175,7 +177,7 @@ export function slugify(s: string): string {
 }
 
 function docFilePath(id: string, title: string) {
-  return `${KNOWLEDGE_DIR}/${id}-${slugify(title)}.md`
+  return `${getKbDir()}/${id}-${slugify(title)}.md`
 }
 
 export function findDuplicate(meta: { title: string; source_project?: string }, idx: IndexFile): DocMeta | null {
@@ -218,7 +220,7 @@ export function writeDoc(
     related_files: meta.related_files || [],
   } as DocMeta
 
-  ensureDir(KNOWLEDGE_DIR)
+  ensureDir(getKbDir())
   const md = buildFrontmatter(doc) + "\n" + content
   writeFileSync(file_path, md)
 
@@ -517,7 +519,7 @@ export function deleteDoc(id: string): boolean {
 
 export function getOutline(project: string) {
   const slug = slugify(project)
-  const path = `${KNOWLEDGE_DIR}/outlines/${slug}.json`
+  const path = `${getKbDir()}/outlines/${slug}.json`
   if (!existsSync(path)) return null
   return JSON.parse(readFileSync(path, "utf-8"))
 }
@@ -526,7 +528,7 @@ export function updateOutline(project: string, idx?: IndexFile) {
   if (!project) return
   if (!idx) idx = readIndex()
   const slug = slugify(project)
-  const dir = `${KNOWLEDGE_DIR}/outlines`
+  const dir = `${getKbDir()}/outlines`
   ensureDir(dir)
 
   const docs = Object.values(idx.documents)
@@ -539,7 +541,7 @@ export function updateOutline(project: string, idx?: IndexFile) {
 }
 
 export function listAllOutlines(): { project: string; name: string; doc_count: number; updated_at: number }[] {
-  const dir = `${KNOWLEDGE_DIR}/outlines`
+  const dir = `${getKbDir()}/outlines`
   if (!existsSync(dir)) return []
   return readdirSync(dir)
     .filter(f => f.endsWith(".json"))
@@ -572,7 +574,7 @@ export function getAllKeywords(): { keywords: string[]; count: number } {
 
 export { rebuildAllVectors }
 
-const MISS_LOG_PATH = `${KNOWLEDGE_DIR}/miss-log.json`
+// Miss log functions using getMissLogPath()
 
 interface MissEntry {
   query: string
@@ -582,8 +584,8 @@ interface MissEntry {
 
 function readMissLog(): MissEntry[] {
   try {
-    if (!existsSync(MISS_LOG_PATH)) return []
-    return JSON.parse(readFileSync(MISS_LOG_PATH, "utf-8"))
+    if (!existsSync(getMissLogPath())) return []
+    return JSON.parse(readFileSync(getMissLogPath(), "utf-8"))
   } catch (e) {
     console.warn("[storage] readMissLog: failed to read miss log:", e instanceof Error ? e.message : String(e))
     return []
@@ -591,11 +593,11 @@ function readMissLog(): MissEntry[] {
 }
 
 function writeMissLog(log: MissEntry[]) {
-  ensureDir(KNOWLEDGE_DIR)
+  ensureDir(getKbDir())
   serializedWrite(() => {
-    const tmpPath = MISS_LOG_PATH + ".tmp"
+    const tmpPath = getMissLogPath() + ".tmp"
     writeFileSync(tmpPath, JSON.stringify(log, null, 2))
-    renameSync(tmpPath, MISS_LOG_PATH)
+    renameSync(tmpPath, getMissLogPath())
   })
 }
 

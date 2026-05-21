@@ -16,6 +16,12 @@ function cleanDir() {
   mkdirSync(testDir, { recursive: true })
 }
 
+// Ensure KB_DIR points to our test dir before each test
+beforeEach(() => {
+  process.env.KB_DIR = testDir
+  cleanDir()
+})
+
 afterAll(() => {
   if (existsSync(testDir)) rmSync(testDir, { recursive: true })
 })

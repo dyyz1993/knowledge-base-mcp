@@ -9,6 +9,7 @@ const PORT = 19888
 const BASE = `http://localhost:${PORT}`
 let serverProcess: ReturnType<typeof spawn> | null = null
 let sessionId = ""
+let llmAvailable = false
 
 function mcpRequest(method: string, params: any = {}, id = 1): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -54,8 +55,33 @@ function parseResult(resp: any): any {
   return text ? JSON.parse(text) : null
 }
 
+async function isLlmReachable(): Promise<boolean> {
+  try {
+    const { getConfiguredModels } = await import("../src/chat/api-models.js")
+    const models = getConfiguredModels()
+    const usable = models.filter((m: any) => m.apiKey && m.baseUrl)
+    if (usable.length === 0) return false
+
+    const { callLlm } = await import("../src/search/llm-caller.js")
+    const model = usable[0]
+    await callLlm(
+      { baseUrl: model.baseUrl, apiKey: model.apiKey, model: model.id },
+      [{ role: "user", content: "ping" }],
+      0,
+      5,
+      8000,
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
 beforeAll(async () => {
   if (skipCI) return
+
+  llmAvailable = await isLlmReachable()
+
   // 启动测试服务器
   serverProcess = spawn("bun", ["run", "dist/index.js", "--http", "--port", String(PORT)], {
     stdio: "pipe",
@@ -87,7 +113,7 @@ beforeAll(async () => {
     capabilities: {},
     clientInfo: { name: "test-runner", version: "1.0.0" },
   })
-}, 15000)
+}, 20000)
 
 afterAll(() => {
   if (skipCI) return
@@ -105,13 +131,14 @@ describeMcp("MCP tools: health & registration", () => {
   it("should have 18 tools registered", async () => {
     const resp = await mcpRequest("tools/list")
     const names = resp.result.tools.map((t: any) => t.name)
-    expect(names.length).toBe(18)
+    expect(names.length).toBe(19)
     expect(names).toContain("kb_ask")
     expect(names).toContain("kb_ingest_url")
     expect(names).toContain("kb_ingest_repo")
     expect(names).toContain("kb_stale_check")
     expect(names).toContain("kb_auto_link")
     expect(names).toContain("kb_suggest")
+    expect(names).toContain("kb_search_semantic")
     expect(names).toContain("file_read")
     expect(names).toContain("file_grep")
     expect(names).toContain("file_exists")
@@ -214,7 +241,7 @@ describeMcp("MCP tools: file_read / file_grep / file_exists", () => {
 describeMcp("MCP tools: kb_ask / kb_ingest_url (自进化闭环)", () => {
   const testQuery = `E2E_Miss_Test_${Date.now()}_${Math.random().toString(36).slice(2)}`
 
-  it("step 1: kb_ask should miss and return Miss Task", async () => {
+  it.skipIf(!llmAvailable)("step 1: kb_ask should miss and return Miss Task", async () => {
     const resp = await callTool("kb_ask", { query: testQuery, max_web_results: 0 })
     const result = parseResult(resp)
     expect([false, true]).toContain(result.from_kb)
@@ -223,7 +250,7 @@ describeMcp("MCP tools: kb_ask / kb_ingest_url (自进化闭环)", () => {
     if (result.auto_saved) return
     expect(result.miss).toBe(true)
     expect(result.miss_stats?.total_unresolved).toBeGreaterThanOrEqual(0)
-  }, 60000)
+  }, 120000)
 
   it("step 2: kb_ingest_url should store and resolve miss", async () => {
     const resp = await callTool("kb_ingest_url", {
@@ -239,12 +266,12 @@ describeMcp("MCP tools: kb_ask / kb_ingest_url (自进化闭环)", () => {
     expect(result.miss_resolved).toBe(true)
   })
 
-  it("step 3: kb_ask should now hit KB directly", async () => {
+  it.skipIf(!llmAvailable)("step 3: kb_ask should now hit KB directly", async () => {
     const resp = await callTool("kb_ask", { query: testQuery, max_web_results: 0 })
     const result = parseResult(resp)
     expect(result.from_kb).toBe(true)
     expect(result.score).toBeGreaterThan(0)
-  }, 60000)
+  }, 120000)
 })
 
 describeMcp("MCP tools: kb_suggest / kb_stale_check", () => {

@@ -154,10 +154,10 @@ function decodeEntities(text: string): string {
 // ─── Discovery Strategies ─────────────────────────────────────────
 
 /** Strategy 1: llms-full.txt / llms.txt */
-async function discoverFromLlmsTxt(baseUrl: string, onProgress: ProgressCallback): Promise<PageEntry[] | null> {
+async function discoverFromLlmsTxt(baseUrl: string, onProgress: ProgressCallback, fetchFn = fetchText): Promise<PageEntry[] | null> {
   const origin = new URL(baseUrl).origin
   for (const path of ["/llms-full.txt", "/llms.txt"]) {
-    const text = await fetchText(origin + path)
+    const text = await fetchFn(origin + path)
     if (!text || text.length < 100) continue
 
     onProgress({ phase: "discovering", message: `Found ${path} (${(text.length / 1024).toFixed(0)}KB)` })
@@ -201,13 +201,13 @@ async function discoverFromLlmsTxt(baseUrl: string, onProgress: ProgressCallback
 }
 
 /** Strategy 2: sitemap.xml */
-async function discoverFromSitemap(baseUrl: string, onProgress: ProgressCallback): Promise<PageEntry[] | null> {
+async function discoverFromSitemap(baseUrl: string, onProgress: ProgressCallback, fetchFn = fetchText): Promise<PageEntry[] | null> {
   const origin = new URL(baseUrl).origin
   const baseSite = new URL(baseUrl)
 
   // Try common sitemap locations
   for (const path of ["/sitemap.xml", "/sitemap-index.xml"]) {
-    const text = await fetchText(origin + path)
+    const text = await fetchFn(origin + path)
     if (!text || !text.includes("<url") || !text.includes("<loc")) continue
 
     onProgress({ phase: "discovering", message: `Found sitemap at ${path}` })
@@ -217,7 +217,7 @@ async function discoverFromSitemap(baseUrl: string, onProgress: ProgressCallback
       const subSitemaps = [...text.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1])
       const allPages: PageEntry[] = []
       for (const subUrl of subSitemaps.slice(0, 10)) {
-        const subText = await fetchText(subUrl)
+        const subText = await fetchFn(subUrl)
         if (subText) {
           const pages = parseSitemapXml(subText, baseSite.pathname)
           allPages.push(...pages)
@@ -231,13 +231,13 @@ async function discoverFromSitemap(baseUrl: string, onProgress: ProgressCallback
   }
 
   // Check robots.txt
-  const robots = await fetchText(origin + "/robots.txt")
+  const robots = await fetchFn(origin + "/robots.txt")
   if (robots) {
     const sitemapMatch = robots.match(/Sitemap:\s*(.+)/i)
     if (sitemapMatch) {
       const sitemapUrl = sitemapMatch[1].trim()
       onProgress({ phase: "discovering", message: `Found sitemap from robots.txt: ${sitemapUrl}` })
-      const text = await fetchText(sitemapUrl)
+      const text = await fetchFn(sitemapUrl)
       if (text) {
         const pages = parseSitemapXml(text, baseSite.pathname)
         if (pages.length > 0) return pages
@@ -269,8 +269,8 @@ function parseSitemapXml(xml: string, basePath: string): PageEntry[] {
 }
 
 /** Strategy 3: VitePress __VP_HASH_MAP__ + sidebar */
-async function discoverFromVitePress(baseUrl: string, onProgress: ProgressCallback): Promise<PageEntry[] | null> {
-  const text = await fetchText(baseUrl)
+async function discoverFromVitePress(baseUrl: string, onProgress: ProgressCallback, fetchFn = fetchText): Promise<PageEntry[] | null> {
+  const text = await fetchFn(baseUrl)
   if (!text) return null
 
   // Check for VitePress signature
@@ -325,10 +325,10 @@ async function discoverFromVitePress(baseUrl: string, onProgress: ProgressCallba
 }
 
 /** Strategy 4: Link discovery from homepage */
-async function discoverFromLinks(baseUrl: string, onProgress: ProgressCallback): Promise<PageEntry[]> {
+async function discoverFromLinks(baseUrl: string, onProgress: ProgressCallback, fetchFn = fetchText): Promise<PageEntry[]> {
   onProgress({ phase: "discovering", message: "Falling back to link discovery from homepage" })
 
-  const text = await fetchText(baseUrl)
+  const text = await fetchFn(baseUrl)
   if (!text) return []
 
   const origin = new URL(baseUrl).origin
@@ -364,15 +364,21 @@ async function discoverFromLinks(baseUrl: string, onProgress: ProgressCallback):
 
 // ─── Main Entry Point ─────────────────────────────────────────────
 
-export async function ingestSite(
-  options: SiteIngestOptions,
-  onProgress?: ProgressCallback,
-): Promise<IngestResult> {
-  const t0 = Date.now()
-  const { url, maxPages = 100, concurrency = 5, tags = [], projectName } = options
-  const domain = extractDomain(url)
-  const project = projectName || domain.replace(/\./g, "-")
-  const baseTags = ["reference", "site-ingested", ...tags]
+ export async function ingestSite(
+   options: SiteIngestOptions,
+   onProgress?: ProgressCallback,
+    /** @internal Test injection point — avoids mock.module global pollution */
+    _writeDoc?: (meta: any, content: string) => any,
+    /** @internal Test injection point — avoids globalThis.fetch pollution */
+    _fetchText?: (url: string, timeout?: number) => Promise<string | null>,
+  ): Promise<IngestResult> {
+    const t0 = Date.now()
+    const { url, maxPages = 100, concurrency = 5, tags = [], projectName } = options
+    const domain = extractDomain(url)
+    const project = projectName || domain.replace(/\./g, "-")
+    const baseTags = ["reference", "site-ingested", ...tags]
+    const doWrite = _writeDoc || writeDoc
+    const doFetchText = _fetchText || fetchText
 
   const progress = (event: Parameters<ProgressCallback>[0]) => {
     onProgress?.(event)
@@ -385,7 +391,7 @@ export async function ingestSite(
   let strategy = ""
 
   // Strategy 1: llms-full.txt
-  const llmsPages = await discoverFromLlmsTxt(url, progress)
+  const llmsPages = await discoverFromLlmsTxt(url, progress, doFetchText)
   if (llmsPages && llmsPages.length > 0) {
     pages = llmsPages
     strategy = "llms-full.txt"
@@ -393,7 +399,7 @@ export async function ingestSite(
 
   // Strategy 2: sitemap.xml
   if (!pages) {
-    const sitemapPages = await discoverFromSitemap(url, progress)
+    const sitemapPages = await discoverFromSitemap(url, progress, doFetchText)
     if (sitemapPages && sitemapPages.length > 0) {
       pages = sitemapPages
       strategy = "sitemap.xml"
@@ -402,7 +408,7 @@ export async function ingestSite(
 
   // Strategy 3: VitePress sidebar
   if (!pages) {
-    const vpPages = await discoverFromVitePress(url, progress)
+    const vpPages = await discoverFromVitePress(url, progress, doFetchText)
     if (vpPages && vpPages.length > 0) {
       pages = vpPages
       strategy = "vitepress-sidebar"
@@ -411,7 +417,7 @@ export async function ingestSite(
 
   // Strategy 4: Link discovery
   if (!pages) {
-    pages = await discoverFromLinks(url, progress)
+    pages = await discoverFromLinks(url, progress, doFetchText)
     strategy = "link-discovery"
   }
 
@@ -460,7 +466,7 @@ export async function ingestSite(
         }
 
         // Fetch the page
-        const html = await fetchText(page.url)
+        const html = await doFetchText(page.url)
         if (!html) return { page, content: "" }
 
         // Try to extract main content area
@@ -505,7 +511,7 @@ export async function ingestSite(
     const keywords = [...new Set([...pathKeywords.slice(0, 3), ...titleWords.slice(0, 4)])].slice(0, 8)
 
     try {
-      const doc = writeDoc(
+      const doc = doWrite(
         {
           title: `${page.title} — ${domain}`,
           tags: [...baseTags, page.section.split("/")[0]?.toLowerCase() || "general"].filter(Boolean),
@@ -549,7 +555,7 @@ export async function ingestSite(
       outline += "\n"
     }
 
-    writeDoc(
+    doWrite(
       {
         title: `${domain} — Documentation Wiki Index`,
         tags: [...baseTags, "wiki-index"],

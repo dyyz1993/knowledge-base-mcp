@@ -20,7 +20,7 @@ const VERSION = (() => {
   } catch { return "2.23.0" }
 })()
 
-export function startHttp(port: number, noMcp: boolean) {
+export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: string }) {
   const serveWeb = process.argv.includes("--web")
   const webDist = join(import.meta.dir, "..", "..", "web", "dist")
   const mimeTypes: Record<string, string> = {
@@ -33,8 +33,8 @@ export function startHttp(port: number, noMcp: boolean) {
     ".ico": "image/x-icon",
   }
 
-  // API key authentication — set KB_API_KEY env to enable
-  const apiKey = process.env.KB_API_KEY
+  // API key authentication — set KB_API_KEY env to enable, or pass via options
+  const apiKey = options?.apiKey ?? process.env.KB_API_KEY
   const requireAuth = !!apiKey
 
   function checkAuth(req: any): boolean {
