@@ -551,6 +551,7 @@ ${domainList}`
       xbrowserEnabled: config.searchPipeline?.sources.xbrowser.enabled ?? false,
       xbrowserCdp: config.searchPipeline?.sources.xbrowser.cdpEndpoint,
       xbrowserHeadless: config.searchPipeline?.sources.xbrowser.headless,
+      skipXbrowser: true, // Sitemap pages are official docs — plain fetch is faster
     })
 
     const successful = sitemapDR.filter(r => r.success)

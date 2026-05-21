@@ -114,6 +114,8 @@ export async function deepReadUrls(
     xbrowserCdp?: string
     xbrowserHeadless?: boolean
     webReaderAvailable?: boolean
+    /** Skip xbrowser entirely — use plain fetch only (faster for official docs/sitemap URLs) */
+    skipXbrowser?: boolean
   },
 ): Promise<DeepReadItem[]> {
   const cachedItems: DeepReadItem[] = []
@@ -148,7 +150,7 @@ export async function deepReadUrls(
     }
 
     try {
-      if (config.xbrowserEnabled) {
+      if (config.xbrowserEnabled && !config.skipXbrowser) {
         try {
           const { XBrowserCLI } = await import("../../search/xbrowser-cli.js")
           const cli = new XBrowserCLI({
