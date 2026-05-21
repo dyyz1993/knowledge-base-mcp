@@ -155,13 +155,13 @@ export class ResearchAgent {
               continue
             }
           } else {
-            const analyzeIdx = this.findStepIndex(flow, "analyze_query")
-            if (analyzeIdx >= 0) {
+            const searchIdx = this.findStepIndex(flow, "search")
+            if (searchIdx >= 0) {
               const gapInfo = this.missingTopics.length
                 ? ` (targeting: ${this.missingTopics.slice(0, 3).join(", ")})`
                 : ""
               this.phaseLog.push(`looping back: re-searching with gap keywords${gapInfo}`)
-              i = analyzeIdx // loop's own i++ will land on analyze_query
+              i = searchIdx - 1 // -1 because the loop does i++ after continue
               continue
             }
           }
@@ -336,8 +336,7 @@ export class ResearchAgent {
     }
 
     const allResults: SearchResult[] = []
-    // Run queries with limited concurrency (2) to avoid resource exhaustion
-    const concurrency = 2
+    const concurrency = Math.min(queries.length, 5)
     for (let qi = 0; qi < queries.length; qi += concurrency) {
       const batch = queries.slice(qi, qi + concurrency)
       const batchResults = await Promise.all(
