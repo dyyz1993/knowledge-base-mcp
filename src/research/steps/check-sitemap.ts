@@ -70,8 +70,9 @@ export async function checkSitemap(
   }
 
   const allPaths: string[] = []
+  const allSitePaths: Array<{ base: string; paths: string[] }> = []
 
-  // Try up to 3 valid sitemap sites, not just the first one
+  // Try up to 3 valid sitemap sites, collect paths from all
   for (const site of validSites.slice(0, 3)) {
     try {
       const resp = await fetch(site.sitemapUrl, {
@@ -92,12 +93,38 @@ export async function checkSitemap(
         } catch { continue }
       }
       if (sitePaths.length > 0) {
-        allPaths.push(...sitePaths)
-        break // Got paths from this sitemap, no need to try others
+        allSitePaths.push({ base: site.base, paths: sitePaths })
       }
     } catch {
       continue // Try next valid site
     }
+  }
+
+  // Prefer official/authoritative domains: sort by path relevance and domain authority
+  // Heuristic: domains matching query keywords are prioritized
+  const queryTerms = query.toLowerCase().split(/[\s,，、]+/).filter(w => w.length > 2)
+  const domainScores = allSitePaths.map(sp => {
+    let score = 0
+    try {
+      const host = new URL(sp.base).hostname.toLowerCase()
+      // Penalize known aggregator/mirror domains
+      const AGGREGATOR_PATTERNS = ["docsmith", "aigne", "wikiless", "archive", "mirror", "proxy"]
+      for (const p of AGGREGATOR_PATTERNS) {
+        if (host.includes(p)) score -= 20
+      }
+      // Boost if domain matches query keywords
+      for (const kw of queryTerms) {
+        if (host.includes(kw)) score += 10
+      }
+      // Boost short domains (official projects tend to have short domains)
+      score -= host.split(".").length // hono.dev = 2 parts, docsmith.aigne.io = 3 parts
+    } catch {}
+    return { base: sp.base, paths: sp.paths, score }
+  }).sort((a, b) => b.score - a.score)
+
+  // Collect paths from highest-scoring sites first
+  for (const ds of domainScores) {
+    allPaths.push(...ds.paths)
   }
 
   if (allPaths.length === 0) {

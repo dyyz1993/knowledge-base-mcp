@@ -195,6 +195,19 @@ export class ResearchAgent {
         if (stepName === "synthesize") {
           return this.buildResult(this.buildFallbackSummary(), true)
         }
+
+        // Fallback: when evaluate fails, select top URLs by qualityScore so deep_read still works
+        if (stepName === "evaluate" && this.selectedForRead.length === 0) {
+          const pool = this.filteredResults.length > 0 ? this.filteredResults : this.collectedSearchResults
+          if (pool.length > 0) {
+            const limit = this.mode === "quick" ? 3 : 5
+            this.selectedForRead = pool
+              .slice()
+              .sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0))
+              .slice(0, limit)
+            this.phaseLog.push(`evaluate fallback: selected top ${this.selectedForRead.length} URLs by qualityScore`)
+          }
+        }
       }
 
       i++
@@ -472,7 +485,28 @@ export class ResearchAgent {
       return null
     }
 
-    const base = this.sitemapResult.sitemapUrl?.replace(/\/sitemap.*$/, "") || hints[0]
+    // Derive base URL: prefer official domain from search results over sitemap host
+    const sitemapBase = this.sitemapResult.sitemapUrl?.replace(/\/sitemap.*$/, "") || hints[0]
+    let base = sitemapBase
+    // Try to find a more authoritative domain from search results
+    const AGGREGATOR_PATTERNS = ["docsmith", "aigne", "wikiless", "archive", "mirror", "proxy"]
+    const isSitemapAggregator = AGGREGATOR_PATTERNS.some(p => sitemapBase.toLowerCase().includes(p))
+    if (isSitemapAggregator) {
+      // Find best non-aggregator domain from search results that has /docs in URL
+      const docDomains = this.collectedSearchResults
+        .filter(r => !AGGREGATOR_PATTERNS.some(p => r.url.toLowerCase().includes(p)))
+        .filter(r => /\/docs|\/guide|\/getting-started/.test(r.url))
+        .map(r => { try { return `${new URL(r.url).protocol}//${new URL(r.url).host}` } catch { return "" } })
+        .filter(Boolean)
+      // Use the most frequent official domain
+      const domainCounts = new Map<string, number>()
+      for (const d of docDomains) domainCounts.set(d, (domainCounts.get(d) || 0) + 1)
+      const bestDomain = [...domainCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+      if (bestDomain) {
+        this.phaseLog.push(`sitemap: using official domain ${bestDomain} instead of aggregator ${sitemapBase}`)
+        base = bestDomain
+      }
+    }
     const paths = this.sitemapResult.relevantPaths.slice(0, 15)
     const urls: SearchResult[] = paths.map(p => ({ title: p.split("/").pop() || p, url: `${base}${p}`, snippet: "", source: "sitemap" as SourceName, sourceType: "official" as SourceType, qualityScore: 90 }))
 
