@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KB-MCP — Knowledge Base MCP Server</title>
+<meta name="description" content="本地优先、AI 驱动的知识管理服务器。MCP Protocol + REST API + Web UI + AI Research。">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0a; --bg-card: #141414; --bg-card-hover: #1a1a1a;
+  --border: #262626; --border-light: #333;
+  --text: #e5e5e5; --text-secondary: #a3a3a3; --text-muted: #737373;
+  --accent: #3b82f6; --accent-light: #60a5fa;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
+  --max-w: 1120px; --radius: 12px;
+}
+html { scroll-behavior: smooth; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent-light); text-decoration: none; }
+a:hover { color: #93c5fd; }
+.container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+
+/* Animations */
+.fade-section { opacity: 0; transform: translateY(32px); transition: opacity 0.7s cubic-bezier(.16,1,.3,1), transform 0.7s cubic-bezier(.16,1,.3,1); }
+.fade-section.visible { opacity: 1; transform: translateY(0); }
+
+/* Nav */
+nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; backdrop-filter: blur(16px) saturate(1.4); background: rgba(10,10,10,.72); border-bottom: 1px solid var(--border); }
+nav .container { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+.nav-brand { font-weight: 700; font-size: 16px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.nav-brand svg { width: 22px; height: 22px; }
+.nav-links { display: flex; gap: 28px; font-size: 14px; }
+.nav-links a { color: var(--text-secondary); transition: color .2s; }
+.nav-links a:hover { color: var(--text); }
+
+/* Hero */
+.hero { padding: 160px 0 100px; text-align: center; position: relative; overflow: hidden; }
+.hero::before { content: ''; position: absolute; top: -40%; left: 50%; transform: translateX(-50%); width: 800px; height: 600px; background: radial-gradient(ellipse, rgba(59,130,246,.12) 0%, rgba(139,92,246,.08) 40%, transparent 70%); pointer-events: none; }
+.hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg-card); font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; }
+.hero-badge span { color: var(--accent-light); font-weight: 600; }
+.hero h1 { font-size: clamp(40px, 7vw, 72px); font-weight: 800; line-height: 1.08; letter-spacing: -0.035em; margin-bottom: 20px; }
+.hero h1 .gradient { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #d946ef 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero .tagline { font-size: 20px; color: var(--text-secondary); max-width: 540px; margin: 0 auto 40px; line-height: 1.6; }
+.cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 600; transition: all .2s; cursor: pointer; border: none; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #2563eb; color: #fff; box-shadow: 0 0 24px rgba(59,130,246,.3); }
+.btn-secondary { background: var(--bg-card); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--bg-card-hover); border-color: var(--border-light); color: #fff; }
+.btn svg { width: 18px; height: 18px; }
+.install-cmd { margin-top: 20px; display: inline-flex; align-items: center; gap: 10px; padding: 10px 20px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border); font-family: var(--mono); font-size: 14px; color: var(--text-secondary); cursor: pointer; position: relative; transition: border-color .2s; }
+.install-cmd:hover { border-color: var(--border-light); }
+.install-cmd .dollar { color: var(--text-muted); }
+.install-cmd .cmd-text { color: var(--accent-light); }
+.install-cmd .copy-hint { font-family: var(--font); font-size: 11px; color: var(--text-muted); position: absolute; right: -60px; opacity: 0; transition: opacity .2s; }
+.install-cmd:hover .copy-hint { opacity: 1; }
+
+/* Section */
+section { padding: 100px 0; }
+.section-label { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 12px; }
+.section-title { font-size: clamp(28px, 4vw, 40px); font-weight: 700; letter-spacing: -0.02em; margin-bottom: 16px; }
+.section-desc { color: var(--text-secondary); max-width: 560px; font-size: 17px; margin-bottom: 48px; }
+
+/* Features */
+.features-header { text-align: center; margin-bottom: 56px; }
+.features-header .section-desc { margin-left: auto; margin-right: auto; }
+.features-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.feature-card { padding: 28px 24px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-card); transition: all .25s; }
+.feature-card:hover { border-color: var(--border-light); background: var(--bg-card-hover); transform: translateY(-2px); }
+.feature-icon { width: 40px; height: 40px; border-radius: 10px; background: rgba(59,130,246,.1); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 20px; }
+.feature-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.feature-card p { font-size: 14px; color: var(--text-secondary); line-height: 1.55; }
+
+/* Architecture */
+.arch-header { text-align: center; margin-bottom: 56px; }
+.arch-header .section-desc { margin-left: auto; margin-right: auto; }
+.arch-diagram { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; padding: 48px 0; }
+.arch-node { padding: 20px 28px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-card); text-align: center; min-width: 160px; transition: all .25s; }
+.arch-node:hover { border-color: var(--accent); box-shadow: 0 0 20px rgba(59,130,246,.1); }
+.arch-node .node-icon { font-size: 28px; margin-bottom: 8px; }
+.arch-node .node-title { font-size: 14px; font-weight: 600; }
+.arch-node .node-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.arch-arrow { color: var(--text-muted); font-size: 24px; padding: 0 12px; flex-shrink: 0; }
+.arch-arrow svg { width: 40px; height: 16px; stroke: var(--border-light); }
+
+/* Quick Start */
+.qs-header { text-align: center; margin-bottom: 56px; }
+.qs-header .section-desc { margin-left: auto; margin-right: auto; }
+.qs-steps { display: flex; flex-direction: column; gap: 20px; max-width: 680px; margin: 0 auto; }
+.qs-step { display: flex; gap: 20px; align-items: flex-start; }
+.qs-num { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: rgba(59,130,246,.12); color: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; margin-top: 4px; }
+.qs-content { flex: 1; }
+.qs-content h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.qs-content p { font-size: 14px; color: var(--text-secondary); margin-bottom: 10px; }
+.code-block { background: #0d0d0d; border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; font-family: var(--mono); font-size: 13px; line-height: 1.7; overflow-x: auto; color: var(--text-secondary); }
+.code-block .comment { color: var(--text-muted); }
+.code-block .string { color: #a5d6ff; }
+.code-block .keyword { color: #ff7b72; }
+.code-block .cmd { color: var(--accent-light); }
+
+/* API Examples */
+.api-header { text-align: center; margin-bottom: 56px; }
+.api-header .section-desc { margin-left: auto; margin-right: auto; }
+.api-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.api-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); overflow: hidden; transition: all .25s; }
+.api-card:hover { border-color: var(--border-light); }
+.api-card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.api-method { font-family: var(--mono); font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 4px; background: rgba(59,130,246,.15); color: var(--accent-light); }
+.api-path { font-family: var(--mono); font-size: 13px; color: var(--text-secondary); }
+.api-card-body { padding: 16px 20px; }
+.api-card-body .code-block { border: none; padding: 0; font-size: 12px; background: transparent; }
+
+/* Stats */
+.stats-section { padding: 80px 0; }
+.stats-grid { display: flex; justify-content: center; gap: 48px; flex-wrap: wrap; }
+.stat-item { text-align: center; }
+.stat-value { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.stat-label { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+
+/* Footer */
+footer { border-top: 1px solid var(--border); padding: 40px 0; }
+.footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+.footer-left { font-size: 14px; color: var(--text-muted); }
+.footer-links { display: flex; gap: 24px; font-size: 14px; }
+.footer-links a { color: var(--text-secondary); }
+.footer-links a:hover { color: var(--text); }
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
+  .api-cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .hero { padding: 120px 0 60px; }
+  .features-grid { grid-template-columns: 1fr; }
+  .arch-diagram { flex-direction: column; }
+  .arch-arrow svg { transform: rotate(90deg); }
+  .stats-grid { gap: 32px; }
+  .nav-links { gap: 16px; }
+  .cta-row { flex-direction: column; align-items: center; }
+  .install-cmd .copy-hint { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="container">
+    <a href="#" class="nav-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="m9 10 2 2 4-4"/></svg>
+      KB-MCP
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#quickstart">Quick Start</a>
+      <a href="#api">API</a>
+      <a href="https://github.com/dyyz1993/knowledge-base-mcp" target="_blank">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-badge">Open Source &middot; <span>v2.42.0</span> &middot; 361 Tests Passed</div>
+    <h1>Knowledge Base<br><span class="gradient">MCP Server</span></h1>
+    <p class="tagline">本地优先、AI 驱动的知识管理服务器。为 AI Agent 提供原生知识库工具链。</p>
+    <div class="cta-row">
+      <a href="https://github.com/dyyz1993/knowledge-base-mcp" target="_blank" class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+        View on GitHub
+      </a>
+      <a href="#quickstart" class="btn btn-secondary">Get Started &rarr;</a>
+    </div>
+    <div class="install-cmd" onclick="copyInstall(this)" title="Click to copy">
+      <span class="dollar">$</span>
+      <span class="cmd-text">bun add -g @dyyz1993/kb-mcp</span>
+      <span class="copy-hint">click to copy</span>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features" class="fade-section">
+  <div class="container">
+    <div class="features-header">
+      <div class="section-label">Features</div>
+      <h2 class="section-title">Everything you need for AI knowledge management</h2>
+      <p class="section-desc">从搜索到研究，从存储到自进化，KB-MCP 提供完整的知识管理工具链。</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F50D;</div>
+        <h3>Multi-layer Search</h3>
+        <p>关键词 + TF-IDF + 语义向量三重检索，AI Embedding 驱动的语义匹配。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F916;</div>
+        <h3>MCP Protocol</h3>
+        <p>AI Agent 原生知识库工具。搜索、读写、语义检索，一条协议搞定。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F310;</div>
+        <h3>REST API</h3>
+        <p>30+ HTTP 端点覆盖 CRUD、搜索、摄入、统计，标准 RESTful 接口。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F3A8;</div>
+        <h3>Web UI</h3>
+        <p>深色主题管理界面，文档管理、知识图谱可视化、全局搜索一站搞定。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F52C;</div>
+        <h3>AI Research</h3>
+        <p>自动研究 Agent：搜索 &rarr; 深读 &rarr; 综合 &rarr; 评分，生成结构化报告。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F4E5;</div>
+        <h3>Site Ingestion</h3>
+        <p>全站摄入引擎，支持 sitemap、llms-full.txt、VitePress 站点自动爬取。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x267E;&#xFE0F;</div>
+        <h3>Self-evolving</h3>
+        <p>Miss 检测 &rarr; 联网搜索 &rarr; 自动存储 &rarr; 下次命中。越用越聪明。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F6E1;&#xFE0F;</div>
+        <h3>Security</h3>
+        <p>Bearer Token 认证、SSRF 防护、原子写入，生产级安全防护。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Architecture -->
+<section id="architecture" class="fade-section">
+  <div class="container">
+    <div class="arch-header">
+      <div class="section-label">Architecture</div>
+      <h2 class="section-title">How it works</h2>
+      <p class="section-desc">KB-MCP 作为 MCP Server 桥接 AI Agent 与本地知识存储。</p>
+    </div>
+    <div class="arch-diagram">
+      <div class="arch-node">
+        <div class="node-icon">&#x1F916;</div>
+        <div class="node-title">AI Agent</div>
+        <div class="node-sub">Claude / Opencode / Cursor</div>
+      </div>
+      <div class="arch-arrow">
+        <svg viewBox="0 0 40 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0 8h36m0 0l-6-5m6 5l-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="arch-node" style="border-color: var(--accent); box-shadow: 0 0 24px rgba(59,130,246,.12);">
+        <div class="node-icon">&#x2699;&#xFE0F;</div>
+        <div class="node-title">MCP Protocol</div>
+        <div class="node-sub">Stdio / HTTP Transport</div>
+      </div>
+      <div class="arch-arrow">
+        <svg viewBox="0 0 40 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0 8h36m0 0l-6-5m6 5l-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="arch-node">
+        <div class="node-icon">&#x1F4DA;</div>
+        <div class="node-title">KB Server</div>
+        <div class="node-sub">TypeScript + Bun + Hono</div>
+      </div>
+      <div class="arch-arrow">
+        <svg viewBox="0 0 40 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0 8h36m0 0l-6-5m6 5l-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="arch-node">
+        <div class="node-icon">&#x1F4BE;</div>
+        <div class="node-title">Storage</div>
+        <div class="node-sub">JSON + Embedding Index</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Quick Start -->
+<section id="quickstart" class="fade-section">
+  <div class="container">
+    <div class="qs-header">
+      <div class="section-label">Quick Start</div>
+      <h2 class="section-title">Up and running in 60 seconds</h2>
+      <p class="section-desc">三步启动你的 AI 知识库服务器。</p>
+    </div>
+    <div class="qs-steps">
+      <div class="qs-step">
+        <div class="qs-num">1</div>
+        <div class="qs-content">
+          <h3>Install</h3>
+          <p>使用 Bun 全局安装 KB-MCP 服务器。</p>
+          <div class="code-block"><span class="cmd">bun add -g @dyyz1993/kb-mcp</span></div>
+        </div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">2</div>
+        <div class="qs-content">
+          <h3>Start Server</h3>
+          <p>启动 HTTP + Web UI 服务器，设置你的 API Key。</p>
+          <div class="code-block"><span class="cmd">KB_API_KEY</span>=<span class="string">your-secret</span> <span class="cmd">kb-mcp</span> --http --web --port <span class="string">19877</span></div>
+        </div>
+      </div>
+      <div class="qs-step">
+        <div class="qs-num">3</div>
+        <div class="qs-content">
+          <h3>Connect AI Agent</h3>
+          <p>在你的 AI Agent (Claude / Opencode / Cursor 等) 中配置 MCP Server。</p>
+          <div class="code-block">{
+  <span class="string">"mcpServers"</span>: {
+    <span class="string">"kb"</span>: {
+      <span class="string">"command"</span>: <span class="string">"kb-mcp"</span>,
+      <span class="string">"env"</span>: { <span class="string">"KB_API_KEY"</span>: <span class="string">"your-secret"</span> }
+    }
+  }
+}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- API Examples -->
+<section id="api" class="fade-section">
+  <div class="container">
+    <div class="api-header">
+      <div class="section-label">REST API</div>
+      <h2 class="section-title">Powerful API out of the box</h2>
+      <p class="section-desc">30+ HTTP 端点，覆盖知识管理的每一个环节。</p>
+    </div>
+    <div class="api-cards">
+      <div class="api-card">
+        <div class="api-card-header">
+          <span class="api-method">POST</span>
+          <span class="api-path">/api/docs/write</span>
+        </div>
+        <div class="api-card-body">
+          <div class="code-block">{
+  <span class="string">"title"</span>: <span class="string">"My Doc"</span>,
+  <span class="string">"content"</span>: <span class="string">"Hello KB..."</span>,
+  <span class="string">"tags"</span>: [<span class="string">"guide"</span>],
+  <span class="string">"keywords"</span>: [<span class="string">"example"</span>]
+}</div>
+        </div>
+      </div>
+      <div class="api-card">
+        <div class="api-card-header">
+          <span class="api-method">POST</span>
+          <span class="api-path">/api/search</span>
+        </div>
+        <div class="api-card-body">
+          <div class="code-block">{
+  <span class="string">"query"</span>: <span class="string">"how to use MCP"</span>,
+  <span class="string">"limit"</span>: <span class="cmd">5</span>,
+  <span class="string">"mode"</span>: <span class="string">"semantic"</span>
+}</div>
+        </div>
+      </div>
+      <div class="api-card">
+        <div class="api-card-header">
+          <span class="api-method">POST</span>
+          <span class="api-path">/api/ask-deep-read</span>
+        </div>
+        <div class="api-card-body">
+          <div class="code-block">{
+  <span class="string">"query"</span>: <span class="string">"compare React vs Vue"</span>,
+  <span class="string">"mode"</span>: <span class="string">"deep"</span>,
+  <span class="string">"max_web_results"</span>: <span class="cmd">5</span>
+}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Stats -->
+<section class="stats-section fade-section">
+  <div class="container">
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-value">361</div>
+        <div class="stat-label">Tests Passed</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">30+</div>
+        <div class="stat-label">API Endpoints</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">8</div>
+        <div class="stat-label">Core Features</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">v2.42</div>
+        <div class="stat-label">Latest Version</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">KB-MCP &middot; MIT License &middot; Built with TypeScript + Bun + Hono</div>
+      <div class="footer-links">
+        <a href="https://github.com/dyyz1993/knowledge-base-mcp" target="_blank">GitHub</a>
+        <a href="https://www.npmjs.com/package/@dyyz1993/kb-mcp" target="_blank">npm</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Fade-in on scroll
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+document.querySelectorAll('.fade-section').forEach((el) => observer.observe(el));
+
+// Copy install command
+function copyInstall(el) {
+  const text = 'bun add -g @dyyz1993/kb-mcp';
+  navigator.clipboard.writeText(text).then(() => {
+    const hint = el.querySelector('.copy-hint');
+    const orig = hint.textContent;
+    hint.textContent = 'copied!';
+    hint.style.color = '#4ade80';
+    hint.style.opacity = '1';
+    setTimeout(() => { hint.textContent = orig; hint.style.color = ''; hint.style.opacity = ''; }, 1800);
+  });
+}
+
+// Smooth nav offset
+document.querySelectorAll('nav a[href^="#"]').forEach((a) => {
+  a.addEventListener('click', (e) => {
+    const id = a.getAttribute('href');
+    if (id === '#') return;
+    const target = document.querySelector(id);
+    if (target) {
+      e.preventDefault();
+      const y = target.getBoundingClientRect().top + window.scrollY - 64;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  });
+});
+</script>
+</body>
+</html>
