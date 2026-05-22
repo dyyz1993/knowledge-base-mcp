@@ -302,7 +302,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           return { streamStates: states }
         })
       },
-      onDone: () => {
+      onDone: (_messageId?: string, _round?: number) => {
         if (textFlushTimer) { clearTimeout(textFlushTimer); textFlushTimer = null }
         if (textBuffer) {
           const batch = textBuffer
@@ -400,6 +400,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         })
       },
       onError: (error) => {
+        if (textFlushTimer) { clearTimeout(textFlushTimer); textFlushTimer = null }
+        if (thinkingFlushTimer) { clearTimeout(thinkingFlushTimer); thinkingFlushTimer = null }
         let errorContent = `⚠️ Error: ${error}`
         if (error.startsWith("RATE_LIMITED:")) {
           const modelId = error.replace("RATE_LIMITED:", "")
