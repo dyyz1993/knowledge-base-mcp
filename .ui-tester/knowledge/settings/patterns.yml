@@ -1,67 +1,48 @@
 # Module: settings
 # Reusable operation sequences
 
-open_settings_flow:
-  description: "Open settings drawer from Chat tab view"
+open_settings:
+  description: "Open settings panel from any page"
   steps:
     - action: eval
-      selector: "javascript"
-      value: "document.querySelector('header').querySelectorAll('button')[3].click()"
-      description: "Click gear icon (button index 3 in header) via eval to avoid ref collision"
-    - action: wait
-      value: 800
-      description: "Wait for drawer animation"
-  expected_result: "Ant Design drawer slides in from right (420px wide)"
-  critical_note: "Settings button ref collides with many other buttons on the page. MUST use eval with header button index 3. Note: header has 4 buttons [0]=menu(hidden), [1]=KB tab, [2]=Chat tab, [3]=Settings gear."
+      selector: "document.querySelectorAll('button')[4].click()"
+      description: "Click gear icon in top nav bar"
+  expected_result: "Settings drawer opens on right side"
 
-detect_browser_flow:
-  description: "Auto-detect local browser path via Detect button"
-  steps:
-    - action: open_settings
-      description: "Open settings drawer first"
-    - action: click
-      selector: "button:has-text('Detect')"
-      description: "Click Detect button in Browser section"
-    - action: wait
-      value: 2000
-      description: "Wait for detection to complete"
-  expected_result: "Browser path input fills with detected path (e.g. /Applications/Chromium.app/Contents/MacOS/Chromium)"
-
-scan_skills_flow:
-  description: "Scan skills from configured paths"
-  steps:
-    - action: open_settings
-      description: "Open settings drawer first"
-    - action: click
-      selector: "button:has-text('Scan Skills')"
-      description: "Click Scan Skills button"
-    - action: wait
-      value: 3000
-      description: "Wait for scan to complete"
-  expected_result: "Scan summary appears below button showing Total scanned, Imported (green), Skipped (yellow)"
-
-close_settings_flow:
-  description: "Close settings drawer"
+toggle_engine_tag:
+  description: "Toggle search engine tags on/off"
   steps:
     - action: eval
-      selector: "javascript"
-      value: "document.querySelector('.ant-drawer-close').click()"
-      description: "Click the Ant Design drawer close button"
-  expected_result: "Drawer slides out, main chat view restored"
+      selector: "document.querySelectorAll('span.ant-tag')"
+      description: "Find engine tag by text content, click to toggle"
+      notes: |
+        Selected state: bg rgba(31,111,235,0.2), color rgb(96,165,250), border rgb(59,130,246)
+        Unselected state: bg rgb(39,39,42), color rgb(161,161,170), border rgb(63,63,70)
+  expected_result: "Tag visual state changes between highlighted and muted"
+
+toggle_llm_direct:
+  description: "Toggle LLM Direct section on/off"
+  steps:
+    - action: eval
+      selector: "Find .ant-switch in parent containing 'LLM 直接回答', click it"
+      description: "Toggle LLM Direct switch"
+  expected_result: "Base URL, API Key, Model fields appear/disappear"
+
+send_chat_message:
+  description: "Send a message in Chat tab"
+  steps:
+    - action: fill
+      selector: "textarea[placeholder='Type a message...']"
+      description: "Type message in chat input"
+    - action: eval
+      selector: "Find enabled button near textarea, click"
+      description: "Click send button"
+  wait_after_submit: 15000
+  expected_result: "AI response with possible tool call blocks"
 
 tips:
-  - "Settings button only visible when Chat tab is active (not on Knowledge Base tab)"
-  - "Settings drawer uses Ant Design component (ant-drawer-* classes)"
-  - "Drawer is position:fixed, width 420px, positioned at right side"
-  - "Scan Skills shows summary: Total scanned, Imported (green), Skipped (yellow)"
-  - "FOUR sections (updated r2): Skill 路径管理, Browser 配置 (NEW), Embedding, Search"
-  - "Browser 配置 section contains: CDP endpoint input, Browser path + Detect button, Headless switch, Timeout spinbutton"
-  - "Detect button auto-fills browser path (/Applications/Chromium.app/Contents/MacOS/Chromium on this system)"
-  - "Headless switch is checked (enabled) by default"
-  - "Timeout default is 15000ms"
-  - "CDP endpoint has a pre-filled WebSocket URL for remote browser"
-  - "Embedding section has toggle switch for enable/disable"
-  - "Action buttons at bottom: Save, Reindex, Test"
-  - "Scanned paths shown as Ant Design tags with X close button to remove"
-  - "CRITICAL: Header button indices changed - Settings is now index 3 (was 2). Menu button added at index 0."
-  - "Browser section uses section.rounded-lg.border CSS class as container"
+  - "Settings opens as a right-side drawer panel"
+  - "Engine tags use ant-tag component with visual state changes"
+  - "Ant Design sliders don't use native input[type=range], use .ant-slider-handle with role=slider"
+  - "Tool call blocks render as inline [工具: tool_name → ...] in markdown body, not as separate expandable UI"
+  - "CDP endpoint at 9221, connect with --cdp flag"

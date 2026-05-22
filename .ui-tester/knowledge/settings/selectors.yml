@@ -1,86 +1,46 @@
 # Module: settings
 # Site: http://localhost:19877
-# Version: 3
-# Last updated: 2026-05-09
-# Updated in round: r5
+# Version: 1
+# Status: verified
+# Last verified: 2026-05-22
+# Verified in round: p2
 
-settings_button:
-  location: "header"
-  selector: "header button:nth-child(4)"
-  note: "Gear icon (⚙️) button (lucide-settings SVG), index 3 in header buttons. Only visible when Chat tab is active."
-  css: "header button:nth-child(4)"
-  critical: "Header has 4 buttons: [0]=menu(collapsed), [1]=Knowledge Base, [2]=Chat, [3]=Settings gear. Use eval: document.querySelector('header').querySelectorAll('button')[3].click()"
-  ref_collision_warning: "Settings button @ref collides with other buttons on the page. Always use eval to click."
+settings_page:
+  gear_button: "button:has(svg.lucide-settings) | document.querySelectorAll('button')[4]"
+  close_button: "button:text('Close')"
 
-settings_drawer:
-  container: ".ant-drawer-content-wrapper"
-  body: ".ant-drawer-body"
-  close_button: ".ant-drawer-close"
-  framework: "Ant Design Drawer component"
-  width: "420px"
-  position: "right side"
+navigation:
+  knowledge_base_tab: "button:text('Knowledge Base')"
+  ask_tab: "button:text('Ask')"
+  chat_tab: "button:text('Chat')"
+  new_chat: "button:text('New Chat')"
 
-skill_section:
-  header: "SKILL 路径管理"
-  scanned_paths_label: "Scanned Paths"
-  path_tags: ".ant-tag"
-  path_input: "input[placeholder='~/path/to/skills']"
-  add_button: "button:has-text('Add')"
-  scan_skills_button: "button:has-text('Scan Skills')"
-  scanned_paths:
-    - "/Users/xuyingzhou/.agents/skills"
-    - "/Users/xuyingzhou/.claude/skills"
-    - "/Users/xuyingzhou/.config/opencode/skills"
+search_pipeline_section:
+  section_header: "contains text '搜索管道' or 'SEARCH PIPELINE'"
+  enable_switch: ".ant-switch within parent containing '搜索管道'"
+  engine_tags:
+    container: ".flex.flex-wrap.gap-1.5"
+    bing: "span.ant-tag:text('Bing')"
+    google: "span.ant-tag:text('Google')"
+    baidu: "span.ant-tag:text('Baidu')"
+    duckduckgo: "span.ant-tag:text('DuckDuckGo')"
+  cdp_endpoint_input: "input[placeholder*='ws://']"
+  headless_switch: ".ant-switch within XBrowser sub-section"
+  timeout_input: ".ant-input-number within XBrowser sub-section"
 
-browser_section:
-  header: "Browser 配置"
-  container: "section.rounded-lg.border"
-  note: "NEW section added in r2. Contains CDP endpoint, browser path, headless switch, and timeout."
-  cdp_endpoint:
-    input: "input[placeholder*='ws://host:port']"
-    placeholder: "ws://host:port/... 或留空使用本地浏览器"
-    description: "CDP 端点配置后使用远程浏览器，无需本地安装"
-    current_value: "ws://192.168.0.29:3011/ws/connect?apiKey=bf8c246"
-  browser_path:
-    input: "input[placeholder*='Chrome']"
-    placeholder: "留空自动检测本地 Chrome/Chromium"
-    detect_button: "button:has-text('Detect')"
-    detected_value: "/Applications/Chromium.app/Contents/MacOS/Chromium"
-  headless_switch:
-    selector: "switch [checked]"
-    default: true
-    note: "First switch element in drawer, checked by default"
-  timeout:
-    input: "spinbutton (first)"
-    default_ms: 15000
-    unit: "ms"
+search_config_section:
+  search_mode_select: ".ant-select containing 'Combined (Hybrid)'"
+  weight_sliders:
+    token: ".ant-slider-handle[aria-valuenow] within parent containing 'Token'"
+    tfidf: ".ant-slider-handle[aria-valuenow] within parent containing 'TF-IDF'"
+    semantic: ".ant-slider-handle[aria-valuenow] within parent containing 'Semantic'"
 
-embedding_section:
-  header: "EMBEDDING"
-  enabled_switch: "switch (second, checked/unchecked)"
-  provider_dropdown: "combobox (first)"
-  base_url_input: "input[placeholder='https://api.siliconflow.cn/v1']"
+llm_direct_section:
+  toggle: ".ant-switch within parent containing 'LLM 直接回答'"
+  base_url_input: "input[placeholder='https://api.example.com/v1']"
   api_key_input: "input[placeholder='sk-xxx']"
-  model_dropdown: "combobox (second)"
-  dimensions_label: "Dimensions"
-  defaults:
-    provider: "SiliconFlow"
-    base_url: "https://api.siliconflow.cn/v1"
-    model: "Pro/BAAI/bge-m3"
+  model_input: "input[placeholder='gpt-4o / deepseek-chat']"
 
-search_section:
-  header: "SEARCH"
-  search_mode_dropdown: "combobox (third)"
-  min_score_threshold: "spinbutton (second)"
-  weights_label: "Weights"
-  sliders: "slider (3 total)"
-  weight_labels:
-    - "Token 20%"
-    - "TF-IDF 30%"
-    - "Semantic 50%"
-
-action_buttons:
-  save: "button:has-text('Save')"
-  reindex: "button:has-text('Reindex')"
-  test: "button:has-text('Test')"
-  note: "Located at bottom of drawer"
+chat_section:
+  message_input: "textarea[placeholder='Type a message...']"
+  send_button: "button near textarea, becomes enabled when text entered"

@@ -68,6 +68,7 @@ export default function App() {
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="lg:hidden shrink-0 p-1 rounded-md text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+            aria-label="Toggle sidebar"
           >
             <Menu size={18} />
           </button>
@@ -125,6 +126,7 @@ export default function App() {
           <button
             onClick={() => setSettingsOpen(true)}
             className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+            aria-label="Open settings"
           >
             <Settings size={14} />
           </button>

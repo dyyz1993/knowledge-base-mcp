@@ -148,6 +148,11 @@ export default function AskPanel() {
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onInput={(e) => {
+              const el = e.currentTarget
+              el.style.height = "auto"
+              el.style.height = Math.min(el.scrollHeight, 128) + "px"
+            }}
             onKeyDown={handleKeyDown}
             placeholder="你想了解什么？描述一下你的问题..."
             rows={1}

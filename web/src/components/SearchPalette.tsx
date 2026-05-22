@@ -30,7 +30,7 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={onClose}>
       <div className="fixed inset-0 bg-black/60" />
-      <div className="relative w-full max-w-xl bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="relative w-full max-w-xl bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Escape") onClose() }}>
         <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
           <Search size={18} className="text-zinc-500 shrink-0" />
           <input
@@ -41,7 +41,7 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
             className="flex-1 bg-transparent text-zinc-100 outline-none placeholder:text-zinc-600"
             autoFocus
           />
-          <button onClick={onClose} className="p-1 rounded hover:bg-zinc-700">
+          <button onClick={onClose} className="p-1 rounded hover:bg-zinc-700" aria-label="Close search">
             <X size={16} className="text-zinc-500" />
           </button>
         </div>
@@ -50,22 +50,25 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
             {searchResults.length === 0 ? (
               <div className="px-4 py-6 text-center text-zinc-600">No results</div>
             ) : (
-              searchResults.map((doc: DocMeta & { score: number }) => (
-                <button
-                  key={doc.id}
-                  onClick={() => { onSelect(doc.id); onClose() }}
-                  className="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-start gap-3 border-b border-zinc-800/50"
-                >
-                  <FileText size={16} className="text-zinc-600 mt-0.5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-zinc-200 truncate">{doc.title}</div>
-                    <div className="flex gap-1 mt-1 flex-wrap">
-                      {doc.tags.slice(0, 3).map(t => <TagBadge key={t} tag={t} />)}
+              <>
+                <div className="text-xs text-zinc-500 px-3 py-1">找到 {searchResults.length} 个结果</div>
+                {searchResults.map((doc: DocMeta & { score: number }) => (
+                  <button
+                    key={doc.id}
+                    onClick={() => { onSelect(doc.id); onClose() }}
+                    className="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-start gap-3 border-b border-zinc-800/50"
+                  >
+                    <FileText size={16} className="text-zinc-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-zinc-200 truncate">{doc.title}</div>
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {doc.tags.slice(0, 3).map(t => <TagBadge key={t} tag={t} />)}
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-xs text-zinc-600 mt-1">{doc.score}pt</span>
-                </button>
-              ))
+                    <span className="text-xs text-zinc-600 mt-1">{doc.score}pt</span>
+                  </button>
+                ))}
+              </>
             )}
           </div>
         )}

@@ -202,6 +202,7 @@ function SessionItem({
             onDelete(session.id)
           }}
           className="shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-zinc-700 text-zinc-500 hover:text-red-400 transition-all"
+          aria-label="Delete session"
         >
           <Trash2 size={12} />
         </button>

@@ -245,8 +245,8 @@ describe("readDoc", () => {
     expect(result!.truncated).toBe(false)
   })
 
-  test("truncate=true cuts at 50 lines", () => {
-    const longContent = Array.from({ length: 100 }, (_, i) => `Line ${i + 1}`).join("\n")
+  test("truncate=true cuts at 500 lines", () => {
+    const longContent = Array.from({ length: 600 }, (_, i) => `Line ${i + 1}`).join("\n")
     const written = writeDoc({
       title: "Long Doc",
       tags: ["test"],
@@ -259,11 +259,11 @@ describe("readDoc", () => {
 
     const truncated = readDoc(written.id, true)
     expect(truncated!.truncated).toBe(true)
-    expect(truncated!.content.split("\n").length).toBe(50)
+    expect(truncated!.content.split("\n").length).toBe(500)
 
     const full = readDoc(written.id, false)
     expect(full!.truncated).toBe(false)
-    expect(full!.content.split("\n").length).toBe(100)
+    expect(full!.content.split("\n").length).toBe(600)
   })
 
   test("truncate=false returns full content even if short", () => {

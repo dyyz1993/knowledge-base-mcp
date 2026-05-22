@@ -437,6 +437,7 @@ export default function ChatPanel() {
               <button
                 onClick={abort}
                 className="shrink-0 rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-500 transition-colors"
+                aria-label="Stop generating"
               >
                 <Square size={16} />
               </button>
@@ -445,6 +446,7 @@ export default function ChatPanel() {
                 onClick={handleSend}
                 disabled={!input.trim()}
                 className="shrink-0 rounded-lg bg-blue-600 p-1.5 text-white hover:bg-blue-500 disabled:opacity-30 disabled:hover:bg-blue-600 transition-colors"
+                aria-label="Send message"
               >
                 <Send size={16} />
               </button>

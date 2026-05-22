@@ -21,9 +21,9 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     return
   }
   if (url.pathname === "/api/docs/recent" && req.method === "GET") {
-    const hours = parseInt(url.searchParams.get("hours") || "24", 10)
-    const since = url.searchParams.get("since") ? parseInt(url.searchParams.get("since")!, 10) : undefined
-    const limit = parseInt(url.searchParams.get("limit") || "50", 10)
+    const hours = parseInt(url.searchParams.get("hours") || "24", 10) || 24
+    const since = url.searchParams.get("since") ? (parseInt(url.searchParams.get("since")!, 10) || undefined) : undefined
+    const limit = parseInt(url.searchParams.get("limit") || "50", 10) || 50
     const include_content = url.searchParams.get("include_content") === "true"
     const format = url.searchParams.get("format") || "json"
     const results = listRecentDocs({ hours, since, limit, include_content })
@@ -55,16 +55,18 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
   if (url.pathname === "/api/docs/write" && req.method === "POST") {
     const body = (await parseBody(req, res)) as Record<string, any>
     if (body === null) return
-    const { title, content, tags, keywords, intent, project_description } = body
-    if (!title || !content) {
-      json(res, { error: "title and content are required" }, 400)
+    const { title, content, intent, project_description } = body
+    if (!title || !content || typeof title !== "string" || typeof content !== "string") {
+      json(res, { error: "title and content are required strings" }, 400)
       return
     }
+    const tags = Array.isArray(body.tags) ? body.tags : []
+    const keywords = Array.isArray(body.keywords) ? body.keywords : []
     const doc = writeDoc(
       {
         title,
-        tags: tags || [],
-        keywords: keywords || [],
+        tags,
+        keywords,
         intent: intent || "",
         project_description: project_description || "",
         source_project: "",
@@ -194,22 +196,22 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
   if (url.pathname === "/api/stats/usage" && req.method === "GET") {
     const config = loadConfig()
     const results: Record<string, { service: string; status: string; used?: number; limit?: number; remaining?: number; balance?: string; plan?: string; rateLimit?: number; note?: string; raw?: unknown }> = {}
-    const proxy = process.env.https_proxy || process.env.HTTPS_PROXY || ""
 
-    const fetchWithProxy = (url: string, headers: Record<string, string>) => {
-      const curlArgs = ["-s", "-m", "10"]
-      if (proxy) { curlArgs.push("--proxy", proxy) }
-      curlArgs.push("-H", "Content-Type: application/json")
-      for (const [k, v] of Object.entries(headers)) {
-        curlArgs.push("-H", `${k}: ${v}`)
+    const fetchWithProxy = async (url: string, headers: Record<string, string>) => {
+      try {
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 10000)
+        const resp = await fetch(url, { headers, signal: controller.signal })
+        clearTimeout(timer)
+        return await resp.text()
+      } catch {
+        return ""
       }
-      curlArgs.push(url)
-      return Bun.spawnSync(["curl", ...curlArgs], { stdout: "pipe" }).stdout.toString()
     }
 
     if (config.webSearch.tavilyApiKey) {
       try {
-        const raw = fetchWithProxy("https://api.tavily.com/usage", { "Authorization": `Bearer ${config.webSearch.tavilyApiKey}` })
+        const raw = await fetchWithProxy("https://api.tavily.com/usage", { "Authorization": `Bearer ${config.webSearch.tavilyApiKey}` })
         const parsed = JSON.parse(raw)
         const keyUsage = parsed.key || parsed
         const accountUsage = parsed.account || {}
@@ -231,7 +233,7 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
 
     if (config.webSearch.serperApiKey) {
       try {
-        const raw = fetchWithProxy("https://google.serper.dev/account", { "X-API-KEY": config.webSearch.serperApiKey })
+        const raw = await fetchWithProxy("https://google.serper.dev/account", { "X-API-KEY": config.webSearch.serperApiKey })
         const parsed = JSON.parse(raw)
         results.serper = {
           service: "Serper.dev",
@@ -247,7 +249,7 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
 
     if (config.embedding.apiKey) {
       try {
-        const raw = fetchWithProxy("https://api.siliconflow.cn/v1/user/info", { "Authorization": `Bearer ${config.embedding.apiKey}` })
+        const raw = await fetchWithProxy("https://api.siliconflow.cn/v1/user/info", { "Authorization": `Bearer ${config.embedding.apiKey}` })
         const parsed = JSON.parse(raw)
         results.siliconflow = {
           service: "SiliconFlow (Embedding)",
@@ -289,6 +291,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
         ...current.searchPipeline,
         ...update.searchPipeline,
         sources: {
+          ...current.searchPipeline?.sources,
+          ...update.searchPipeline?.sources,
           webSearchPrime: { ...current.searchPipeline?.sources?.webSearchPrime, ...update.searchPipeline?.sources?.webSearchPrime },
           xbrowser: { ...current.searchPipeline?.sources?.xbrowser, ...update.searchPipeline?.sources?.xbrowser },
           llmDirect: { ...current.searchPipeline?.sources?.llmDirect, ...update.searchPipeline?.sources?.llmDirect },
@@ -1036,7 +1040,9 @@ Answer in the same language as the query.`
     const body = (await parseBody(req, res)) as Record<string, any>
     if (body === null) return
 
-    const { url: siteUrl, maxPages, concurrency, tags, projectName } = body
+    const { url: siteUrl, tags, projectName } = body
+    const maxPages = Math.min(Math.max(parseInt(body.maxPages) || 10, 1), 100)
+    const concurrency = Math.min(Math.max(parseInt(body.concurrency) || 2, 1), 10)
     if (!siteUrl) { json(res, { error: "url is required" }, 400); return }
 
     // SSE response
