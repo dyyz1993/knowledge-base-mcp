@@ -449,7 +449,7 @@ export async function executeTool(
         return `No knowledge base outline found for project: ${project}\nTip: Use kb_list or kb_search to find documents instead.`
       }
       const header = `📚 Project outline for ${project}\n   Updated: ${new Date(updatedAt as string | number | Date).toLocaleString()}\n   Documents: ${docs.length}\n\n`
-      const body = docs.map((d: { id: string; title: string; tags: string[]; keywords: string[] }, i: number) => {
+      const body = (docs as Array<{ id: string; title: string; tags: string[]; keywords: string[] }>).map((d, i) => {
         const tags = Array.isArray(d.tags) ? d.tags.join(", ") : "none"
         const kws = Array.isArray(d.keywords) ? d.keywords.slice(0, 5).join(", ") : "none"
         return `${i + 1}. [${d.id}] ${d.title}\n   tags: ${tags} | keywords: ${kws}`

@@ -15,7 +15,7 @@ import { callLlm } from "../../search/llm-caller"
 export class ResearchEvolutionAgent {
   private config: EvolutionConfig
   private benchmarks: BenchmarkCase[]
-  private model: ReturnType<typeof tierToLlmConfig> extends Promise<infer T> ? T : never
+  private model: { large: ReturnType<typeof tierToLlmConfig>; small: ReturnType<typeof tierToLlmConfig> }
   private cycles: EvolutionCycle[] = []
   private currentCycle: EvolutionCycle
   private onLog: (msg: string) => void
@@ -31,7 +31,7 @@ export class ResearchEvolutionAgent {
     this.model = {
       large: { baseUrl: "", apiKey: "", model: "" },
       small: { baseUrl: "", apiKey: "", model: "" },
-    } as any
+    }
 
     this.currentCycle = {
       cycle: 0,
@@ -46,7 +46,8 @@ export class ResearchEvolutionAgent {
   }
 
   async run(): Promise<EvolutionCycle[]> {
-    const tier = await inferModelTier(this.config.model, this.config.smallModel)
+    const tier = inferModelTier(this.config.model, this.config.smallModel)
+    if (!tier) throw new Error("Failed to infer model tier")
     this.model = {
       large: tierToLlmConfig(tier.large),
       small: tierToLlmConfig(tier.small),

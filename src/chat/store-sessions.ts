@@ -140,8 +140,8 @@ export function listSessions(): (ChatSession & { messageCount: number })[] {
         if (header.type !== "session") return null
         const fileSize = statSync(filePath).size
         const estimatedLines = Math.max(1, Math.round(fileSize / 256))
-        return { id: header.id as string, name: header.name as string, createdAt: header.createdAt as number, model: header.model as ChatSession["model"], sharedUrl: header.sharedUrl as string | undefined, messageCount: estimatedLines - 1 }
-      } catch (e) { console.warn("[store-sessions]", e instanceof Error ? e.message : String(e)); return null }
+        return { id: header.id as string, name: header.name as string, createdAt: header.createdAt as number, model: header.model as ChatSession["model"], sharedUrl: header.sharedUrl as string | undefined, messageCount: estimatedLines - 1 } as (ChatSession & { messageCount: number }) | null
+      } catch (e) { console.warn("[store-sessions]", e instanceof Error ? e.message : String(e)); return null as (ChatSession & { messageCount: number }) | null }
     })
     .filter((s): s is ChatSession & { messageCount: number } => s !== null)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

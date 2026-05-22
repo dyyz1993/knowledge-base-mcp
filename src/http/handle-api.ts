@@ -327,8 +327,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
         json(res, { success: false, error: "Embedding not enabled" })
         return
       }
-      const { getEmbedding } = await import("../search/embedding.js")
-      const testVec = await getEmbedding("test")
+      const { embed } = await import("../search/embedding.js")
+      const testVec = await embed("test")
       if (testVec && testVec.length > 0) {
         json(res, { success: true, dimensions: testVec.length })
       } else {

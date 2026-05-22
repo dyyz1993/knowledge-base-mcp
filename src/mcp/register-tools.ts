@@ -31,7 +31,7 @@ function scanDir(base: string, prefix: string, depth: number): string {
       } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)) }
     }
     return lines.join("\n")
-  } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)) }
+  } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)); return "" }
 }
 
 async function readKeyFiles(base: string, maxFiles: number): Promise<string> {
@@ -64,17 +64,17 @@ export function registerTools(server: McpServer) {
     const last = args[args.length - 1]
     if (typeof last === "function") {
       const toolName = typeof args[0] === "string" ? args[0] : "unknown"
-      args[args.length - 1] = async (...innerArgs: unknown[]) => {
+      args[args.length - 1] = async function(this: unknown, ...innerArgs: unknown[]) {
         const t0 = Date.now()
         try {
-          const result = await last(...innerArgs)
+          const result = await (last as (...a: unknown[]) => Promise<unknown>)(...innerArgs)
           mcpStats.recordToolCall(toolName, {}, Date.now() - t0, false)
           return result
         } catch (err) {
           mcpStats.recordToolCall(toolName, {}, Date.now() - t0, true)
           throw err
         }
-      }
+      } as typeof last
     }
     return origTool(...args)
   }

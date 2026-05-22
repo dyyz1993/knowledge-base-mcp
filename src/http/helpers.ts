@@ -72,7 +72,7 @@ export function getApiUserAgent(): string {
   return UA
 }
 
-export function readBody(req: IncomingMessage): Promise<unknown> {
+export function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     let size = 0
