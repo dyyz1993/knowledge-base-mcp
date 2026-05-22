@@ -120,12 +120,37 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
           return
         }
         if (existsSync(fp)) {
-          res.writeHead(200, { "Content-Type": mimeTypes[extname(fp)] || "application/octet-stream" })
+          const ext = extname(fp)
+          const contentType = mimeTypes[ext] || "application/octet-stream"
+
+          const isAsset = url.pathname.startsWith("/assets/")
+          const isHtml = ext === ".html"
+          if (isAsset) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable")
+          } else if (isHtml) {
+            res.setHeader("Cache-Control", "no-cache")
+          } else {
+            res.setHeader("Cache-Control", "public, max-age=3600")
+          }
+
+          const acceptEncoding = req.headers["accept-encoding"] || ""
+          const gzPath = fp + ".gz"
+          if (acceptEncoding.includes("gzip") && existsSync(gzPath)) {
+            res.writeHead(200, {
+              "Content-Type": contentType,
+              "Content-Encoding": "gzip",
+            })
+            res.end(readFileSync(gzPath))
+            return
+          }
+
+          res.writeHead(200, { "Content-Type": contentType })
           res.end(readFileSync(fp))
           return
         }
         const idx = join(webDist, "index.html")
         if (existsSync(idx)) {
+          res.setHeader("Cache-Control", "no-cache")
           res.writeHead(200, { "Content-Type": "text/html" })
           res.end(readFileSync(idx))
           return
