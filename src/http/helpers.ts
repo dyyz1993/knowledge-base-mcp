@@ -132,3 +132,35 @@ export async function parseBody(req: IncomingMessage, res: ServerResponse): Prom
     return null
   }
 }
+
+/** Simple in-memory rate limiter (sliding window) */
+export function createRateLimiter(opts: { windowMs: number; maxRequests: number }) {
+  const hits = new Map<string, number[]>()
+  // Periodic cleanup of stale entries
+  const cleanup = setInterval(() => {
+    const cutoff = Date.now() - opts.windowMs
+    for (const [ip, timestamps] of hits) {
+      const filtered = timestamps.filter(t => t > cutoff)
+      if (filtered.length === 0) hits.delete(ip)
+      else hits.set(ip, filtered)
+    }
+  }, opts.windowMs)
+  cleanup.unref?.()
+
+  return function checkRateLimit(req: IncomingMessage): { allowed: boolean; retryAfterMs: number } {
+    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+      || req.socket?.remoteAddress
+      || "unknown"
+    const now = Date.now()
+    const cutoff = now - opts.windowMs
+    const timestamps = (hits.get(ip) || []).filter(t => t > cutoff)
+    if (timestamps.length >= opts.maxRequests) {
+      const oldestInWindow = timestamps[0]
+      const retryAfterMs = oldestInWindow + opts.windowMs - now
+      return { allowed: false, retryAfterMs: Math.max(retryAfterMs, 1000) }
+    }
+    timestamps.push(now)
+    hits.set(ip, timestamps)
+    return { allowed: true, retryAfterMs: 0 }
+  }
+}

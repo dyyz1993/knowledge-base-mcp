@@ -10,7 +10,7 @@ import { handleShareSession } from "../chat/api-share.js"
 import { handleScanSkills, handleGetSkillPaths, handleUpdateSkillPaths } from "../chat/api-skills.js"
 import { handleBrowserDetect } from "../chat/api-browser.js"
 import { getAllKeywords } from "../storage/index.js"
-import { readBody, json, parseBody } from "./helpers.js"
+import { readBody, json, parseBody, createRateLimiter } from "./helpers.js"
 import { handleStreamableHttp, handleSSE, handleSSEMessage } from "./handle-mcp.js"
 import { handleRestAPI } from "./handle-api.js"
 
@@ -43,6 +43,9 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
     return auth === `Bearer ${apiKey}`
   }
 
+  // Rate limiter: 60 requests per minute per IP for API endpoints
+  const rateLimit = createRateLimiter({ windowMs: 60_000, maxRequests: 60 })
+
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, `http://${req.headers.host}`)
 
@@ -60,6 +63,18 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
       if (requireAuth && !checkAuth(req)) {
         json(res, { error: "Unauthorized" }, 401)
         return
+      }
+      // Rate limit: apply to all API endpoints
+      if (url.pathname.startsWith("/api/")) {
+        const { allowed, retryAfterMs } = rateLimit(req)
+        if (!allowed) {
+          res.writeHead(429, {
+            "Content-Type": "application/json",
+            "Retry-After": String(Math.ceil(retryAfterMs / 1000)),
+          })
+          res.end(JSON.stringify({ error: "Too many requests", retryAfterSeconds: Math.ceil(retryAfterMs / 1000) }))
+          return
+        }
       }
       if (!noMcp && url.pathname === "/mcp") {
         const body = req.method === "POST" ? await parseBody(req, res) : undefined
