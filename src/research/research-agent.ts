@@ -161,7 +161,7 @@ export class ResearchAgent {
                 ? ` (targeting: ${this.missingTopics.slice(0, 3).join(", ")})`
                 : ""
               this.phaseLog.push(`looping back: re-searching with gap keywords${gapInfo}`)
-              i = searchIdx - 1 // -1 because the while loop does i++ after continue, landing on searchIdx
+              i = searchIdx // continue skips i++ at bottom of loop body
               continue
             }
           }

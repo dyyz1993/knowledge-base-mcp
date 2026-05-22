@@ -245,6 +245,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       message: content,
       sessionId: targetSessionId,
       model: currentModel || undefined,
+      signal: ctrl.signal,
       onToken: (delta, round) => {
         textBuffer += delta
         textRound = round

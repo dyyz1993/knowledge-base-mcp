@@ -23,14 +23,22 @@ export const useDocStore = create<DocState>((set) => ({
 
   load: async () => {
     set({ loading: true })
-    const docs = await fetchDocs()
-    set({ docs, loading: false })
+    try {
+      const docs = await fetchDocs()
+      set({ docs, loading: false })
+    } catch {
+      set({ loading: false })
+    }
   },
 
   select: async (id) => {
     set({ loading: true })
-    const doc = await fetchDoc(id)
-    set({ current: doc, loading: false })
+    try {
+      const doc = await fetchDoc(id)
+      set({ current: doc, loading: false })
+    } catch {
+      set({ loading: false })
+    }
   },
 
   search: async (query) => {
@@ -38,9 +46,13 @@ export const useDocStore = create<DocState>((set) => ({
       set({ searchResults: [], searchQuery: query })
       return
     }
-    const res = await searchDocs(query)
-    const results = Array.isArray(res) ? res : res.documents || []
-    set({ searchResults: results, searchQuery: query })
+    try {
+      const res = await searchDocs(query)
+      const results = Array.isArray(res) ? res : res.documents || []
+      set({ searchResults: results, searchQuery: query })
+    } catch {
+      set({ searchResults: [], searchQuery: query })
+    }
   },
 
   setSearchQuery: (q) => set({ searchQuery: q }),

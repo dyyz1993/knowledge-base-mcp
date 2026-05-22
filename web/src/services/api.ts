@@ -127,6 +127,7 @@ export async function streamChat(params: {
   message: string
   sessionId: string
   model?: { provider: string; id: string }
+  signal?: AbortSignal
 } & StreamCallbacks): Promise<void> {
   const res = await fetch(`${BASE}/api/chat`, {
     method: "POST",
@@ -136,6 +137,7 @@ export async function streamChat(params: {
       sessionId: params.sessionId,
       model: params.model,
     }),
+    signal: params.signal,
   })
 
   if (!res.ok) {
@@ -148,6 +150,8 @@ export async function streamChat(params: {
   const decoder = new TextDecoder()
   let buffer = ""
   let currentEvent = ""
+
+  let doneCalled = false
 
   while (true) {
     const { done, value } = await reader.read()
@@ -172,6 +176,7 @@ export async function streamChat(params: {
           case "tool_call_delta": break
           case "tool_result": params.onToolResult(String(data.id || ""), String(data.name || ""), String(data.content || data.result || ""), round); break
           case "done": {
+            doneCalled = true
             if (data.usage) {
               params.onUsage?.(data.usage as TokenUsage)
             }
@@ -198,6 +203,10 @@ export async function streamChat(params: {
         currentEvent = ""
       }
     }
+  }
+
+  if (!doneCalled && params.onDone) {
+    params.onDone("", 0)
   }
 }
 
@@ -643,6 +652,8 @@ export function agentResearch(
       const decoder = new TextDecoder()
       let buffer = ""
 
+      let resolved = false
+
       const processChunk = (chunk: string) => {
         buffer += chunk
         const lines = buffer.split("\n")
@@ -658,8 +669,10 @@ export function agentResearch(
               if (currentEvent === "step" && onProgress) {
                 onProgress(data as AgentResearchProgress)
               } else if (currentEvent === "done") {
+                resolved = true
                 resolve(data as AgentResearchResult)
               } else if (currentEvent === "error") {
+                resolved = true
                 reject(new Error(data.error || "Unknown error"))
               }
             } catch {}
@@ -670,7 +683,13 @@ export function agentResearch(
 
       const read = (): Promise<void> => {
         return reader!.read().then(({ done, value }) => {
-          if (done) return
+          if (done) {
+            if (!resolved) {
+              resolved = true
+              reject(new Error("Stream ended without completion"))
+            }
+            return
+          }
           processChunk(decoder.decode(value, { stream: true }))
           return read()
         })

@@ -125,13 +125,22 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     const config = loadConfig()
     let storage
     try { storage = getStorageStats() } catch { storage = null }
+    const { embedding: emb, webSearch: ws, searchPipeline: sp, ...rest } = config
     json(res, {
-      ...config,
+      ...rest,
       storage,
-      embedding: {
-        ...config.embedding,
-        apiKey: config.embedding.apiKey ? config.embedding.apiKey.slice(0, 8) + "..." : "",
-      },
+      embedding: { ...emb, apiKey: emb?.apiKey ? "****" : "" },
+      webSearch: { ...ws, apiKey: ws?.apiKey ? "****" : "" },
+      searchPipeline: sp ? {
+        ...sp,
+        sources: {
+          ...sp.sources,
+          llmDirect: {
+            ...sp.sources?.llmDirect,
+            apiKey: sp.sources?.llmDirect?.apiKey ? "****" : ""
+          }
+        }
+      } : sp,
     })
     return
   }
@@ -273,8 +282,14 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     const current = loadConfig()
     const update = body
 
-    if (update.embedding?.apiKey?.endsWith("...")) {
+    if (update.embedding?.apiKey === "****") {
       update.embedding.apiKey = current.embedding.apiKey
+    }
+    if (update.webSearch?.apiKey === "****") {
+      update.webSearch.apiKey = current.webSearch?.apiKey
+    }
+    if (update.searchPipeline?.sources?.llmDirect?.apiKey === "****") {
+      update.searchPipeline.sources.llmDirect.apiKey = current.searchPipeline?.sources?.llmDirect?.apiKey
     }
 
     const merged: AppConfig = {
