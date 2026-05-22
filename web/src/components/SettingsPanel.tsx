@@ -217,7 +217,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   const handleTestConnection = async () => {
     setConnected(null)
     try {
-      const res = await fetch("/api/embedding/reindex", { method: "POST" })
+      const res = await fetch("/api/embedding/test", { method: "POST" })
       const data = await res.json()
       setConnected(data.success !== false)
       message.success(data.success !== false ? "Connection OK" : "Connection failed")

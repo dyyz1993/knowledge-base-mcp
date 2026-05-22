@@ -304,6 +304,25 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     json(res, { success: true })
     return
   }
+  if (url.pathname === "/api/embedding/test" && req.method === "POST") {
+    try {
+      const config = loadConfig()
+      if (!config.embedding?.enabled) {
+        json(res, { success: false, error: "Embedding not enabled" })
+        return
+      }
+      const { getEmbedding } = await import("../search/embedding.js")
+      const testVec = await getEmbedding("test")
+      if (testVec && testVec.length > 0) {
+        json(res, { success: true, dimensions: testVec.length })
+      } else {
+        json(res, { success: false, error: "Embedding returned empty vector" })
+      }
+    } catch (e) {
+      json(res, { success: false, error: e instanceof Error ? e.message : String(e) })
+    }
+    return
+  }
   if (url.pathname === "/api/embedding/reindex" && req.method === "POST") {
     try {
       const docs = listDocs()
