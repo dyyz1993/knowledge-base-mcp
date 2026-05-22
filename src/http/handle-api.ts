@@ -2,20 +2,17 @@ import { IncomingMessage, ServerResponse } from "node:http"
 import { writeDoc, readDoc, searchDocs, listDocs, getOutline, listAllOutlines, searchDocsSemantic, searchDocsCombined, getAllKeywords, listRecentDocs, resolveMiss, rebuildAllVectors, deleteDoc } from "../storage/index.js"
 import { searchStats, llmStats, embeddingStats, mcpStats } from "../statistics/index.js"
 import { getStorageStats } from "../search/vector-store.js"
-import { kbAskPipeline } from "../search/kb-ask-pipeline.js"
+import { kbAskPipeline, buildSearchPipelineSources } from "../search/kb-ask-pipeline.js"
 import { getMcpWebSearch } from "../search/mcp-web-search.js"
-import { WebSearchPrimeSource } from "../search/source-web-search-prime.js"
-import { createXBrowserSources } from "../search/source-xbrowser.js"
 import { LlmDirectSource } from "../search/source-llm-direct.js"
 import { SearchPipeline } from "../search/search-pipeline.js"
 import { getConfiguredModels } from "../chat/api-models.js"
 import { loadConfig, saveConfig } from "../config.js"
 import type { AppConfig } from "../config.js"
-import type { SearchSource } from "../search/types.js"
-import { readBody, json, parseBody, validateUrl, htmlToPlainText } from "./helpers.js"
+import { readBody, json, parseBody, validateUrl, extractHtmlContent, getApiUserAgent, setupSSE } from "./helpers.js"
 import { renderRecentHtml } from "./render.js"
 
-export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL) {
+export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
   if (url.pathname === "/api/docs" && req.method === "GET") {
     json(res, listDocs())
     return
@@ -395,15 +392,13 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     const config = loadConfig()
     try {
       const resp = await fetch(targetUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
+        headers: { "User-Agent": getApiUserAgent() },
         signal: AbortSignal.timeout(config.timeouts.webReadMs),
       })
       const html = await resp.text()
-      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
-      const title = titleMatch ? titleMatch[1].trim() : targetUrl
-      const bodyContent = htmlToPlainText(html).slice(0, 20000)
-      if (bodyContent.length > 50) {
-        json(res, { success: true, title, content: bodyContent, url: targetUrl })
+      const { title, content } = extractHtmlContent(html, targetUrl)
+      if (content.length > 50) {
+        json(res, { success: true, title, content, url: targetUrl })
         return
       }
       json(res, { error: "Failed to extract content" }, 500)
@@ -465,26 +460,7 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
       }
     }
 
-    const sources: SearchSource[] = []
-
-    if (config.searchPipeline.sources.webSearchPrime.enabled && config.webSearch.apiKey) {
-      sources.push(new WebSearchPrimeSource())
-    }
-
-    if (config.searchPipeline.sources.xbrowser.enabled) {
-      const engines = config.searchPipeline.sources.xbrowser.engines?.length
-        ? config.searchPipeline.sources.xbrowser.engines
-        : [config.searchPipeline.sources.xbrowser.engine]
-      const xbrowserSources = createXBrowserSources({
-        enabled: true,
-        engine: config.searchPipeline.sources.xbrowser.engine,
-        cdpEndpoint: config.searchPipeline.sources.xbrowser.cdpEndpoint,
-        headless: config.searchPipeline.sources.xbrowser.headless,
-        timeout: config.searchPipeline.sources.xbrowser.timeout,
-      }, engines)
-      sources.push(...xbrowserSources)
-    }
-
+    const sources = buildSearchPipelineSources()
     {
       const src = new LlmDirectSource()
       if (src.available()) sources.push(src)
@@ -535,15 +511,13 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
 
     try {
       const resp = await fetch(targetUrl, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
+        headers: { "User-Agent": getApiUserAgent() },
         signal: AbortSignal.timeout(config.timeouts.webReadMs),
       })
       const html = await resp.text()
-      const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
-      const title = titleMatch ? titleMatch[1].trim() : targetUrl
-      const bodyContent = htmlToPlainText(html).slice(0, 20000)
-      if (bodyContent.length > 50) {
-        json(res, { success: true, title, content: bodyContent, url: targetUrl })
+      const { title, content } = extractHtmlContent(html, targetUrl)
+      if (content.length > 50) {
+        json(res, { success: true, title, content, url: targetUrl })
         return
       }
     } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)) }
@@ -608,26 +582,7 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
       }
     }
 
-    const sources: SearchSource[] = []
-
-    if (config.searchPipeline.sources.webSearchPrime.enabled && config.webSearch.apiKey) {
-      sources.push(new WebSearchPrimeSource())
-    }
-
-    if (config.searchPipeline.sources.xbrowser.enabled) {
-      const engines = config.searchPipeline.sources.xbrowser.engines?.length
-        ? config.searchPipeline.sources.xbrowser.engines
-        : [config.searchPipeline.sources.xbrowser.engine]
-      const xbrowserSources = createXBrowserSources({
-        enabled: true,
-        engine: config.searchPipeline.sources.xbrowser.engine,
-        cdpEndpoint: config.searchPipeline.sources.xbrowser.cdpEndpoint,
-        headless: config.searchPipeline.sources.xbrowser.headless,
-        timeout: config.searchPipeline.sources.xbrowser.timeout,
-      }, engines)
-      sources.push(...xbrowserSources)
-    }
-
+    const sources = buildSearchPipelineSources()
     {
       const src = new LlmDirectSource()
       if (src.available()) sources.push(src)
@@ -743,15 +698,13 @@ Return ONLY a JSON array of the selected indices, e.g. [0, 3, 5, 8, 12]. No othe
         }
 
         const resp = await fetch(item.url, {
-          headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
+          headers: { "User-Agent": getApiUserAgent() },
           signal: AbortSignal.timeout(config.timeouts.deepReadMs),
         })
         const html = await resp.text()
-        const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
-        const title = titleMatch ? titleMatch[1].trim() : item.title
-        const bodyContent = htmlToPlainText(html).slice(0, 20000)
-        if (bodyContent.length > 50) {
-          return { url: item.url, title, content: bodyContent }
+        const { title, content } = extractHtmlContent(html, item.title)
+        if (content.length > 50) {
+          return { url: item.url, title, content }
         }
         return null
       } catch {
@@ -852,26 +805,7 @@ Answer in the same language as the query.`
       return
     }
 
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "Access-Control-Allow-Origin": "*",
-    })
-
-    const sendSSE = (event: string, data: unknown) => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-    }
-
-    const heartbeat = setInterval(() => {
-      res.write(': heartbeat\n\n')
-    }, 10000)
-
-    const abortCtrl = new AbortController()
-    res.on("close", () => {
-      clearInterval(heartbeat)
-      abortCtrl.abort()
-    })
+    const { send, cleanup } = setupSSE(res)
 
     try {
       const { ResearchAgent } = await import("../research/research-agent.js")
@@ -883,17 +817,17 @@ Answer in the same language as the query.`
           smallModel: body.smallModel,
         },
         (progress) => {
-          sendSSE("step", progress)
+          send("step", progress)
         },
       )
 
       const result = await agent.run()
-      sendSSE("done", result)
+      send("done", result)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      sendSSE("error", { error: msg })
+      send("error", { error: msg })
     } finally {
-      clearInterval(heartbeat)
+      cleanup()
       res.end()
     }
 
@@ -909,26 +843,7 @@ Answer in the same language as the query.`
       return
     }
 
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-      "Access-Control-Allow-Origin": "*",
-    })
-
-    const sendSSE = (event: string, data: unknown) => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-    }
-
-    const heartbeat = setInterval(() => {
-      res.write(': heartbeat\n\n')
-    }, 10000)
-
-    const abortCtrl = new AbortController()
-    res.on("close", () => {
-      clearInterval(heartbeat)
-      abortCtrl.abort()
-    })
+    const { send, cleanup } = setupSSE(res)
 
     try {
       const { ResearchEvolutionAgent } = await import("../research/evolution/orchestrator.js")
@@ -942,17 +857,17 @@ Answer in the same language as the query.`
         },
         undefined,
         (msg: string) => {
-          sendSSE("log", { msg, timestamp: Date.now() })
+          send("log", { msg, timestamp: Date.now() })
         },
       )
 
       const cycles = await agent.run()
-      sendSSE("done", { cycles, report: agent.getReport() })
+      send("done", { cycles, report: agent.getReport() })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      sendSSE("error", { error: msg })
+      send("error", { error: msg })
     } finally {
-      clearInterval(heartbeat)
+      cleanup()
       res.end()
     }
 
@@ -1060,26 +975,7 @@ Answer in the same language as the query.`
     const concurrency = Math.min(Math.max(parseInt(body.concurrency) || 2, 1), 10)
     if (!siteUrl) { json(res, { error: "url is required" }, 400); return }
 
-    // SSE response
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    })
-
-    const send = (event: string, data: unknown) => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-    }
-
-    const heartbeat = setInterval(() => {
-      res.write(': heartbeat\n\n')
-    }, 10000)
-
-    const abortCtrl = new AbortController()
-    res.on("close", () => {
-      clearInterval(heartbeat)
-      abortCtrl.abort()
-    })
+    const { send, cleanup } = setupSSE(res)
 
     import("../ingest/site-ingester.js").then(({ ingestSite }) => {
       return ingestSite(
@@ -1094,11 +990,11 @@ Answer in the same language as the query.`
       )
     }).then((result) => {
       send("done", result)
-      clearInterval(heartbeat)
+      cleanup()
       res.end()
     }).catch((err) => {
       send("error", { error: err instanceof Error ? err.message : String(err) })
-      clearInterval(heartbeat)
+      cleanup()
       res.end()
     })
 

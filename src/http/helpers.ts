@@ -48,7 +48,31 @@ export function htmlToPlainText(html: string): string {
     .trim()
 }
 
-export function readBody(req: IncomingMessage): Promise<string> {
+const UA = "Mozilla/5.0 (compatible; KB-MCP/1.0)"
+const TITLE_RE = /<title[^>]*>([^<]+)<\/title>/i
+const MAX_CONTENT = 20000
+
+export function extractHtmlContent(html: string, fallbackTitle = ""): { title: string; content: string } {
+  const titleMatch = html.match(TITLE_RE)
+  const title = titleMatch ? titleMatch[1].trim() : fallbackTitle
+  let content = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_CONTENT)
+  return { title, content }
+}
+
+export function getApiUserAgent(): string {
+  return UA
+}
+
+export function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     let size = 0
@@ -67,10 +91,35 @@ export function readBody(req: IncomingMessage): Promise<string> {
   })
 }
 
-export function json(res: ServerResponse, data: unknown, status = 200) {
+export function json(res: ServerResponse, data: unknown, status = 200): void {
   const body = JSON.stringify(data)
   res.writeHead(status, { "Content-Type": "application/json" })
   res.end(body)
+}
+
+export function setupSSE(res: ServerResponse): { send: (event: string, data: unknown) => void; cleanup: () => void } {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "Access-Control-Allow-Origin": "*",
+  })
+  const heartbeat = setInterval(() => {
+    res.write(": heartbeat\n\n")
+  }, 10000)
+  const abortCtrl = new AbortController()
+  res.on("close", () => {
+    clearInterval(heartbeat)
+    abortCtrl.abort()
+  })
+  return {
+    send: (event: string, data: unknown) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    },
+    cleanup: () => {
+      clearInterval(heartbeat)
+    },
+  }
 }
 
 /** Safe JSON parse with standard error response */

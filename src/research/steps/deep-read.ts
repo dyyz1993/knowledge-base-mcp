@@ -38,41 +38,68 @@ function normalizeUrl(url: string): string {
 
 const MAX_CACHE_SIZE = 100
 
+interface CacheNode<T> {
+  key: string
+  value: T
+  prev: CacheNode<T> | null
+  next: CacheNode<T> | null
+}
+
 class LRUCache<T> {
-  private map = new Map<string, { value: T; ts: number }>()
+  private map = new Map<string, CacheNode<T>>()
+  private head: CacheNode<T> | null = null
+  private tail: CacheNode<T> | null = null
 
   get(key: string): T | undefined {
-    const entry = this.map.get(key)
-    if (!entry) return undefined
-    // Refresh access time
-    entry.ts = Date.now()
-    return entry.value
+    const node = this.map.get(key)
+    if (!node) return undefined
+    this.moveToHead(node)
+    return node.value
   }
 
   set(key: string, value: T): void {
-    if (this.map.has(key)) {
-      const entry = this.map.get(key)!
-      entry.value = value
-      entry.ts = Date.now()
+    const existing = this.map.get(key)
+    if (existing) {
+      existing.value = value
+      this.moveToHead(existing)
       return
     }
-    // Evict oldest if at capacity
-    if (this.map.size >= MAX_CACHE_SIZE) {
-      let oldestKey: string | null = null
-      let oldestTs = Infinity
-      for (const [k, v] of this.map) {
-        if (v.ts < oldestTs) {
-          oldestTs = v.ts
-          oldestKey = k
-        }
-      }
-      if (oldestKey) this.map.delete(oldestKey)
+    if (this.map.size >= MAX_CACHE_SIZE && this.tail) {
+      this.map.delete(this.tail.key)
+      this.removeNode(this.tail)
     }
-    this.map.set(key, { value, ts: Date.now() })
+    const node: CacheNode<T> = { key, value, prev: null, next: null }
+    this.map.set(key, node)
+    this.addToHead(node)
   }
 
   clear(): void {
     this.map.clear()
+    this.head = null
+    this.tail = null
+  }
+
+  private moveToHead(node: CacheNode<T>): void {
+    if (node === this.head) return
+    this.removeNode(node)
+    this.addToHead(node)
+  }
+
+  private addToHead(node: CacheNode<T>): void {
+    node.prev = null
+    node.next = this.head
+    if (this.head) this.head.prev = node
+    this.head = node
+    if (!this.tail) this.tail = node
+  }
+
+  private removeNode(node: CacheNode<T>): void {
+    if (node.prev) node.prev.next = node.next
+    else this.head = node.next
+    if (node.next) node.next.prev = node.prev
+    else this.tail = node.prev
+    node.prev = null
+    node.next = null
   }
 }
 
@@ -173,7 +200,7 @@ export async function deepReadUrls(
             return result
           }
         } catch (e) {
-          console.log(`[deep-read] xbrowser scrape failed for ${fetchItem.url}: ${e instanceof Error ? e.message : e}`)
+          console.debug(`[deep-read] xbrowser scrape failed for ${fetchItem.url}: ${e instanceof Error ? e.message : e}`)
         }
       }
 
@@ -239,7 +266,7 @@ export async function deepReadUrls(
           source: isLikelyNavigation ? "failed" : "fetch",
         }
         if (isLikelyNavigation) {
-          console.log(`[deep-read] Content appears to be navigation/chrome for ${fetchItem.url}, marking as failed`)
+          console.debug(`[deep-read] Content appears to be navigation/chrome for ${fetchItem.url}, marking as failed`)
         }
         deepReadCache.set(cacheKey, result)
         return result
