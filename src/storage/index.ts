@@ -255,7 +255,7 @@ export function readDoc(id: string, truncate = true): { meta: DocMeta; content: 
   if (!truncate) return { meta, content, truncated: false }
 
   const lines = content.split("\n")
-  const limit = 50
+  const limit = 500
   if (lines.length > limit) {
     return { meta, content: lines.slice(0, limit).join("\n"), truncated: true }
   }

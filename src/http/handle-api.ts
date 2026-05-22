@@ -37,7 +37,7 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
   }
   if (url.pathname.startsWith("/api/doc/") && req.method === "GET") {
     const id = url.pathname.slice("/api/doc/".length)
-    json(res, readDoc(id, false))
+    json(res, readDoc(id, true))
     return
   }
   if (url.pathname.startsWith("/api/doc/") && req.method === "DELETE") {
@@ -49,7 +49,7 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
   if (url.pathname === "/api/docs" && req.method === "POST") {
     const body = (await parseBody(req, res)) as Record<string, any>
     if (body === null) return
-    json(res, readDoc(body.id, false))
+    json(res, readDoc(body.id, true))
     return
   }
   if (url.pathname === "/api/docs/write" && req.method === "POST") {
