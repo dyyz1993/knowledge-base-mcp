@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import { Copy, Check, ExternalLink, Clock, Tag, FileText, ClipboardCopy } from "lucide-react"
 import type { DocMeta } from "../services/api"
 import TagBadge from "./TagBadge"
+import { DocSkeleton } from "./Skeleton"
+
+const LazyCodeBlock = lazy(() => import("./LazyCodeBlock"))
 
 function useCopy(timeout = 1500) {
   const [copied, setCopied] = useState(false)
@@ -26,25 +27,12 @@ function CopyBtn({ text, size = 12 }: { text: string; size?: number }) {
   )
 }
 
-function CodeBlock({ language, children }: { language?: string; children: string }) {
+function CodeBlockWrapper({ language, children }: { language?: string; children: string }) {
   const { copied, copy } = useCopy()
   return (
-    <div className="my-4 rounded-lg overflow-hidden border border-zinc-800">
-      <div className="flex items-center justify-between px-4 py-1.5 bg-zinc-900 text-xs text-zinc-500">
-        <span className="font-mono">{language || "text"}</span>
-        <button onClick={() => copy(children)} className="flex items-center gap-1 hover:text-zinc-300 transition-colors">
-          {copied ? <><Check size={12} className="text-green-400" /></> : <><Copy size={12} /> Copy</>}
-        </button>
-      </div>
-      <SyntaxHighlighter
-        style={oneDark}
-        language={language || "text"}
-        PreTag="div"
-        customStyle={{ margin: 0, borderRadius: 0, fontSize: "13px", background: "#1a1a2e" }}
-      >
-        {children}
-      </SyntaxHighlighter>
-    </div>
+    <Suspense fallback={<div className="my-4 h-32 animate-pulse bg-zinc-800 rounded-lg" />}>
+      <LazyCodeBlock language={language} code={children} copied={copied} onCopy={() => copy(children)} />
+    </Suspense>
   )
 }
 
@@ -69,11 +57,17 @@ function MermaidBlock({ code }: { code: string }) {
   }, [code])
 
   if (error) return <pre className="bg-red-950/30 border border-red-900 p-3 rounded-lg text-red-400 text-sm">{error}</pre>
-  return <div ref={ref} className="my-4 flex justify-center [&_svg]:max-w-full" />
+  return <div ref={ref} className="my-4 flex justify-center [&_svg]:max-w-full min-h-[192px]">
+    {!ref.current?.innerHTML && <div className="w-full h-48 animate-pulse bg-zinc-800 rounded" />}
+  </div>
 }
 
-export default function DocViewer({ doc }: { doc: { meta: DocMeta; content: string; truncated: boolean } | null }) {
+export default function DocViewer({ doc, loading }: { doc: { meta: DocMeta; content: string; truncated: boolean } | null; loading?: boolean }) {
   const { copied, copy } = useCopy()
+
+  if (loading && !doc) {
+    return <div className="flex-1"><DocSkeleton /></div>
+  }
 
   if (!doc) {
     return (
@@ -151,7 +145,7 @@ export default function DocViewer({ doc }: { doc: { meta: DocMeta; content: stri
                 if (match) {
                   const lang = match[1]
                   if (lang === "mermaid") return <MermaidBlock code={code} />
-                  return <CodeBlock language={lang}>{code}</CodeBlock>
+                  return <CodeBlockWrapper language={lang}>{code}</CodeBlockWrapper>
                 }
                 return <code className={className} {...props}>{children}</code>
               },

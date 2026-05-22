@@ -3,6 +3,7 @@ import { FolderOpen, FileText, ChevronRight, ChevronDown } from "lucide-react"
 import { useState } from "react"
 import type { DocMeta } from "../services/api"
 import TagBadge from "./TagBadge"
+import { ListSkeleton } from "./Skeleton"
 
 function groupByProject(docs: DocMeta[]): Record<string, DocMeta[]> {
   const groups: Record<string, DocMeta[]> = {}
@@ -28,7 +29,10 @@ export default function Sidebar({ docs, selectedId, onSelect }: { docs: DocMeta[
         <span className="ml-auto text-xs text-zinc-600">{docs.length}</span>
       </div>
       <div className="flex-1 overflow-y-auto py-2">
-        {Object.entries(groups).map(([name, items]) => (
+        {docs.length === 0 ? (
+          <ListSkeleton count={8} />
+        ) : (
+          Object.entries(groups).map(([name, items]) => (
           <div key={name}>
             <button
               onClick={() => toggle(name)}
@@ -49,7 +53,8 @@ export default function Sidebar({ docs, selectedId, onSelect }: { docs: DocMeta[
               </button>
             ))}
           </div>
-        ))}
+        ))
+        )}
       </div>
     </aside>
   )

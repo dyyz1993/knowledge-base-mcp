@@ -1,9 +1,49 @@
-import { type ReactNode } from "react"
+import { type ReactNode, useState, useEffect, Suspense, type ComponentType } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import CopyButton from "./CopyButton"
+
+type SHProps = {
+  style: Record<string, unknown>
+  language: string
+  PreTag: string
+  customStyle: Record<string, unknown>
+  children: string
+}
+
+function LazyHighlighter({ language, code }: { language: string; code: string }) {
+  const [Component, setComponent] = useState<ComponentType<SHProps> | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      import("react-syntax-highlighter/dist/esm/styles/prism"),
+      import("react-syntax-highlighter"),
+    ]).then(([styles, mod]) => {
+      if (cancelled) return
+      const style = styles.oneDark as Record<string, unknown>
+      const SH = mod.Prism as unknown as ComponentType<SHProps>
+      const Wrapped = (props: SHProps) => <SH {...props} style={style} />
+      setComponent(() => Wrapped)
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  if (!Component) {
+    return <div className="h-20 animate-pulse bg-zinc-800" />
+  }
+
+  return (
+    <Component
+      style={{}}
+      language={language || "text"}
+      PreTag="div"
+      customStyle={{ margin: 0, borderRadius: 0, fontSize: "13px", background: "#18181b" }}
+    >
+      {code}
+    </Component>
+  )
+}
 
 function CodeBlock({ children, className, ...rest }: { children?: ReactNode; className?: string; [key: string]: unknown }) {
   const match = /language-(\w+)/.exec(className || "")
@@ -24,14 +64,9 @@ function CodeBlock({ children, className, ...rest }: { children?: ReactNode; cla
         <span>{language || "code"}</span>
         <CopyButton text={code} className="opacity-0 group-hover:opacity-100 -mr-1 -mt-0.5" />
       </div>
-      <SyntaxHighlighter
-        style={oneDark}
-        language={language || "text"}
-        PreTag="div"
-        customStyle={{ margin: 0, borderRadius: 0, fontSize: "13px", background: "#18181b" }}
-      >
-        {code}
-      </SyntaxHighlighter>
+      <Suspense fallback={<div className="h-20 animate-pulse bg-zinc-800" />}>
+        <LazyHighlighter language={language} code={code} />
+      </Suspense>
     </div>
   )
 }

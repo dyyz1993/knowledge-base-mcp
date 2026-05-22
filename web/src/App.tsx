@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, lazy, Suspense } from "react"
 import { Search, Command, MessageSquare, Database, Menu, Settings, Sparkles } from "lucide-react"
 import { useDocStore } from "./stores/docs"
 import { useChatStore } from "./stores/chat"
@@ -9,13 +9,15 @@ import SessionList from "./components/SessionList"
 import ChatPanel from "./components/ChatPanel"
 import KBPanel from "./components/KBPanel"
 import FavoriteList from "./components/FavoriteList"
-import SettingsPanel from "./components/SettingsPanel"
 import AskPanel from "./components/AskPanel"
+import { ListSkeleton } from "./components/Skeleton"
+
+const SettingsPanel = lazy(() => import("./components/SettingsPanel"))
 
 type Tab = "kb" | "ask" | "chat"
 
 export default function App() {
-  const { docs, current, load, select } = useDocStore()
+  const { docs, current, load, select, loading: docLoading } = useDocStore()
   const { loadSessions, loadModels, loadFavorites, loadSessionFavorites } = useChatStore()
   const [tab, setTab] = useState<Tab>(() => {
     try {
@@ -154,7 +156,7 @@ export default function App() {
           `}>
             <Sidebar docs={docs} selectedId={selectedId} onSelect={(id) => { handleSelect(id); if (window.innerWidth < 1024) setSidebarOpen(false) }} />
           </aside>
-          <DocViewer doc={current} />
+          <DocViewer doc={current} loading={docLoading} />
           <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} onSelect={handleSelect} />
         </div>
       ) : (
@@ -207,7 +209,9 @@ export default function App() {
         </div>
       )}
 
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <Suspense fallback={null}>
+        <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </Suspense>
     </div>
   )
 }
