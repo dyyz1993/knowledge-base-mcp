@@ -22,32 +22,32 @@
 | session-advanced | 4 | 4 | 0 | 0 | ✅ |
 | kb-panel | 4 | 4 | 0 | 0 | ✅ |
 | ask-advanced | 8 | 8 | 0 | 0 | ✅ |
-| docviewer | 4 | 3 | 1 | 0 | ✅ |
+| docviewer | 4 | 4 | 0 | 0 | ✅ |
 | settings-advanced | 4 | 4 | 0 | 0 | ✅ |
 | chat-advanced | 4 | 4 | 0 | 0 | ✅ |
 | keyboard | 1 | 1 | 0 | 0 | ✅ |
 
 ## 总计
 - 总用例：93
-- 已通过：92
-- 已失败：1（DV-02: 文档截断指示器后端永远返回 truncated:false）
+- 已通过：93
+- 已失败：0
 - 完成率：100%
-- 通过率：98.9%
+- 通过率：100%
 
-## 发现并修复的 Bug（12个）
+## 发现并修复的 Bug（16个）
 1. SR-03: 搜索 API 响应格式不匹配
-2. AQ-02: Ask 查询文本重复
+2. AQ-02: Ask 查询文本重复（isComposing + 竞态）
 3. AQ-05: Ask 结果截断无展开/折叠按钮
 4. 安全-1: 静态文件路径遍历漏洞
-5. 安全-2: SSRF 绕过
+5. 安全-2: SSRF 绕过（web-read/deep-read）
 6. 安全-3: 零安全响应头
-7. Bug-A: Tailwind 动态 class 不编译
+7. Bug-A: Tailwind 动态 class 编译后不存在
 8. Bug-B: Test Connection 调错端点（新增 /api/embedding/test）
 9. Bug-C: SearchPalette 搜索无防抖
 10. Bug-D: 删除会话无确认对话框
-11. Bug-E: Tab 刷新后不记住
-12. 可靠性: callLlm 静默失败 + SSE 心跳泄漏 + SSE 断连不中止
-
-## 已知问题
-- DV-02: 文档截断指示器后端不激活（readDoc 传 truncated=false）
-- CP-02: Suggestion 按钮在当前查询下不出现（N/A）
+11. Bug-E: Tab 刷新后不记住（localStorage）
+12. 可靠性-1: callLlm 静默失败返回空字符串
+13. 可靠性-2: SSE 心跳 interval 泄漏
+14. 可靠性-3: SSE 断连不中止研究操作
+15. 可靠性-4: 搜索 fallback 错误被吞掉
+16. DV-02: 文档截断指示器后端未激活
