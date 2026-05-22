@@ -1,0 +1,11 @@
+node_modules
+web/node_modules
+web/dist
+dist
+.vectors
+.git
+.DS_Store
+*.bak
+.codenomad
+.opencode
+*-report.html
