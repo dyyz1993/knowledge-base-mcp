@@ -1,0 +1,48 @@
+# Module: kb-home
+# Reusable operation sequences
+
+navigate_to_knowledge_base:
+  description: "Navigate to the Knowledge Base tab from any page"
+  steps:
+    - action: click
+      selector: "button:has-text('Knowledge Base')"
+      description: "Click Knowledge Base tab"
+
+navigate_to_ask:
+  description: "Navigate to the Ask (Smart Q&A) tab"
+  steps:
+    - action: click
+      selector: "button:has-text('Ask')"
+      description: "Click Ask tab"
+
+view_document:
+  description: "Click a document in the sidebar to view its content"
+  steps:
+    - action: click
+      selector: "button:has-text('document title')"
+      description: "Click any document in the sidebar list"
+  wait_after: 1000
+  expected_result: "Document content loads in the main panel"
+
+submit_ask_query:
+  description: "Submit a query in the Ask page"
+  steps:
+    - action: click
+      selector: "textarea[placeholder*='你想了解什么']"
+      description: "Focus the query input"
+    - action: type
+      selector: "textarea[placeholder*='你想了解什么']"
+      description: "Type the query text"
+    - action: click
+      selector: "button.shrink-0.bg-amber-600"
+      description: "Click the amber send button"
+  wait_after: 10000
+  expected_result: "Query results or error message appears"
+
+tips:
+  - "The submit button on Ask page is amber colored (bg-amber-600), not the mode buttons"
+  - "Mode buttons (快速/标准/深度) are toggle selectors, not submit buttons"
+  - "Ask queries may fail with 'Failed to fetch' - this is a backend/API issue, not UI"
+  - "Document list is loaded from /api/docs endpoint on page load"
+  - "Document popup previews appear on hover - may interfere with automation"
+  - "The page uses SPA routing (no URL change between tabs)"

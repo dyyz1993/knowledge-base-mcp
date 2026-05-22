@@ -1,0 +1,58 @@
+# Module: responsive-design
+# Reusable operation sequences
+
+navigate_all_tabs:
+  description: "Navigate through all 3 tabs to verify layout at each viewport"
+  steps:
+    - action: click
+      selector: "button:has-text('Knowledge Base')"
+      description: "Click Knowledge Base tab"
+    - action: screenshot
+      description: "Capture KB tab layout"
+    - action: click
+      selector: "button:has-text('Ask')"
+      description: "Click Ask tab"
+    - action: screenshot
+      description: "Capture Ask tab layout"
+    - action: click
+      selector: "button:has-text('Chat')"
+      description: "Click Chat tab"
+    - action: screenshot
+      description: "Capture Chat tab layout"
+  expected_result: "All 3 tabs render without layout issues"
+
+hamburger_toggle:
+  description: "Toggle sidebar via hamburger menu on mobile"
+  steps:
+    - action: eval
+      selector: "header > button:first-child"
+      value: "dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))"
+      description: "Click hamburger button to toggle sidebar"
+    - action: wait
+      value: 500
+      description: "Wait for animation"
+    - action: eval
+      selector: "aside:first-of-type"
+      value: "getBoundingClientRect().x >= 0"
+      description: "Check if sidebar is open"
+  expected_result: "Sidebar toggles open/closed"
+  note: "Hamburger button only visible at <1024px (lg:hidden). At desktop viewport it has zero dimensions."
+
+simulate_mobile_viewport:
+  description: "Force mobile appearance via CSS override (CDP workaround)"
+  steps:
+    - action: eval
+      value: |
+        const style = document.createElement('style');
+        style.id = 'hamburger-override';
+        style.textContent = 'header > button:first-child { display: flex !important; width: 28px !important; height: 28px !important; }';
+        document.head.appendChild(style);
+      description: "Make hamburger visible (simulating mobile)"
+
+tips:
+  - "CDP connection does NOT support viewport resize via window.resizeTo — CSS breakpoints remain at 1920px"
+  - "agent-browser resize command hangs in CDP mode — avoid using it"
+  - "Hamburger button uses lg:hidden class — only rendered at <1024px breakpoint"
+  - "Sidebar uses -translate-x-full for hiding + lg:translate-x-0 for showing at desktop"
+  - "All 3 tabs are always accessible regardless of viewport — tabs are in the header"
+  - "No horizontal overflow issues detected at desktop viewport"

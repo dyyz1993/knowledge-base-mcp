@@ -100,7 +100,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     if (body.query) {
       try {
         json(res, await searchDocsCombined(body.query, body.keywords, body.tags, body.limit))
-      } catch {
+      } catch (e) {
+        console.error("[search] Combined search failed, falling back:", e instanceof Error ? e.message : String(e))
         json(res, searchDocs(body.query, body.keywords, body.tags, body.limit))
       }
       return
@@ -343,6 +344,8 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
       json(res, { error: "Missing 'url' field" }, 400)
       return
     }
+    const { safe, reason } = validateUrl(targetUrl)
+    if (!safe) { json(res, { error: `URL blocked: ${reason}` }, 400); return }
     const webSearch = getMcpWebSearch()
     if (webSearch) {
       const result = await webSearch.readUrl(targetUrl)
@@ -351,8 +354,6 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
         return
       }
     }
-    const { safe, reason } = validateUrl(targetUrl)
-    if (!safe) { json(res, { error: `URL blocked: ${reason}` }, 400); return }
     const config = loadConfig()
     try {
       const resp = await fetch(targetUrl, {
@@ -463,6 +464,9 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
     const targetUrl = body.url
     if (!targetUrl) { json(res, { error: "Missing 'url'" }, 400); return }
 
+    const { safe, reason } = validateUrl(targetUrl)
+    if (!safe) { json(res, { error: `URL blocked: ${reason}` }, 400); return }
+
     const config = loadConfig()
     const xbrowserEnabled = config.searchPipeline?.sources?.xbrowser?.enabled
 
@@ -490,9 +494,6 @@ export async function handleRestAPI(req: IncomingMessage, res: ServerResponse, u
         return
       }
     }
-
-    const { safe, reason } = validateUrl(targetUrl)
-    if (!safe) { json(res, { error: `URL blocked: ${reason}` }, 400); return }
 
     try {
       const resp = await fetch(targetUrl, {
@@ -828,6 +829,12 @@ Answer in the same language as the query.`
       res.write(': heartbeat\n\n')
     }, 10000)
 
+    const abortCtrl = new AbortController()
+    res.on("close", () => {
+      clearInterval(heartbeat)
+      abortCtrl.abort()
+    })
+
     try {
       const { ResearchAgent } = await import("../research/research-agent.js")
       const agent = new ResearchAgent(
@@ -878,6 +885,12 @@ Answer in the same language as the query.`
     const heartbeat = setInterval(() => {
       res.write(': heartbeat\n\n')
     }, 10000)
+
+    const abortCtrl = new AbortController()
+    res.on("close", () => {
+      clearInterval(heartbeat)
+      abortCtrl.abort()
+    })
 
     try {
       const { ResearchEvolutionAgent } = await import("../research/evolution/orchestrator.js")
@@ -1021,6 +1034,12 @@ Answer in the same language as the query.`
     const heartbeat = setInterval(() => {
       res.write(': heartbeat\n\n')
     }, 10000)
+
+    const abortCtrl = new AbortController()
+    res.on("close", () => {
+      clearInterval(heartbeat)
+      abortCtrl.abort()
+    })
 
     import("../ingest/site-ingester.js").then(({ ingestSite }) => {
       return ingestSite(

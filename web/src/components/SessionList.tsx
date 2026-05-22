@@ -153,6 +153,7 @@ function SessionItem({
 
   const handleDelete = useCallback(() => {
     setContextMenu(null)
+    if (!window.confirm("确定删除此会话？此操作不可恢复。")) return
     onDelete(session.id)
   }, [onDelete, session.id])
 
@@ -197,6 +198,7 @@ function SessionItem({
         <button
           onClick={(e) => {
             e.stopPropagation()
+            if (!window.confirm("确定删除此会话？此操作不可恢复。")) return
             onDelete(session.id)
           }}
           className="shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-zinc-700 text-zinc-500 hover:text-red-400 transition-all"

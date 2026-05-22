@@ -8,6 +8,7 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
   const [q, setQ] = useState("")
   const { searchResults, search } = useDocStore()
   const inputRef = useRef<HTMLInputElement>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
     if (open) {
@@ -17,7 +18,11 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
   }, [open])
 
   useEffect(() => {
-    if (q) search(q)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    if (q) {
+      timerRef.current = setTimeout(() => search(q), 300)
+    }
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [q])
 
   if (!open) return null

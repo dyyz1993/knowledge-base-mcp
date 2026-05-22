@@ -1,5 +1,5 @@
 import { readFileSync, existsSync } from "node:fs"
-import { join, extname } from "node:path"
+import { join, extname, resolve } from "node:path"
 import { createServer } from "node:http"
 import { handleChat } from "../chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "../chat/api-models.js"
@@ -47,6 +47,10 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
     const url = new URL(req.url!, `http://${req.headers.host}`)
 
     try {
+      res.setHeader("X-Content-Type-Options", "nosniff")
+      res.setHeader("X-Frame-Options", "DENY")
+      res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
+
       // Health check: always accessible, no auth required
       if (url.pathname === "/health") {
         json(res, { status: "ok", service: "knowledge-base-mcp", version: VERSION })
@@ -108,6 +112,13 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
           return
         }
         const fp = join(webDist, url.pathname === "/" ? "index.html" : url.pathname)
+        const resolvedFp = resolve(fp)
+        const resolvedWebDist = resolve(webDist)
+        if (!resolvedFp.startsWith(resolvedWebDist)) {
+          res.writeHead(403, { "Content-Type": "text/plain" })
+          res.end("Forbidden")
+          return
+        }
         if (existsSync(fp)) {
           res.writeHead(200, { "Content-Type": mimeTypes[extname(fp)] || "application/octet-stream" })
           res.end(readFileSync(fp))

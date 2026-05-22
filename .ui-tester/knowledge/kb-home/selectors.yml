@@ -1,0 +1,33 @@
+# Module: kb-home
+# Site: http://localhost:19877
+# Version: 1
+# Status: verified
+# Last updated: 2026-05-21
+# Updated in round: r1
+
+homepage:
+  url: "http://localhost:19877"
+  nav_knowledge_base: "button:has-text('Knowledge Base')"
+  nav_ask: "button:has-text('Ask')"
+  nav_chat: "button:has-text('Chat')"
+  search_button: "button[title='Search K']"
+  version_label: "text=v2.42.0"
+  document_list: ".doc-list, .sidebar button"
+  empty_state: "text=Select a document to view"
+
+ask_page:
+  url: "http://localhost:19877/ (Ask tab)"
+  model_selector: "select, combobox"
+  query_input: "textarea[placeholder*='你想了解什么']"
+  mode_quick: "button[title='快速 (5步)']"
+  mode_standard: "button[title='标准 (12步)']"
+  mode_deep: "button[title='深度 (25步)']"
+  mode_agent: "button[title='Agent 深度研究']"
+  submit_button: "button.shrink-0.bg-amber-600"
+  error_message: "text=查询失败"
+  error_details: "button:has-text('查看详情')"
+
+dark_theme:
+  body_classes: "bg-zinc-950 text-zinc-100"
+  html_class: "dark"
+  no_white_bg: true

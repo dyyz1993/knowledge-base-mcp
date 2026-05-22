@@ -428,14 +428,19 @@ function AgentResearchCard({ result, progress, errorDetail }: {
   const budget = steps.length > 0 ? steps[steps.length - 1].budget : null
   const pct = budget ? Math.round((budget.usedCost / budget.maxCost) * 100) : 0
   const modeLabel = budget?.mode === "quick" ? "快速" : budget?.mode === "deep" ? "深度" : "标准"
-  const modeColor = budget?.mode === "quick" ? "amber" : budget?.mode === "deep" ? "blue" : "purple"
+  const modeColorClasses: Record<string, string> = {
+    quick: "bg-amber-900/30 text-amber-400",
+    standard: "bg-purple-900/30 text-purple-400",
+    deep: "bg-blue-900/30 text-blue-400",
+  }
+  const modeColor = budget?.mode || "standard"
 
   return (
     <div className="max-w-[85%] w-full rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-violet-500 overflow-hidden">
       <div className="px-3 py-2 flex items-center gap-2 border-b border-zinc-800">
         <FlaskConical size={13} className="text-violet-400" />
         <span className="text-xs font-medium text-violet-400">Agent 研究</span>
-        <span className={`text-[10px] px-1.5 py-0.5 rounded bg-${modeColor}-900/30 text-${modeColor}-400`}>{modeLabel}</span>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded ${modeColorClasses[modeColor] || modeColorClasses.standard}`}>{modeLabel}</span>
         {isComplete && (
           <span className="text-[10px] text-zinc-500">
             {result.totalSteps} 步 · {(result.durationMs / 1000).toFixed(1)}s · 质量 {result.finalQualityScore}/10

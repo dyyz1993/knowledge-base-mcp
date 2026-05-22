@@ -1,0 +1,39 @@
+# Module: responsive-design
+# Site: http://localhost:19877
+# Version: 1
+# Status: verified
+# Last updated: 2026-05-22
+# Updated in round: r1
+
+layout:
+  header: "header.h-10.border-b"
+  nav_tabs:
+    knowledge_base: "button:has-text('Knowledge Base')"
+    ask: "button:has-text('Ask')"
+    chat: "button:has-text('Chat')"
+  hamburger_button: "header > button:first-child"
+  hamburger_classes: "lg:hidden shrink-0 p-1 rounded-md"
+  hamburger_note: "Hidden on lg+ (≥1024px), visible on mobile/tablet. Has SVG with 3 paths (hamburger icon)."
+
+sidebar:
+  left_sidebar: "aside:first-of-type"
+  sidebar_classes: "-translate-x-full fixed top-10 bottom-0 left-0 z-30 w-64 lg:translate-x-0 lg:relative lg:top-0 lg:w-72 transition-transform duration-200 ease-in-out"
+  sidebar_behavior: "Hidden by default on mobile (-translate-x-full), shown on lg+ (lg:translate-x-0). React state toggle via hamburger button."
+  right_sidebar: "aside:nth-of-type(2)"
+
+responsive_breakpoints:
+  mobile: "<1024px - sidebar hidden, hamburger visible"
+  tablet: "<1024px - sidebar hidden, hamburger visible" 
+  desktop: "≥1024px (lg) - sidebar always visible, hamburger hidden"
+  note: "CDP mode with window.resizeTo does NOT change CSS breakpoint matching. Use CSS override or Emulation.setDeviceMetricsOverride for true responsive testing."
+
+tabs:
+  kb_tab:
+    content_area: "main.flex-1.min-w-0"
+    sidebar_visible: true
+  ask_tab:
+    query_input: "textarea[placeholder*='你想了解什么']"
+    model_selector: "[role='combobox']"
+  chat_tab:
+    chat_input: "textarea[placeholder='Type a message...']"
+    session_sidebar: "aside:first-of-type"

@@ -100,12 +100,11 @@ export async function callLlm(
     | undefined
 
   if (!choices || !Array.isArray(choices)) {
-    console.error(`[callLlm] Unexpected response structure: ${JSON.stringify(data).slice(0, 300)}`)
-    return ""
+    throw new Error(`[callLlm] Unexpected response structure from ${url}: ${JSON.stringify(data).slice(0, 200)}`)
   }
 
   const message = choices?.[0]?.message
-  if (!message) return ""
+  if (!message) throw new Error(`[callLlm] No message in response from ${url}`)
 
   const content = typeof message.content === "string" ? message.content.trim() : ""
   if (content.length > 0) return content

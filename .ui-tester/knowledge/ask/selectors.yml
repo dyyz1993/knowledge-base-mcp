@@ -1,0 +1,30 @@
+# Module: ask
+# Site: http://localhost:19877
+# Version: 1
+# Status: verified
+# Last updated: 2026-05-21
+# Verified in round: r1
+
+ask_page:
+  url: "http://localhost:19877 (Ask tab)"
+  nav_ask_button: "button:has-text('Ask')"
+  model_selector: "select, [role='combobox']"
+  query_input: "textarea[placeholder*='你想了解什么']"
+  mode_quick: "button:has-text('快速 (5步)')"
+  mode_standard: "button:has-text('标准 (12步)')"
+  mode_deep: "button:has-text('深度 (25步)')"
+  mode_agent: "button:has-text('Agent 深度研究')"
+  submit_button: "button.shrink-0.bg-amber-600"
+  stop_button: "button:has-text('停止查询')"
+
+response_area:
+  container: "div.flex-1.overflow-y-auto.p-4"
+  user_message_bubble: "div.bg-blue-900/30.border.border-blu"
+  assistant_response: "div.flex.justify-start"
+  knowledge_hit_indicator: "text=知识库命中"
+  similarity_score: "text=相似度:"
+  references_section: "text=参考资料"
+
+error_states:
+  error_message: "text=查询失败"
+  error_details: "button:has-text('查看详情')"

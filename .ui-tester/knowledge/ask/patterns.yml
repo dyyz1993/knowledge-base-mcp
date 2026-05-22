@@ -1,0 +1,58 @@
+# Module: ask
+# Reusable operation sequences
+
+ask_query_flow:
+  description: "Submit a query in the Ask page and wait for response"
+  steps:
+    - action: click
+      selector: "button:has-text('Ask')"
+      description: "Navigate to Ask tab"
+    - action: type
+      selector: "textarea[placeholder*='你想了解什么']"
+      description: "Type query into input"
+    - action: click
+      selector: "button.shrink-0.bg-amber-600"
+      description: "Click amber submit button"
+  wait_after_submit: 60000
+  expected_result: "Response appears with knowledge content or web search results"
+  notes: "Response can take 30-90 seconds. Use 'text=知识库命中' to verify KB hit. Use 'text=停止查询' to detect loading state."
+  critical_note: "Must use type (not fill) for textarea to properly trigger React state. Fill may not enable the submit button."
+
+ask_with_model_selection:
+  description: "Select a specific model before querying"
+  steps:
+    - action: click
+      selector: "[role='combobox']"
+      description: "Open model selector dropdown"
+    - action: click
+      selector: "option:has-text('GLM-4.5 Air')"
+      description: "Select desired model"
+    - action: type
+      selector: "textarea[placeholder*='你想了解什么']"
+      description: "Type query"
+    - action: click
+      selector: "button.shrink-0.bg-amber-600"
+      description: "Submit query"
+  wait_after_submit: 60000
+
+ask_mode_selection:
+  description: "Switch between quick/standard/deep modes"
+  steps:
+    - action: click
+      selector: "button:has-text('标准 (12步)')"
+      description: "Select standard mode (12 steps)"
+  expected_result: "Mode button becomes active/selected"
+  notes: "Default mode is quick (5 steps). Agent mode button is disabled by default."
+
+tips:
+  - "CRITICAL: Use type command, NOT fill, for the query textarea — fill doesn't trigger React onChange properly"
+  - "Submit button is amber (bg-amber-600), small (32x32px), located at right of input area"
+  - "Submit button starts disabled and enables only after text is typed"
+  - "Response streaming can take 30-90 seconds, '停止查询' button visible during loading"
+  - "KB hit shows '知识库命中' with similarity score"
+  - "Response includes markdown with headings, tables, code blocks, and references"
+  - "Model selector defaults to 'GLM-4.5 Air'"
+  - "Agent mode (深度研究) button is disabled by default — may need specific conditions to enable"
+  - "Ref selectors (@e26, @e31) change after clicking Ask tab — always re-snapshot"
+  - "Previous bug: text doubling (什么是知识库什么是知识库) — FIXED in current version"
+  - "Previous bug: 'Failed to fetch' error — FIXED in current version"

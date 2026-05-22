@@ -17,7 +17,17 @@ type Tab = "kb" | "ask" | "chat"
 export default function App() {
   const { docs, current, load, select } = useDocStore()
   const { loadSessions, loadModels, loadFavorites, loadSessionFavorites } = useChatStore()
-  const [tab, setTab] = useState<Tab>("kb")
+  const [tab, setTab] = useState<Tab>(() => {
+    try {
+      const saved = localStorage.getItem("kb-active-tab")
+      if (saved === "kb" || saved === "ask" || saved === "chat") return saved
+    } catch {}
+    return "kb"
+  })
+  const handleSetTab = (t: Tab) => {
+    setTab(t)
+    try { localStorage.setItem("kb-active-tab", t) } catch {}
+  }
   const [searchOpen, setSearchOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string>()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -64,7 +74,7 @@ export default function App() {
         )}
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setTab("kb")}
+            onClick={() => handleSetTab("kb")}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
               tab === "kb" ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
             }`}
@@ -73,7 +83,7 @@ export default function App() {
             Knowledge Base
           </button>
           <button
-            onClick={() => setTab("ask")}
+            onClick={() => handleSetTab("ask")}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
               tab === "ask" ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
             }`}
@@ -82,7 +92,7 @@ export default function App() {
             Ask
           </button>
           <button
-            onClick={() => setTab("chat")}
+            onClick={() => handleSetTab("chat")}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
               tab === "chat" ? "bg-zinc-800 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
             }`}
