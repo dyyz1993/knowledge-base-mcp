@@ -40,7 +40,7 @@ export class McpWebSearch {
     if (this._searchDisabled && Date.now() - this._disabledAt > McpWebSearch.DISABLED_COOLDOWN_MS) {
       this._searchDisabled = false
       this._disabledReason = ""
-      console.log("[mcp-search] Cooldown expired, re-enabling search")
+      console.debug("[mcp-search] Cooldown expired, re-enabling search")
     }
     return !this._searchDisabled
   }

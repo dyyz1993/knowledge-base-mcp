@@ -455,8 +455,8 @@ async function discoverFromLinks(baseUrl: string, onProgress: ProgressCallback, 
     const results = await Promise.allSettled(
       batch.map(async (page) => {
         // If we already have content from llms-full.txt, extract the section
-        if ((page as any)._fullContent) {
-          const fullContent = (page as any)._fullContent as string
+        if ((page as PageEntry & { _fullContent?: string })._fullContent) {
+          const fullContent = (page as PageEntry & { _fullContent?: string })._fullContent!
           // Find the section matching this title
           const titleEscaped = page.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
           const sectionRegex = new RegExp(`#{1,3} ${titleEscaped}[\\s\\S]*?(?=\\n#{1,3} |$)`, "i")

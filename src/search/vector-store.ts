@@ -46,8 +46,8 @@ function decodeVector(blob: Uint8Array): Float32Array {
 
 function migrateFromJson(): void {
   const d = db!
-  const count = d.query("SELECT COUNT(*) as c FROM embeddings").get() as any
-  if (count.c > 0) return
+  const count = d.query("SELECT COUNT(*) as c FROM embeddings").get() as { c: number } | null
+  if (count && count.c > 0) return
   if (!existsSync(jsonPath())) return
 
   try {
@@ -64,7 +64,7 @@ function migrateFromJson(): void {
       }
     })
     insertMany(entries)
-    console.log(`Migrated ${entries.length} vectors from vectors.json to SQLite`)
+    console.debug(`Migrated ${entries.length} vectors from vectors.json to SQLite`)
   } catch (e) {
     console.error("Migration failed:", e)
   }
@@ -76,7 +76,7 @@ export function initDb(): void {
 
 export function loadVectors(): Record<string, number[]> {
   const d = getDb()
-  const rows = d.query("SELECT doc_id, embedding FROM embeddings").all() as any[]
+  const rows = d.query("SELECT doc_id, embedding FROM embeddings").all() as { doc_id: string; embedding: Uint8Array }[]
   const result: Record<string, number[]> = {}
   for (const row of rows) {
     result[row.doc_id] = Array.from(decodeVector(row.embedding))
@@ -181,14 +181,14 @@ export async function rebuildAllVectors(docs: DocMeta[]): Promise<number> {
 
 export function getVectorCount(): number {
   const d = getDb()
-  const row = d.query("SELECT COUNT(*) as c FROM embeddings").get() as any
-  return row.c
+  const row = d.query("SELECT COUNT(*) as c FROM embeddings").get() as { c: number } | null
+  return row?.c ?? 0
 }
 
 export function getStorageStats(): { count: number; dbSize: number; model: string; dimensions: number } {
   const d = getDb()
-  const row = d.query("SELECT COUNT(*) as c FROM embeddings").get() as any
-  const modelRow = d.query("SELECT model, dimensions FROM embeddings LIMIT 1").get() as any
+  const row = d.query("SELECT COUNT(*) as c FROM embeddings").get() as { c: number } | null
+  const modelRow = d.query("SELECT model, dimensions FROM embeddings LIMIT 1").get() as { model: string; dimensions: number } | null
   let dbSize = 0
   try {
     dbSize = statSync(dbPath()).size
@@ -196,7 +196,7 @@ export function getStorageStats(): { count: number; dbSize: number; model: strin
     console.warn("[vector-store]", e instanceof Error ? e.message : String(e))
   }
   return {
-    count: row.c,
+    count: row?.c ?? 0,
     dbSize,
     model: modelRow?.model || "",
     dimensions: modelRow?.dimensions || 0,

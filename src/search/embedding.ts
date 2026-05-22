@@ -139,7 +139,7 @@ async function embedBatchLocal(texts: string[]): Promise<number[][]> {
     const batch = texts.slice(i, i + BATCH_SIZE)
     const outputs = await embedder(batch, { pooling: "mean", normalize: true })
     for (let j = 0; j < batch.length; j++) {
-      const row = outputs[j as any]
+      const row = outputs[j as number]
       results.push(Array.from(row.data) as number[])
     }
   }

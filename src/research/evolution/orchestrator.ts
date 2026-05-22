@@ -27,7 +27,7 @@ export class ResearchEvolutionAgent {
   ) {
     this.config = config
     this.benchmarks = benchmarks || DEFAULT_BENCHMARKS
-    this.onLog = onLog || ((msg: string) => console.log(`[evolution] ${msg}`))
+    this.onLog = onLog || ((msg: string) => console.debug(`[evolution] ${msg}`))
     this.model = {
       large: { baseUrl: "", apiKey: "", model: "" },
       small: { baseUrl: "", apiKey: "", model: "" },

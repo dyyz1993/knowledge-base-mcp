@@ -48,7 +48,7 @@ export class AiSearchSource implements SearchSource {
           }))
         }
       } catch (e) {
-        console.log(`[ai-search] engine=${engine} failed: ${e instanceof Error ? e.message : String(e)}`)
+        console.debug(`[ai-search] engine=${engine} failed: ${e instanceof Error ? e.message : String(e)}`)
       }
     }
 
