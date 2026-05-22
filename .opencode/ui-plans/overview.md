@@ -19,15 +19,23 @@
 | responsive | 4 | 4 | 0 | 0 | ✅ 已完成 |
 | edge-cases | 10 | 10 | 0 | 0 | ✅ 已完成 |
 | stress | 6 | 6 | 0 | 0 | ✅ 已完成 |
+| session-advanced | 4 | 4 | 0 | 0 | ✅ 已完成 |
+| kb-panel | 4 | 4 | 0 | 0 | ✅ 已完成 |
+| ask-advanced | 8 | 8 | 0 | 0 | ✅ 已完成 |
 
 ## 总计
-- 总用例：64
-- 已通过：64
+- 总用例：80
+- 已通过：80
 - 已失败：0
 - 完成率：100%
 - 通过率：100%
 
-## 发现并修复的 Bug
-1. **SR-03（已修复）**: 搜索 API 返回扁平数组，前端期望 `{ documents: [] }`
-2. **AQ-02（已修复）**: Ask 查询文本重复（isComposing + 竞态条件）
-3. **AQ-05（已修复）**: Ask 结果截断无展开/折叠按钮
+## 发现并修复的 Bug（8个）
+1. **SR-03**: 搜索 API 响应格式不匹配（扁平数组 vs 包裹对象）
+2. **AQ-02**: Ask 查询文本重复（isComposing + 竞态条件）
+3. **AQ-05**: Ask 结果截断无展开/折叠按钮
+4. **安全-1**: 静态文件路径遍历漏洞
+5. **安全-2**: SSRF 绕过（web-read/deep-read 未校验 URL）
+6. **安全-3**: 零安全响应头
+7. **Bug-B**: Test Connection 调用了 reindex 端点（新增 /api/embedding/test）
+8. **Bug-A**: Tailwind 动态 class 编译后不存在（改为静态映射）
