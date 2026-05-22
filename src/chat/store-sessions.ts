@@ -40,7 +40,7 @@ export function createSession(name?: string): ChatSession {
   return session
 }
 
-export function appendMessage(id: string, msg: ChatMessage) {
+export function appendMessage(id: string, msg: ChatMessage): void {
   ensureBase()
   appendFileSync(sessionPath(id), JSON.stringify(msg) + "\n")
 }
@@ -69,7 +69,7 @@ export function readSession(id: string): ChatSession | null {
   return null
 }
 
-export function updateSessionSharedUrl(id: string, sharedUrl: string) {
+export function updateSessionSharedUrl(id: string, sharedUrl: string): void {
   ensureBase()
   const path = sessionPath(id)
   if (!existsSync(path)) return
@@ -87,7 +87,7 @@ export function updateSessionSharedUrl(id: string, sharedUrl: string) {
   }
 }
 
-export function updateSessionName(id: string, name: string) {
+export function updateSessionName(id: string, name: string): void {
   ensureBase()
   const path = sessionPath(id)
   if (!existsSync(path)) return
@@ -105,7 +105,7 @@ export function updateSessionName(id: string, name: string) {
   }
 }
 
-export function updateSessionModel(id: string, model: { provider: string; id: string }) {
+export function updateSessionModel(id: string, model: { provider: string; id: string }): void {
   ensureBase()
   const path = sessionPath(id)
   if (!existsSync(path)) return
@@ -140,11 +140,11 @@ export function listSessions(): (ChatSession & { messageCount: number })[] {
         if (header.type !== "session") return null
         const fileSize = statSync(filePath).size
         const estimatedLines = Math.max(1, Math.round(fileSize / 256))
-        return { id: header.id, name: header.name, createdAt: header.createdAt, model: header.model, sharedUrl: header.sharedUrl, messageCount: estimatedLines - 1 }
+        return { id: header.id as string, name: header.name as string, createdAt: header.createdAt as number, model: header.model as ChatSession["model"], sharedUrl: header.sharedUrl as string | undefined, messageCount: estimatedLines - 1 }
       } catch (e) { console.warn("[store-sessions]", e instanceof Error ? e.message : String(e)); return null }
     })
     .filter((s): s is ChatSession & { messageCount: number } => s !== null)
-    .sort((a, b) => b.createdAt - a.createdAt)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 }
 
 export function deleteSession(id: string): boolean {

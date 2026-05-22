@@ -101,7 +101,7 @@ export function getConfiguredModels(): ConfiguredModel[] {
   return all
 }
 
-export async function handleGetModels(_req: IncomingMessage, res: ServerResponse) {
+export async function handleGetModels(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   const models = getConfiguredModels().map(({ apiKey: _, ...m }) => m)
   let current = getDefaultModel()
   if (current && !models.some((m) => m.provider === current!.provider && m.id === current!.id)) {
@@ -113,7 +113,7 @@ export async function handleGetModels(_req: IncomingMessage, res: ServerResponse
   json(res, { models, current })
 }
 
-export async function handleSetModel(req: IncomingMessage, res: ServerResponse) {
+export async function handleSetModel(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = JSON.parse(await readBody(req))
   const { sessionId, provider, id } = body as { sessionId: string; provider: string; id: string }
   if (!sessionId || !provider || !id) {

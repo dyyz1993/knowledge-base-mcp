@@ -35,6 +35,7 @@ interface SearchSourceCall {
   avgTime: number
   lastCalledAt: number
   errors: number
+  totalResults: number
 }
 
 interface SearchStats {
@@ -143,7 +144,7 @@ export class SearchStatistics {
 
     this.stats.totalResults += count
 
-    console.log(`[stats] Search source: ${name} | call #${source.count} | ${count} results | ${timeMs}ms | avg: ${source.avgTime.toFixed(1)}ms`)
+    console.debug(`[stats] Search source: ${name} | call #${source.count} | ${count} results | ${timeMs}ms | avg: ${source.avgTime.toFixed(1)}ms`)
 
     this.save()
   }
@@ -227,7 +228,7 @@ export class LLMStatistics {
     modelStats.avgTime = modelStats.totalTime / modelStats.count
     modelStats.lastCalledAt = Date.now()
 
-    console.log(`[stats] LLM: ${model} | call #${modelStats.count} | ${tokens} tokens | ${timeMs}ms | cost: $${cost.toFixed(4)}`)
+    console.debug(`[stats] LLM: ${model} | call #${modelStats.count} | ${tokens} tokens | ${timeMs}ms | cost: $${cost.toFixed(4)}`)
 
     this.save()
   }
@@ -289,7 +290,7 @@ export class EmbeddingStatistics {
     this.stats.avgTime = this.stats.totalTime / this.stats.count
     this.stats.lastCalledAt = Date.now()
 
-    console.log(`[stats] Embedding: call #${this.stats.count} | ${tokens} tokens | ${timeMs}ms`)
+    console.debug(`[stats] Embedding: call #${this.stats.count} | ${tokens} tokens | ${timeMs}ms`)
 
     this.save()
   }
@@ -366,7 +367,7 @@ export class MCPStatistics {
     tool.lastCalledAt = Date.now()
     if (error) tool.errors++
 
-    console.log(`[stats] MCP tool: ${name} | call #${tool.count} | ${timeMs}ms | avg: ${tool.avgTime.toFixed(1)}ms`)
+    console.debug(`[stats] MCP tool: ${name} | call #${tool.count} | ${timeMs}ms | avg: ${tool.avgTime.toFixed(1)}ms`)
 
     this.save()
   }
@@ -388,32 +389,26 @@ export class MCPStatistics {
   }
 }
 
-export function ensureStatsDir() {
-  const { mkdirSync } = require("node:fs")
-  if (!existsSync(STATS_DIR)) {
-    mkdirSync(STATS_DIR, { recursive: true })
-  }
-}
-
 // Global singletons - initialized once per process
-if (!globalThis.__kb_searchStats__) {
+const _g = globalThis as Record<string, unknown>
+if (!_g.__kb_searchStats__) {
   ensureStatsDir()
-  globalThis.__kb_searchStats__ = new SearchStatistics()
+  _g.__kb_searchStats__ = new SearchStatistics()
 }
-if (!globalThis.__kb_llmStats__) {
-  globalThis.__kb_llmStats__ = new LLMStatistics()
+if (!_g.__kb_llmStats__) {
+  _g.__kb_llmStats__ = new LLMStatistics()
 }
-if (!globalThis.__kb_embeddingStats__) {
-  globalThis.__kb_embeddingStats__ = new EmbeddingStatistics()
+if (!_g.__kb_embeddingStats__) {
+  _g.__kb_embeddingStats__ = new EmbeddingStatistics()
 }
-if (!globalThis.__kb_mcpStats__) {
-  globalThis.__kb_mcpStats__ = new MCPStatistics()
+if (!_g.__kb_mcpStats__) {
+  _g.__kb_mcpStats__ = new MCPStatistics()
 }
 
-export const searchStats = globalThis.__kb_searchStats__
-export const llmStats = globalThis.__kb_llmStats__
-export const embeddingStats = globalThis.__kb_embeddingStats__
-export const mcpStats = globalThis.__kb_mcpStats__
+export const searchStats = _g.__kb_searchStats__ as SearchStatistics
+export const llmStats = _g.__kb_llmStats__ as LLMStatistics
+export const embeddingStats = _g.__kb_embeddingStats__ as EmbeddingStatistics
+export const mcpStats = _g.__kb_mcpStats__ as MCPStatistics
 
 /** Flush all stats to disk on shutdown (immediate write, no debounce) */
 export function flushStats(): void {

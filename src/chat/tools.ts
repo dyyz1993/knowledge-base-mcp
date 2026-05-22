@@ -443,11 +443,13 @@ export async function executeTool(
       const project = String(args.project ?? "")
       if (!project) return "Project path is required."
       const outline = getOutline(project)
-      if (!outline || !outline.docs || outline.docs.length === 0) {
+      const docs = Array.isArray((outline as Record<string, unknown>)?.docs) ? (outline as { docs: unknown[] }).docs : []
+      const updatedAt = (outline as Record<string, unknown>)?.updated_at
+      if (docs.length === 0) {
         return `No knowledge base outline found for project: ${project}\nTip: Use kb_list or kb_search to find documents instead.`
       }
-      const header = `📚 Project outline for ${project}\n   Updated: ${new Date(outline.updated_at).toLocaleString()}\n   Documents: ${outline.docs.length}\n\n`
-      const body = outline.docs.map((d: { id: string; title: string; tags: string[]; keywords: string[] }, i: number) => {
+      const header = `📚 Project outline for ${project}\n   Updated: ${new Date(updatedAt as string | number | Date).toLocaleString()}\n   Documents: ${docs.length}\n\n`
+      const body = docs.map((d: { id: string; title: string; tags: string[]; keywords: string[] }, i: number) => {
         const tags = Array.isArray(d.tags) ? d.tags.join(", ") : "none"
         const kws = Array.isArray(d.keywords) ? d.keywords.slice(0, 5).join(", ") : "none"
         return `${i + 1}. [${d.id}] ${d.title}\n   tags: ${tags} | keywords: ${kws}`

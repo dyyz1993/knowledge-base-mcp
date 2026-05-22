@@ -119,11 +119,11 @@ export async function resolveCdpEndpoint(cdpEndpoint: string): Promise<string> {
     if (data.webSocketDebuggerUrl) {
       cachedCdpUrl = data.webSocketDebuggerUrl
       cachedCdpUrlTime = Date.now()
-      console.log(`[xbrowser-cli] Resolved CDP: ${cdpEndpoint} -> ${cachedCdpUrl}`)
+      console.debug(`[xbrowser-cli] Resolved CDP: ${cdpEndpoint} -> ${cachedCdpUrl}`)
       return cachedCdpUrl
     }
   } catch (e) {
-    console.log(`[xbrowser-cli] Failed to resolve CDP URL from ${cdpEndpoint}: ${e instanceof Error ? e.message : e}`)
+    console.debug(`[xbrowser-cli] Failed to resolve CDP URL from ${cdpEndpoint}: ${e instanceof Error ? e.message : e}`)
   }
   return cdpEndpoint
 }
@@ -155,7 +155,7 @@ async function runCommand(
   }
 
   if (stderr.trim()) {
-    console.log(`[xbrowser-cli] stderr: ${stderr.trim().substring(0, 200)}`)
+    console.debug(`[xbrowser-cli] stderr: ${stderr.trim().substring(0, 200)}`)
   }
 
   if (!stdout.trim()) {
@@ -281,7 +281,7 @@ export class XBrowserCLI {
       ]
 
       const raw = await runCommand(args, this.config.timeout)
-      console.log(`[xbrowser-cli] raw output for engine=${this.config.engine}: length=${raw.length}, preview=${raw.substring(0, 200)}`)
+      console.debug(`[xbrowser-cli] raw output for engine=${this.config.engine}: length=${raw.length}, preview=${raw.substring(0, 200)}`)
 
       let parsed: unknown
       let items: unknown[]
@@ -300,21 +300,21 @@ export class XBrowserCLI {
           } else if (Array.isArray(obj.data)) {
             items = obj.data
           } else {
-            console.log(`[xbrowser-cli] Object response has no results/data keys: ${JSON.stringify(Object.keys(obj))}`)
+            console.debug(`[xbrowser-cli] Object response has no results/data keys: ${JSON.stringify(Object.keys(obj))}`)
             return []
           }
         } else {
-          console.log(`[xbrowser-cli] Unexpected parsed type: ${typeof parsed}`)
+          console.debug(`[xbrowser-cli] Unexpected parsed type: ${typeof parsed}`)
           return []
         }
       } catch {
         // JSON parse failed, try YAML-like parsing
         const yamlResults = parseYamlOutput(raw)
         if (yamlResults.length > 0) {
-          console.log(`[xbrowser-cli] parsed ${yamlResults.length} results from YAML output`)
+          console.debug(`[xbrowser-cli] parsed ${yamlResults.length} results from YAML output`)
           return yamlResults
         }
-        console.log(`[xbrowser-cli] parseJson and parseYaml both failed for engine=${this.config.engine} query="${query}"`)
+        console.debug(`[xbrowser-cli] parseJson and parseYaml both failed for engine=${this.config.engine} query="${query}"`)
         return []
       }
 
@@ -330,10 +330,10 @@ export class XBrowserCLI {
         })
         .filter((r): r is SearchResult => r !== null && r.url !== "")
 
-      console.log(`[xbrowser-cli] search("${query}") engine=${this.config.engine}: items=${items.length} mapped=${mapped.length}`)
+      console.debug(`[xbrowser-cli] search("${query}") engine=${this.config.engine}: items=${items.length} mapped=${mapped.length}`)
       return mapped
     } catch (e) {
-      console.log(`[xbrowser-cli] search FAILED engine=${this.config.engine} query="${query}": ${e instanceof Error ? e.message : String(e)}`)
+      console.debug(`[xbrowser-cli] search FAILED engine=${this.config.engine} query="${query}": ${e instanceof Error ? e.message : String(e)}`)
       return []
     }
   }
@@ -453,7 +453,7 @@ export class XBrowserCLI {
 
       return null
     } catch (e) {
-      console.log(`[xbrowser-cli] aiSearch FAILED engine=${engine} query="${query}": ${e instanceof Error ? e.message : String(e)}`)
+      console.debug(`[xbrowser-cli] aiSearch FAILED engine=${engine} query="${query}": ${e instanceof Error ? e.message : String(e)}`)
       return null
     }
   }

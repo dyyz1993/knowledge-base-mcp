@@ -3,7 +3,7 @@ import { normalizeUrl } from "./utils"
 
 function log(level: string, msg: string) {
   const ts = new Date().toISOString().substring(11, 19)
-  console.log(`[${ts}] [aggregator] [${level}] ${msg}`)
+  console.debug(`[${ts}] [aggregator] [${level}] ${msg}`)
 }
 
 const OFFICIAL_DOMAINS: Record<string, string[]> = {

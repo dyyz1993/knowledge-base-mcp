@@ -3,7 +3,7 @@ import { exportSession, buildShareUrl } from "./session-export"
 import { updateSessionSharedUrl } from "./store-sessions"
 import { json, readBody } from "../http.js"
 
-export async function handleShareSession(_req: IncomingMessage, res: ServerResponse, url: URL) {
+export async function handleShareSession(_req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
   const match = url.pathname.match(/^\/api\/share\/([^/]+)$/)
   if (!match) { json(res, { error: "Session ID required" }, 400); return }
   const sessionId = match[1]

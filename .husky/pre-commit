@@ -1,0 +1,5 @@
+echo "🔍 Type checking..."
+bunx tsc --noEmit 2>&1 | head -20
+
+echo "🧪 Running tests..."
+bun test 2>&1 | tail -3

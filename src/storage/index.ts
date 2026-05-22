@@ -135,7 +135,7 @@ function recoverIndexFromDisk(): IndexFile | null {
         const raw = readFileSync(`${getKbDir()}/${file}`, "utf-8")
         const { frontmatter } = parseFrontmatterWithMeta(raw)
         if (frontmatter?.id && frontmatter?.title) {
-          idx.documents[frontmatter.id] = frontmatter as DocMeta
+          idx.documents[frontmatter.id as string] = frontmatter as unknown as DocMeta
         }
       } catch (e) {
         console.warn("[storage] recoverIndexFromDisk: skipping unreadable file:", e instanceof Error ? e.message : String(e))
@@ -527,14 +527,14 @@ export function deleteDoc(id: string): boolean {
   return true
 }
 
-export function getOutline(project: string) {
+export function getOutline(project: string): Record<string, unknown> | null {
   const slug = slugify(project)
   const path = `${getKbDir()}/outlines/${slug}.json`
   if (!existsSync(path)) return null
   return JSON.parse(readFileSync(path, "utf-8"))
 }
 
-export function updateOutline(project: string, idx?: IndexFile) {
+export function updateOutline(project: string, idx?: IndexFile): void {
   if (!project) return
   if (!idx) idx = readIndex()
   const slug = slugify(project)
@@ -625,7 +625,7 @@ export function recordMiss(query: string): { total_misses: number; recurring: bo
   return { total_misses: unresolved.length, recurring }
 }
 
-export function resolveMiss(query: string) {
+export function resolveMiss(query: string): void {
   const log = readMissLog()
   const entry = log.find(e => e.query.toLowerCase() === query.toLowerCase())
   if (entry) {

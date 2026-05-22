@@ -19,7 +19,7 @@ export function getOrCreate(sessionId?: string): { session: ChatSession; message
   return { session, messages }
 }
 
-export function pushMessage(sessionId: string, msg: ChatMessage) {
+export function pushMessage(sessionId: string, msg: ChatMessage): void {
   const entry = active.get(sessionId)
   if (entry) entry.messages.push(msg)
   appendMessage(sessionId, msg)
@@ -33,14 +33,14 @@ export function getMessages(sessionId: string): ChatMessage[] {
   return messages
 }
 
-export function setName(sessionId: string, name: string) {
+export function setName(sessionId: string, name: string): void {
   updateSessionName(sessionId, name)
 }
 
-export function setModel(sessionId: string, model: { provider: string; id: string }) {
+export function setModel(sessionId: string, model: { provider: string; id: string }): void {
   updateSessionModel(sessionId, model)
 }
 
-export function list() {
+export function list(): ChatSession[] {
   return listSessions()
 }

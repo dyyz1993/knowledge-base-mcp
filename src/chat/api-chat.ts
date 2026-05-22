@@ -411,7 +411,7 @@ function parseToolCallArgs(args: string): Record<string, unknown> {
   }
 }
 
-export async function handleChat(req: IncomingMessage, res: ServerResponse) {
+export async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = await readBodyJson(req)
   const { message, sessionId, model: modelReq } = body as {
     message: string

@@ -4,7 +4,7 @@ import { searchStats } from "../statistics"
 
 function log(level: string, msg: string) {
   const ts = new Date().toISOString().substring(11, 19)
-  console.log(`[${ts}] [search] [${level}] ${msg}`)
+  console.debug(`[${ts}] [search] [${level}] ${msg}`)
 }
 
 export class SearchPipeline {

@@ -2,11 +2,11 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import * as favs from "./store-favorites"
 import { json, readBody } from "../http.js"
 
-export async function handleListFavorites(_req: IncomingMessage, res: ServerResponse) {
+export async function handleListFavorites(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   json(res, favs.listFavorites())
 }
 
-export async function handleAddFavorite(req: IncomingMessage, res: ServerResponse) {
+export async function handleAddFavorite(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = JSON.parse(await readBody(req))
   const { sessionId, messageId, content } = body as { sessionId: string; messageId: string; content: string }
   if (!sessionId || !messageId || !content) {
@@ -17,7 +17,7 @@ export async function handleAddFavorite(req: IncomingMessage, res: ServerRespons
   json(res, fav)
 }
 
-export async function handleDeleteFavorite(req: IncomingMessage, res: ServerResponse, url: URL) {
+export async function handleDeleteFavorite(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
   const id = url.pathname.split("/").pop()
   if (!id) { json(res, { error: "Favorite ID required" }, 400); return }
   const ok = favs.deleteFavorite(id)

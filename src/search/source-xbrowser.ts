@@ -30,7 +30,7 @@ export class XBrowserEngineSource implements SearchSource {
       const t0 = Date.now()
       const results = await this.cli.search(query, 10)
       const ms = Date.now() - t0
-      console.log(`[search] [xbrowser-${this.engineName}] Query: "${query}" -> ${results.length} results in ${ms}ms`)
+      console.debug(`[search] [xbrowser-${this.engineName}] Query: "${query}" -> ${results.length} results in ${ms}ms`)
       return results.map(r => ({
         title: r.title,
         url: r.url,
@@ -40,7 +40,7 @@ export class XBrowserEngineSource implements SearchSource {
         qualityScore: 0,
       }))
     } catch (err) {
-      console.log(`[search] [xbrowser-${this.engineName}] ERROR for "${query}": ${err instanceof Error ? err.message : err}`)
+      console.debug(`[search] [xbrowser-${this.engineName}] ERROR for "${query}": ${err instanceof Error ? err.message : err}`)
       return []
     }
   }
@@ -88,7 +88,7 @@ export class XBrowserMultiEngineSource implements SearchSource {
       if (settled.status === "fulfilled") {
         allItems.push(...settled.value)
       } else {
-        console.log(`[search] [xbrowser-multi] engine=${this.engines[i]} FAILED: ${settled.reason}`)
+        console.debug(`[search] [xbrowser-multi] engine=${this.engines[i]} FAILED: ${settled.reason}`)
       }
     }
 
@@ -130,7 +130,7 @@ export class XBrowserMultiEngineSource implements SearchSource {
 
     const ms = Date.now() - t0
     const succeeded = perEngine.filter(s => s.status === "fulfilled").length
-    console.log(
+    console.debug(
       `[search] [xbrowser-multi] Query: "${query}" -> ${results.length} results (from ${succeeded}/${this.engines.length} engines) in ${ms}ms`,
     )
     return results
