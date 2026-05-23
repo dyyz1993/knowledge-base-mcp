@@ -321,7 +321,8 @@ async function augmentWithWebSearch(
       }
     }
   } catch {
-    // web search augmentation failed — keep original result
+    baseResult.degraded = true
+    return baseResult
   }
   return baseResult
 }
@@ -360,7 +361,9 @@ export async function kbAskPipeline(
   const { maxLoops, highScoreThreshold, lowScoreThreshold } = getAskPipelineConfig()
 
   if (!llm) {
-    return fallbackSearch(query, allQueriesUsed)
+    const result = fallbackSearch(query, allQueriesUsed)
+    result.degraded = true
+    return result
   }
 
   const intent = await analyzeIntent(query, llm)
@@ -468,9 +471,10 @@ export async function kbAskPipeline(
           content: content.slice(0, 4000),
           quality: "high",
           completeness: "partial",
+          degraded: true,
           loops_used: loop,
           queries_used: allQueriesUsed,
-          hint: `High confidence match (score=${best.score}, loop=${loop})`,
+          hint: `High confidence match (score=${best.score}, loop=${loop}, evaluation failed)`,
         }
 
         baseResult.web_search_suggestion = buildWebSearchSuggestion(
@@ -582,6 +586,7 @@ export async function kbAskPipeline(
           content: content.slice(0, 4000),
           quality: "medium",
           completeness: "partial",
+          degraded: true,
           loops_used: loop,
           queries_used: allQueriesUsed,
           web_search_suggestion: buildWebSearchSuggestion(

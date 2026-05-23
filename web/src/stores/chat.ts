@@ -402,16 +402,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
       onError: (error) => {
         if (textFlushTimer) { clearTimeout(textFlushTimer); textFlushTimer = null }
         if (thinkingFlushTimer) { clearTimeout(thinkingFlushTimer); thinkingFlushTimer = null }
+
+        const currentState = get().streamStates.get(targetSessionId)
+        const partialContent = currentState?.streamingContent || ""
+
         let errorContent = `⚠️ Error: ${error}`
         if (error.startsWith("RATE_LIMITED:")) {
           const modelId = error.replace("RATE_LIMITED:", "")
           errorContent = `⚠️ **模型 ${modelId} 请求频率已达上限**\n\n请在左侧 **模型选择器** 中切换到其他模型（如 glm-4.5-air）后重试。\n\n> 免费模型有请求频率限制，稍后再试或切换到其他可用模型。`
         }
-        const errMsg: Message = { role: "assistant", content: errorContent, timestamp: Date.now() }
+
+        const preservedMessages = partialContent
+          ? [...get().messages, { role: "assistant" as const, content: partialContent + "\n\n---\n" + errorContent, timestamp: Date.now() }]
+          : [...get().messages, { role: "assistant" as const, content: errorContent, timestamp: Date.now() }]
+
         set((s) => {
           const states = new Map(s.streamStates)
           states.set(targetSessionId, emptyStreamState())
-          return { streamStates: states, messages: [...s.messages, errMsg] }
+          return { streamStates: states, messages: preservedMessages }
         })
       },
     } as Parameters<typeof api.streamChat>[0])

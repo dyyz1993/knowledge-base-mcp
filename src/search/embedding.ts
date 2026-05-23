@@ -56,6 +56,7 @@ async function embedExternal(text: string): Promise<number[]> {
       model: config.embedding.model,
       input: text,
     }),
+    signal: AbortSignal.timeout(15000),
   })
 
   if (!resp.ok) {
@@ -104,6 +105,7 @@ async function embedBatchExternal(texts: string[]): Promise<number[][]> {
       model: config.embedding.model,
       input: texts,
     }),
+    signal: AbortSignal.timeout(30000),
   })
 
   if (!resp.ok) {

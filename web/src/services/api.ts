@@ -152,10 +152,21 @@ export async function streamChat(params: {
   let currentEvent = ""
 
   let doneCalled = false
+  let lastEventTime = Date.now()
+  const heartbeatTimeout = 30000
+  const heartbeatCheck = setInterval(() => {
+    if (Date.now() - lastEventTime > heartbeatTimeout) {
+      params.onError("SSE 心跳超时: 30秒未收到数据")
+      reader.cancel().catch(() => {})
+      clearInterval(heartbeatCheck)
+    }
+  }, 5000)
 
+  try {
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
+    lastEventTime = Date.now()
     buffer += decoder.decode(value, { stream: true })
 
     const lines = buffer.split("\n")
@@ -207,6 +218,9 @@ export async function streamChat(params: {
 
   if (!doneCalled && params.onDone) {
     params.onDone("", 0)
+  }
+  } finally {
+    clearInterval(heartbeatCheck)
   }
 }
 

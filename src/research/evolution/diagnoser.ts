@@ -61,18 +61,28 @@ Identify the SINGLE most impactful bottleneck. Return ONLY a JSON object:
   "targetFile": "src/research/steps/xxx.ts"
 }`
 
-  const raw = await callLlm(
-    model,
-    [
-      { role: "system", content: "You are a senior TypeScript engineer. Output ONLY valid JSON." },
-      { role: "user", content: prompt },
-    ],
-    0.3,
-    1000,
-    60000,
-  )
+  let raw: string
+  try {
+    raw = await callLlm(
+      model,
+      [
+        { role: "system", content: "You are a senior TypeScript engineer. Output ONLY valid JSON." },
+        { role: "user", content: prompt },
+      ],
+      0.3,
+      1000,
+      60000,
+    )
+  } catch (e) {
+    return {
+      bottleneck: "LLM call failed",
+      severity: "low",
+      rootCause: e instanceof Error ? e.message : String(e),
+      suggestedFix: "Review manually",
+      targetFile: "",
+    }
+  }
 
-  // Extract JSON
   const match = raw.match(/\{[\s\S]*"bottleneck"[\s\S]*\}/)
   if (!match) {
     return {

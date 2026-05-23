@@ -293,14 +293,29 @@ async function callOpenAI(
   body.stream = stream
   body.stream_options = { include_usage: true }
 
-  return fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  })
+  const maxRetries = 2
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60000),
+    })
+
+    if ((resp.status === 429 || resp.status >= 500) && attempt < maxRetries) {
+      const backoff = Math.pow(2, attempt) * 1000
+      console.warn(`Chat API ${resp.status} on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${backoff}ms…`)
+      await new Promise<void>(resolve => setTimeout(resolve, backoff))
+      continue
+    }
+
+    return resp
+  }
+
+  throw new Error("Chat API: unreachable")
 }
 
 interface TokenUsage {
