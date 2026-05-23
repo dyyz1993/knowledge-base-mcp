@@ -1,11 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from "bun:test"
 import { CircuitBreaker, CircuitOpenError } from "../src/search/circuit-breaker"
 import { searchDocs, searchDocsCombined, writeDoc } from "../src/storage/index"
+import { cosineSimilarityVec, semanticSearch } from "../src/search/embedding"
+import { SearchPipeline } from "../src/search/search-pipeline"
+import type { SearchSource, AggregatedResult } from "../src/search/types"
 import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 
 const TEST_DIR = join(tmpdir(), `kb-degradation-test-${Date.now()}`)
+
+let hasTransformers = false
+try { require.resolve("@huggingface/transformers"); hasTransformers = true } catch { hasTransformers = false }
 
 beforeEach(() => {
   process.env.KB_DIR = TEST_DIR
@@ -161,5 +167,122 @@ describe("callLlm retry + circuit breaker integration", () => {
 
     expect(result).toBe("success after retry")
     expect(callCount).toBe(3)
+  })
+})
+
+describe("Embedding degradation", () => {
+  it("cosineSimilarityVec should handle zero vectors", () => {
+    const a = [1, 0, 0]
+    const b = [0, 0, 0]
+    const score = cosineSimilarityVec(a, b)
+    expect(isFinite(score)).toBe(true)
+  })
+
+  it("cosineSimilarityVec should return ~1 for identical vectors", () => {
+    const v = [0.5, 0.3, 0.2]
+    const score = cosineSimilarityVec(v, v)
+    expect(score).toBeGreaterThan(0.99)
+  })
+
+  it("cosineSimilarityVec should return ~0 for orthogonal vectors", () => {
+    const a = [1, 0, 0]
+    const b = [0, 1, 0]
+    const score = cosineSimilarityVec(a, b)
+    expect(Math.abs(score)).toBeLessThan(0.01)
+  })
+
+  it("semanticSearch returns empty when no docs provided", async () => {
+    const results = await semanticSearch("test query", [])
+    expect(results).toEqual([])
+  })
+
+  it("semanticSearch returns empty for empty query", async () => {
+    const results = await semanticSearch("", [{ meta: { id: "1", title: "test", keywords: [], tags: [], intent: "test", project_description: "test" } as any, embedding: [0.1, 0.2] }])
+    expect(results).toEqual([])
+  })
+
+  it.skipIf(hasTransformers)("semanticSearch returns empty when both transformers and external are unavailable", async () => {
+    const savedFetch = globalThis.fetch
+    globalThis.fetch = ((() => Promise.reject(new Error("unavailable"))) as unknown) as typeof fetch
+
+    try {
+      const results = await semanticSearch("test", [
+        { meta: { id: "1", title: "test", keywords: [], tags: [], intent: "test", project_description: "test" } as any, embedding: [0.1] },
+      ])
+      expect(results).toEqual([])
+    } finally {
+      globalThis.fetch = savedFetch
+    }
+  })
+})
+
+describe("SearchPipeline degradation", () => {
+  function mockSource(name: any, results: any[] = [], shouldFail = false): SearchSource {
+    return {
+      name,
+      available: () => true,
+      search: shouldFail
+        ? async () => { throw new Error(`${name} failed`) }
+        : async () => results,
+    }
+  }
+
+  it("should return partial results when some sources fail", async () => {
+    const goodSource = mockSource("tavily" as any, [
+      { title: "Result A", url: "https://a.com", snippet: "good", source: "tavily" as any, sourceType: "official" as any, qualityScore: 80 },
+    ])
+    const badSource = mockSource("serper" as any, [], true)
+
+    const pipeline = new SearchPipeline([goodSource, badSource], { fastTimeout: 5000, slowTimeout: 5000 })
+    const result = await pipeline.search("test query")
+
+    expect(result.results.length).toBeGreaterThanOrEqual(1)
+    expect(result.results.some(r => r.title === "Result A")).toBe(true)
+  })
+
+  it("should return empty when all sources fail", async () => {
+    const source1 = mockSource("tavily" as any, [], true)
+    const source2 = mockSource("serper" as any, [], true)
+
+    const pipeline = new SearchPipeline([source1, source2], { fastTimeout: 2000, slowTimeout: 2000 })
+    const result = await pipeline.search("test query")
+
+    expect(result.results.length).toBe(0)
+    expect(result.totalSources).toBe(2)
+  })
+
+  it("should return hint indicating no results when all fail", async () => {
+    const source = mockSource("tavily" as any, [], true)
+    const pipeline = new SearchPipeline([source], { fastTimeout: 2000, slowTimeout: 2000 })
+    const result = await pipeline.search("nothing")
+
+    expect(result.hint).toContain("未找到")
+  })
+
+  it("should handle unavailable sources gracefully", async () => {
+    const unavailableSource: SearchSource = {
+      name: "serper" as any,
+      available: () => false,
+      search: async () => [],
+    }
+    const goodSource = mockSource("tavily" as any, [
+      { title: "Only Source", url: "https://only.com", snippet: "solo", source: "tavily" as any, sourceType: "official" as any, qualityScore: 70 },
+    ])
+
+    const pipeline = new SearchPipeline([unavailableSource, goodSource], { fastTimeout: 2000, slowTimeout: 2000 })
+    const result = await pipeline.search("test")
+
+    expect(result.results.length).toBeGreaterThanOrEqual(1)
+    expect(result.results[0].title).toBe("Only Source")
+  })
+
+  it("should record source timings even for failed sources", async () => {
+    const badSource = mockSource("tavily" as any, [], true)
+    const pipeline = new SearchPipeline([badSource], { fastTimeout: 2000, slowTimeout: 2000 })
+    const result = await pipeline.search("test")
+
+    expect(result.sourceTimings).toBeDefined()
+    expect(result.sourceTimings!.length).toBe(1)
+    expect(result.sourceTimings![0].error).toBeDefined()
   })
 })

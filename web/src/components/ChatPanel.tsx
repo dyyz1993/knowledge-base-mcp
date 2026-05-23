@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, useCallback, type ReactNode } from "react"
-import { Send, Square, ChevronDown, ChevronRight, Wrench, Loader2, Star, CheckCircle2, XCircle, SkipForward, Play, Search } from "lucide-react"
+import { useEffect, useRef, useCallback, type ReactNode } from "react"
+import { Loader2 } from "lucide-react"
 import { useChatStore, type TimelineEvent } from "../stores/chat"
 import type { TokenUsage } from "../services/api"
 import CopyButton from "./CopyButton"
-import ModelSelector from "./ModelSelector"
-import { MarkdownRenderer } from "./MarkdownRenderer"
+import ChatInput from "./chat/ChatInput"
+import { ToolCallBlock, ResearchProgressBar } from "./chat/ToolCallDisplay"
+import { ThinkingMessage, AssistantMessage, UserMessage, StreamingIndicator, MarkdownContent } from "./chat/ChatMessage"
 
 interface MergedEvent {
   type: "thinking" | "text" | "tool_call" | "tool_result"
@@ -34,166 +35,6 @@ function mergeTimelineEvents(events: TimelineEvent[]): MergedEvent[] {
   return merged
 }
 
-function ToolCallBlock({ name, args, result }: { name: string; args: string; result: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="my-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-sm">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-zinc-400 hover:text-zinc-200 transition-colors"
-      >
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        <Wrench size={13} />
-        <span className="font-medium text-zinc-300">{name}</span>
-        {!result && <Loader2 size={12} className="animate-spin text-zinc-500" />}
-      </button>
-      {open && (
-        <div className="border-t border-zinc-800 px-3 py-2 text-xs space-y-2">
-          {args && (
-            <div>
-              <span className="text-zinc-500">Args:</span>
-              <pre className="mt-1 rounded bg-zinc-950 p-2 text-zinc-300 overflow-x-auto">{args}</pre>
-            </div>
-          )}
-          {result && (
-            <div>
-              <span className="text-zinc-500">Result:</span>
-              <pre className="mt-1 rounded bg-zinc-950 p-2 text-zinc-300 overflow-x-auto max-h-48 overflow-y-auto">{result}</pre>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-const STEP_LABELS: Record<string, string> = {
-  analyze_query: "分析查询",
-  search: "搜索",
-  filter_results: "过滤结果",
-  evaluate: "评估 URL",
-  deep_read: "深度阅读",
-  check_sitemap: "Sitemap",
-  check_github: "GitHub",
-  follow_paths: "路径发现",
-  evaluate_depth: "质量评估",
-  synthesize: "总结生成",
-  clone_index: "代码索引",
-  code_search: "代码搜索",
-}
-
-function ResearchProgressBar({ progress }: { progress: { step: string; status: string; budget?: { usedSteps: number; maxSteps: number } }[] }) {
-  if (progress.length === 0) return null
-
-  const budgetInfo = progress.find(p => p.budget)?.budget
-  const currentStep = progress.find(p => p.status === "running")
-  const doneSteps = progress.filter(p => p.status === "done").length
-  const totalSteps = progress.length
-
-  return (
-    <div className="mt-1.5 rounded-lg border border-blue-500/20 bg-blue-950/30 px-3 py-2 text-xs space-y-1.5">
-      <div className="flex items-center justify-between text-blue-400">
-        <span className="flex items-center gap-1.5 font-medium">
-          <Search size={12} className="animate-pulse" />
-          🔬 深度研究进行中
-          {currentStep && (
-            <span className="text-blue-300 font-normal">
-              — {STEP_LABELS[currentStep.step] || currentStep.step}
-            </span>
-          )}
-        </span>
-        {budgetInfo && (
-          <span className="text-zinc-500">
-            {budgetInfo.usedSteps}/{budgetInfo.maxSteps} 步
-          </span>
-        )}
-      </div>
-      {totalSteps > 0 && (
-        <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-blue-500 rounded-full transition-all duration-500"
-            style={{ width: `${Math.min(100, (doneSteps / totalSteps) * 100)}%` }}
-          />
-        </div>
-      )}
-      <div className="flex flex-wrap gap-1">
-        {progress.map((p) => (
-          <span
-            key={p.step}
-            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] ${
-              p.status === "done"
-                ? "bg-green-900/40 text-green-400"
-                : p.status === "running"
-                ? "bg-blue-900/40 text-blue-300 animate-pulse"
-                : p.status === "failed"
-                ? "bg-red-900/40 text-red-400"
-                : p.status === "skipped"
-                ? "bg-zinc-800/40 text-zinc-600"
-                : "bg-zinc-800/40 text-zinc-500"
-            }`}
-          >
-            {p.status === "done" && <CheckCircle2 size={8} />}
-            {p.status === "running" && <Play size={8} />}
-            {p.status === "failed" && <XCircle size={8} />}
-            {p.status === "skipped" && <SkipForward size={8} />}
-            {STEP_LABELS[p.step] || p.step}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function StreamingIndicator() {
-  return (
-    <span className="inline-flex gap-1 ml-1">
-      <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
-      <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
-      <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
-    </span>
-  )
-}
-
-function MarkdownContent({ content }: { content: string }) {
-  return <MarkdownRenderer content={content} />
-}
-
-function SuggestionButtons({ suggestions, onFill }: { suggestions: string[]; onFill: (text: string) => void }) {
-  if (suggestions.length === 0) return null
-  return (
-    <div className="mt-3 flex flex-wrap gap-2">
-      {suggestions.map((s, i) => (
-        <button
-          key={i}
-          onClick={() => onFill(s)}
-          className="px-3 py-1.5 text-xs rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-pointer"
-        >
-          {s}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function StarButton({ messageId, content }: { messageId: string; content: string }) {
-  const addFavorite = useChatStore((s) => s.addFavorite)
-  const favorites = useChatStore((s) => s.favorites)
-  const isFaved = favorites.some((f) => f.messageId === messageId)
-
-  return (
-    <button
-      onClick={() => { if (!isFaved) addFavorite(messageId, content) }}
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] hover:bg-white/10 transition-all ${
-        isFaved ? "text-yellow-500 opacity-100" : "opacity-0 group-hover:opacity-100"
-      }`}
-      title="收藏"
-    >
-      <Star size={12} fill={isFaved ? "currentColor" : "none"} />
-      <span>{isFaved ? "已收藏" : "收藏"}</span>
-    </button>
-  )
-}
-
 function calculateCost(usage: TokenUsage): number {
   const OUTPUT_PRICE = 40 / 1_000_000
   const INPUT_PRICE = OUTPUT_PRICE / 5
@@ -220,6 +61,57 @@ function UsageBar({ usage }: { usage: TokenUsage }) {
   )
 }
 
+function SuggestionButtons({ suggestions, onFill }: { suggestions: string[]; onFill: (text: string) => void }) {
+  if (suggestions.length === 0) return null
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {suggestions.map((s, i) => (
+        <button
+          key={i}
+          onClick={() => onFill(s)}
+          className="px-3 py-1.5 text-xs rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-pointer"
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function MessageList({ messages }: { messages: Array<{ role: string; content: string; name?: string; args?: string }> }) {
+  const rendered: ReactNode[] = []
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i]
+    if (msg.role === "thinking") {
+      rendered.push(
+        <ThinkingMessage key={i} content={msg.content} />
+      )
+    } else if (msg.role === "tool_call") {
+      const nextMsg = messages[i + 1]
+      const result = nextMsg?.role === "tool_result" ? nextMsg.content : ""
+      rendered.push(
+        <ToolCallBlock
+          key={i}
+          name={msg.name || ""}
+          args={msg.args || ""}
+          result={result}
+        />
+      )
+    } else if (msg.role === "tool_result") {
+      continue
+    } else if (msg.role === "assistant") {
+      rendered.push(
+        <AssistantMessage key={i} content={msg.content} messageKey={String(i)} />
+      )
+    } else {
+      rendered.push(
+        <UserMessage key={i} content={msg.content} />
+      )
+    }
+  }
+  return <>{rendered}</>
+}
+
 export default function ChatPanel() {
   const currentSessionId = useChatStore((s) => s.currentSessionId)
   const streamState = useChatStore((s) =>
@@ -235,7 +127,6 @@ export default function ChatPanel() {
   const suggestions = streamState?.suggestions ?? []
   const usage = streamState?.usage
 
-  const [input, setInput] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -254,23 +145,11 @@ export default function ChatPanel() {
     }
   }, [isStreaming, streamingTimeline, messages, streamingContent])
 
-  const handleSend = useCallback(() => {
-    const trimmed = input.trim()
-    if (!trimmed || isStreaming) return
-    setInput("")
-    sendMessage(trimmed)
-  }, [input, isStreaming, sendMessage])
-
-  const handleKey = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }, [handleSend])
-
   const handleSuggestionFill = useCallback((text: string) => {
-    setInput(text)
-    inputRef.current?.focus()
+    if (inputRef.current) {
+      inputRef.current.value = text
+      inputRef.current.focus()
+    }
   }, [])
 
   const merged = mergeTimelineEvents(streamingTimeline)
@@ -284,56 +163,7 @@ export default function ChatPanel() {
           </div>
         )}
 
-        {(() => {
-          const rendered: ReactNode[] = []
-          for (let i = 0; i < messages.length; i++) {
-            const msg = messages[i]
-            if (msg.role === "thinking") {
-              rendered.push(
-                <div key={i} className="mx-auto max-w-[80%] md:max-w-[80%] rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 italic">
-                  <span className="font-medium text-zinc-400">Thinking</span>
-                  <p className="mt-1 whitespace-pre-wrap">{msg.content}</p>
-                </div>
-              )
-            } else if (msg.role === "tool_call") {
-              const nextMsg = messages[i + 1]
-              const result = nextMsg?.role === "tool_result" ? nextMsg.content : ""
-              rendered.push(
-                <ToolCallBlock
-                  key={i}
-                  name={msg.name || ""}
-                  args={msg.args || ""}
-                  result={result}
-                />
-              )
-            } else if (msg.role === "tool_result") {
-              continue
-            } else if (msg.role === "assistant") {
-              rendered.push(
-                <div key={i} className="flex justify-start">
-                  <div className="max-w-[85%] md:max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
-                    <div className="group relative markdown-body">
-                      <MarkdownContent content={msg.content} />
-                      <div className="mt-1.5 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ marginTop: "4px" }}>
-                        <CopyButton text={msg.content} className="-mb-1" />
-                        <StarButton messageId={String(i)} content={msg.content} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            } else {
-              rendered.push(
-                <div key={i} className="flex justify-end">
-                  <div className="max-w-[85%] md:max-w-[80%] rounded-2xl bg-blue-600 text-white px-4 py-2.5 text-sm leading-relaxed">
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  </div>
-                </div>
-              )
-            }
-          }
-          return rendered
-        })()}
+        <MessageList messages={messages} />
 
         {isStreaming && streamingContent?.includes("[SUGGESTIONS]") && (
           <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
@@ -364,10 +194,7 @@ export default function ChatPanel() {
           switch (event.type) {
             case "thinking":
               return (
-                <div key={`tl-${i}`} className="mx-auto max-w-[80%] md:max-w-[80%] rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 italic">
-                  <span className="font-medium text-zinc-400">Thinking...</span>
-                  <p className="mt-1 whitespace-pre-wrap">{event.content}</p>
-                </div>
+                <ThinkingMessage key={`tl-${i}`} content={event.content} streaming />
               )
             case "text": {
               const displayContent = event.content
@@ -414,46 +241,11 @@ export default function ChatPanel() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-zinc-800 p-3 md:p-4">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:gap-3">
-          <ModelSelector className="w-full md:w-auto md:min-w-[180px]" />
-          <div className="flex-1 flex items-end gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 focus-within:border-zinc-500 transition-colors">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder="Type a message..."
-              rows={1}
-              className="flex-1 resize-none bg-transparent text-sm text-zinc-100 placeholder-zinc-600 outline-none max-h-32"
-              style={{ minHeight: "24px" }}
-              onInput={(e) => {
-                const el = e.currentTarget
-                el.style.height = "auto"
-                el.style.height = Math.min(el.scrollHeight, 128) + "px"
-              }}
-            />
-            {isStreaming ? (
-              <button
-                onClick={abort}
-                className="shrink-0 rounded-lg bg-red-600 p-1.5 text-white hover:bg-red-500 transition-colors"
-                aria-label="Stop generating"
-              >
-                <Square size={16} />
-              </button>
-            ) : (
-              <button
-                onClick={handleSend}
-                disabled={!input.trim()}
-                className="shrink-0 rounded-lg bg-blue-600 p-1.5 text-white hover:bg-blue-500 disabled:opacity-30 disabled:hover:bg-blue-600 transition-colors"
-                aria-label="Send message"
-              >
-                <Send size={16} />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      <ChatInput
+        isStreaming={isStreaming}
+        onSend={sendMessage}
+        onAbort={abort}
+      />
     </div>
   )
 }
