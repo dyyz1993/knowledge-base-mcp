@@ -36,6 +36,7 @@ export function ResearchResultCard({ researchResult }: { researchResult: Researc
             <div className="mt-3 pt-2 border-t border-zinc-800">
               <button
                 onClick={() => setShowSources(!showSources)}
+                aria-expanded={showSources}
                 className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300"
               >
                 {showSources ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
@@ -67,7 +68,7 @@ export function ResearchResultCard({ researchResult }: { researchResult: Researc
               </a>
               <p className={`text-[10px] text-zinc-500 mt-0.5 ${expandedSnippets.has(i) ? "" : "line-clamp-2"}`}>{item.snippet}</p>
               {item.snippet && item.snippet.length > 80 && (
-                <button onClick={() => toggleSnippet(i)} className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500 hover:text-zinc-300">
+                <button onClick={() => toggleSnippet(i)} aria-expanded={expandedSnippets.has(i)} className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500 hover:text-zinc-300">
                   {expandedSnippets.has(i) ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                   {expandedSnippets.has(i) ? "收起" : "展开"}
                 </button>

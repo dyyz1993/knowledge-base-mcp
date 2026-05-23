@@ -15,6 +15,7 @@ export default function CopyButton({ text, className = "" }: { text: string; cla
       onClick={copy}
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/10 ${className}`}
       title="复制"
+      aria-label={copied ? "已复制" : "复制内容"}
     >
       {copied ? <Check size={12} /> : <Copy size={12} />}
       <span>{copied ? "已复制" : "复制"}</span>

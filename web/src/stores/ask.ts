@@ -30,7 +30,33 @@ interface AskState {
 }
 
 let msgId = 0
-let abortController: AbortController | null = null
+const abortControllers = new Map<string, AbortController>()
+
+function getOrCreateAbortController(actionType: string): AbortController {
+  const existing = abortControllers.get(actionType)
+  if (existing) return existing
+  const controller = new AbortController()
+  abortControllers.set(actionType, controller)
+  return controller
+}
+
+function abortAction(actionType: string): void {
+  const controller = abortControllers.get(actionType)
+  if (controller) {
+    controller.abort()
+    abortControllers.delete(actionType)
+  }
+}
+
+function registerAbortController(actionType: string, ac: AbortController): void {
+  abortControllers.set(actionType, ac)
+}
+
+function cleanupAbortController(actionType: string, ac: AbortController): void {
+  if (abortControllers.get(actionType) === ac) {
+    abortControllers.delete(actionType)
+  }
+}
 
 function getModel() {
   return useChatStore.getState().currentModel
@@ -41,16 +67,15 @@ export const useAskStore = create<AskState>((set, get) => ({
   loading: false,
 
   cancel: () => {
-    if (abortController) {
-      abortController.abort()
-      abortController = null
+    for (const [key] of abortControllers) {
+      abortAction(key)
     }
     set({ loading: false })
   },
 
   ask: async (query) => {
-    const ac = new AbortController()
-    abortController = ac
+    abortAction("ask")
+    const ac = getOrCreateAbortController("ask")
     const userMsg: Message = {
       id: `msg-${++msgId}`,
       role: "user",
@@ -122,13 +147,13 @@ export const useAskStore = create<AskState>((set, get) => ({
       }
       set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
     } finally {
-      if (abortController === ac) abortController = null
+      cleanupAbortController("ask", ac)
     }
   },
 
   search: async (query) => {
-    const ac = new AbortController()
-    abortController = ac
+    abortAction("search")
+    const ac = getOrCreateAbortController("search")
     const userMsg: Message = {
       id: `msg-${++msgId}`,
       role: "user",
@@ -162,13 +187,13 @@ export const useAskStore = create<AskState>((set, get) => ({
       }
       set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
     } finally {
-      if (abortController === ac) abortController = null
+      cleanupAbortController("search", ac)
     }
   },
 
   research: async (query) => {
-    const ac = new AbortController()
-    abortController = ac
+    abortAction("research")
+    const ac = getOrCreateAbortController("research")
     const userMsg: Message = {
       id: `msg-${++msgId}`,
       role: "user",
@@ -202,7 +227,7 @@ export const useAskStore = create<AskState>((set, get) => ({
       }
       set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
     } finally {
-      if (abortController === ac) abortController = null
+      cleanupAbortController("research", ac)
     }
   },
 
@@ -272,8 +297,8 @@ export const useAskStore = create<AskState>((set, get) => ({
   },
 
   agentResearchAction: async (query, mode) => {
-    const ac = new AbortController()
-    abortController = ac
+    abortAction("agentResearch")
+    const ac = getOrCreateAbortController("agentResearch")
     const userMsg: Message = {
       id: `msg-${++msgId}`,
       role: "user",
@@ -344,7 +369,7 @@ export const useAskStore = create<AskState>((set, get) => ({
         return { messages: msgs, loading: false }
       })
     } finally {
-      if (abortController === ac) abortController = null
+      cleanupAbortController("agentResearch", ac)
     }
   },
 

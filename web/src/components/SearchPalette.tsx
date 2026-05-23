@@ -28,7 +28,7 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={onClose} role="dialog" aria-modal="true" aria-label="搜索文档">
       <div className="fixed inset-0 bg-black/60" />
       <div className="relative w-full max-w-xl bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Escape") onClose() }}>
         <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
@@ -38,6 +38,7 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
             value={q}
             onChange={e => setQ(e.target.value)}
             placeholder="Search documents..."
+            aria-label="搜索文档"
             className="flex-1 bg-transparent text-zinc-100 outline-none placeholder:text-zinc-600"
             autoFocus
           />
@@ -56,6 +57,7 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
                   <button
                     key={doc.id}
                     onClick={() => { onSelect(doc.id); onClose() }}
+                    aria-label={`选择文档 ${doc.title}`}
                     className="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-start gap-3 border-b border-zinc-800/50"
                   >
                     <FileText size={16} className="text-zinc-600 mt-0.5 shrink-0" />

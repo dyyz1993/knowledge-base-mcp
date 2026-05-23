@@ -138,7 +138,7 @@ export function agentResearch(
                 resolved = true
                 reject(new Error(data.error || "Unknown error"))
               }
-            } catch {}
+            } catch (e) { console.warn('[ask] parse event data failed:', e) }
             currentEvent = ""
           }
         }

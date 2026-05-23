@@ -48,7 +48,7 @@ let cacheTtlConfigTimestamp = 0
 function getCacheTtlMs(): number {
   const now = Date.now()
   if (now - cacheTtlConfigTimestamp > 60000) {
-    try { cachedCacheTtl = loadConfig().storage.cacheTtlMs } catch {}
+    try { cachedCacheTtl = loadConfig().storage.cacheTtlMs } catch (e) { logger.debug('Load cacheTtlMs config failed:', e) }
     cacheTtlConfigTimestamp = now
   }
   return cachedCacheTtl

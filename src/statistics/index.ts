@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs"
-import { join } from "node:path"
+import { readFile, writeFile, rename } from "node:fs/promises"
 import { createLogger } from "../utils/logger.js"
 
 
@@ -10,17 +10,16 @@ const LLM_STATS_PATH = `${STATS_DIR}/llm.json`
 const EMBEDDING_STATS_PATH = `${STATS_DIR}/embedding.json`
 const MCP_STATS_PATH = `${STATS_DIR}/mcp.json`
 
-// Debounced write: coalesces rapid calls into a single write every 10s
 const _flushTimers = new Map<string, ReturnType<typeof setTimeout>>()
 function debouncedWrite(path: string, data: string) {
   const existing = _flushTimers.get(path)
   if (existing) clearTimeout(existing)
-  _flushTimers.set(path, setTimeout(() => {
+  _flushTimers.set(path, setTimeout(async () => {
     _flushTimers.delete(path)
     try {
       const tmp = path + ".tmp"
-      writeFileSync(tmp, data)
-      renameSync(tmp, path)
+      await writeFile(tmp, data)
+      await rename(tmp, path)
     } catch { /* ignore write errors */ }
   }, 10_000))
 }
@@ -97,13 +96,13 @@ export class SearchStatistics {
 
   constructor() {
     ensureStatsDir()
-    this.load()
+    void this.load()
   }
 
-  private load() {
+  private async load() {
     if (existsSync(SEARCH_STATS_PATH)) {
       try {
-        this.stats = JSON.parse(readFileSync(SEARCH_STATS_PATH, "utf-8"))
+        this.stats = JSON.parse(await readFile(SEARCH_STATS_PATH, "utf-8"))
       } catch (e) {
         logger.warn("Failed to load search stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
@@ -115,7 +114,6 @@ export class SearchStatistics {
     debouncedWrite(SEARCH_STATS_PATH, JSON.stringify(this.stats, null, 2))
   }
 
-  /** Force immediate write to disk (for shutdown) */
   public saveNow() {
     this.stats.updatedAt = Date.now()
     const tmp = SEARCH_STATS_PATH + ".tmp"
@@ -184,13 +182,13 @@ export class LLMStatistics {
 
   constructor() {
     ensureStatsDir()
-    this.load()
+    void this.load()
   }
 
-  private load() {
+  private async load() {
     if (existsSync(LLM_STATS_PATH)) {
       try {
-        this.stats = JSON.parse(readFileSync(LLM_STATS_PATH, "utf-8"))
+        this.stats = JSON.parse(await readFile(LLM_STATS_PATH, "utf-8"))
       } catch (e) {
         logger.warn("Failed to load LLM stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
@@ -261,13 +259,13 @@ export class EmbeddingStatistics {
 
   constructor() {
     ensureStatsDir()
-    this.load()
+    void this.load()
   }
 
-  private load() {
+  private async load() {
     if (existsSync(EMBEDDING_STATS_PATH)) {
       try {
-        this.stats = JSON.parse(readFileSync(EMBEDDING_STATS_PATH, "utf-8"))
+        this.stats = JSON.parse(await readFile(EMBEDDING_STATS_PATH, "utf-8"))
       } catch (e) {
         logger.warn("Failed to load embedding stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
@@ -323,13 +321,13 @@ export class MCPStatistics {
 
   constructor() {
     ensureStatsDir()
-    this.load()
+    void this.load()
   }
 
-  private load() {
+  private async load() {
     if (existsSync(MCP_STATS_PATH)) {
       try {
-        this.stats = JSON.parse(readFileSync(MCP_STATS_PATH, "utf-8"))
+        this.stats = JSON.parse(await readFile(MCP_STATS_PATH, "utf-8"))
       } catch (e) {
         logger.warn("Failed to load MCP stats, using defaults:", e instanceof Error ? e.message : String(e))
       }

@@ -42,8 +42,8 @@ export function AskEmptyState({ onSetInput }: AskEmptyStateProps) {
         <div className="rounded-lg border border-zinc-800/50 bg-zinc-950/50 px-3 py-2">
           <p className="text-[10px] text-zinc-600 mb-1">试试这些查询：</p>
           <div className="space-y-0.5">
-            <p className="text-[10px] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors" onClick={() => onSetInput("如何配置 semantic search？")}>"如何配置 semantic search？"</p>
-            <p className="text-[10px] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors" onClick={() => onSetInput("Remotion 视频渲染的最佳实践")}>"Remotion 视频渲染的最佳实践"</p>
+            <p className="text-[10px] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors" role="button" tabIndex={0} onClick={() => onSetInput("如何配置 semantic search？")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSetInput("如何配置 semantic search？") }}>"如何配置 semantic search？"</p>
+            <p className="text-[10px] text-zinc-500 cursor-pointer hover:text-zinc-300 transition-colors" role="button" tabIndex={0} onClick={() => onSetInput("Remotion 视频渲染的最佳实践")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSetInput("Remotion 视频渲染的最佳实践") }}>"Remotion 视频渲染的最佳实践"</p>
           </div>
         </div>
       </div>

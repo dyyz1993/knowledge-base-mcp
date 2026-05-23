@@ -30,6 +30,7 @@ export default function ModelSelector({ className }: { className?: string }) {
     <Select
       value={currentValue}
       placeholder="Select model"
+      aria-label="选择模型"
       options={options}
       onChange={(val: string) => {
         const [provider, id] = val.split("|")

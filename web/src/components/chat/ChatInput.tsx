@@ -45,6 +45,7 @@ export default function ChatInput({ isStreaming, onSend, onAbort }: ChatInputPro
             onKeyDown={handleKey}
             placeholder="Type a message..."
             rows={1}
+            aria-label="输入消息"
             className="flex-1 resize-none bg-transparent text-sm text-zinc-100 placeholder-zinc-600 outline-none max-h-32"
             style={{ minHeight: "24px" }}
             onInput={(e) => {

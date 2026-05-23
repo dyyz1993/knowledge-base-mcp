@@ -51,7 +51,7 @@ export function WebResultItem({ item, query }: { item: WebSearchItem; query: str
         </div>
         <p className={`text-[10px] text-zinc-500 mt-0.5 ${expanded ? "" : "line-clamp-2"}`}>{item.content}</p>
         {item.content && item.content.length > 80 && (
-          <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500 hover:text-zinc-300">
+          <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500 hover:text-zinc-300">
             {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
             {expanded ? "收起" : "展开"}
           </button>
@@ -61,6 +61,7 @@ export function WebResultItem({ item, query }: { item: WebSearchItem; query: str
         <button
           onClick={handleRead}
           disabled={reading}
+          aria-label={reading ? "正在抓取" : "读取详情"}
           className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-50 transition-colors"
         >
           {reading ? <Loader2 size={10} className="animate-spin" /> : <Globe size={10} />}
@@ -73,6 +74,7 @@ export function WebResultItem({ item, query }: { item: WebSearchItem; query: str
           {showIngest && (
             <button
               onClick={handleSave}
+              aria-label="存入知识库"
               className="flex items-center gap-1 px-2 py-1 mt-2 rounded text-[10px] font-medium bg-teal-700 text-white hover:bg-teal-600 transition-colors"
             >
               <Save size={10} />

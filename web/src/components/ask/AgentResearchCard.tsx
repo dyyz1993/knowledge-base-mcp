@@ -58,7 +58,7 @@ export function AgentResearchCard({ result, progress, errorDetail }: {
       </div>
 
       <div className="px-3 py-2">
-        <div className="w-full bg-zinc-800 rounded-full h-1.5 mb-2">
+        <div className="w-full bg-zinc-800 rounded-full h-1.5 mb-2" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`研究进度 ${pct}%`}>
           <div
             className="bg-violet-500 h-1.5 rounded-full transition-all duration-500"
             style={{ width: `${pct}%` }}
@@ -95,7 +95,7 @@ export function AgentResearchCard({ result, progress, errorDetail }: {
             <AlertCircle size={11} className="text-red-400" />
             <span className="text-[10px] text-red-300">研究失败</span>
           </div>
-          <button onClick={() => setShowError(!showError)} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300">
+          <button onClick={() => setShowError(!showError)} aria-expanded={showError} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300">
             {showError ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
             查看详情
           </button>
@@ -116,7 +116,7 @@ export function AgentResearchCard({ result, progress, errorDetail }: {
 
           {result.outline && (
             <div className="mt-2">
-              <button onClick={() => setShowOutline(!showOutline)} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300">
+              <button onClick={() => setShowOutline(!showOutline)} aria-expanded={showOutline} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300">
                 {showOutline ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                 大纲
               </button>
@@ -128,7 +128,7 @@ export function AgentResearchCard({ result, progress, errorDetail }: {
 
           {result.sources.length > 0 && (
             <div className="mt-2 pt-2 border-t border-zinc-800">
-              <button onClick={() => setShowSources(!showSources)} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300">
+              <button onClick={() => setShowSources(!showSources)} aria-expanded={showSources} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300">
                 {showSources ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                 参考来源 ({result.sources.length})
               </button>

@@ -4,8 +4,14 @@ web/dist
 dist
 .vectors
 .git
+.gitignore
+.env
+.env.*
+!.env.example
 .DS_Store
 *.bak
 .codenomad
 .opencode
 *-report.html
+*.md
+!README.md

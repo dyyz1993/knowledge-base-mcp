@@ -23,12 +23,12 @@ export default function App() {
     try {
       const saved = localStorage.getItem("kb-active-tab")
       if (saved === "kb" || saved === "ask" || saved === "chat") return saved
-    } catch {}
+    } catch (e) { console.warn('[App] localStorage.getItem failed:', e) }
     return "kb"
   })
   const handleSetTab = (t: Tab) => {
     setTab(t)
-    try { localStorage.setItem("kb-active-tab", t) } catch {}
+    try { localStorage.setItem("kb-active-tab", t) } catch (e) { console.warn('[App] localStorage.setItem failed:', e) }
   }
   const [searchOpen, setSearchOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string>()
@@ -39,7 +39,7 @@ export default function App() {
   useEffect(() => { load() }, [])
   useEffect(() => { loadSessions(); loadModels(); loadFavorites(); loadSessionFavorites() }, [])
   useEffect(() => {
-    fetch("/health").then(r => r.json()).then(d => setVersion(d.version || "")).catch(() => {})
+    fetch("/health").then(r => r.json()).then(d => setVersion(d.version || "")).catch((e) => console.warn('[App] health check failed:', e))
   }, [])
 
   useEffect(() => {

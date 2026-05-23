@@ -22,7 +22,7 @@ export default function Sidebar({ docs, selectedId, onSelect }: { docs: DocMeta[
   const toggle = (name: string) => setCollapsed(p => ({ ...p, [name]: !p[name] }))
 
   return (
-    <aside className="w-72 shrink-0 border-r border-zinc-800 bg-zinc-950 flex flex-col h-full overflow-hidden">
+    <aside className="w-72 shrink-0 border-r border-zinc-800 bg-zinc-950 flex flex-col h-full overflow-hidden" role="navigation" aria-label="文档导航">
       <div className="px-4 py-3 border-b border-zinc-800 flex items-center gap-2">
         <FolderOpen size={16} className="text-blue-400" />
         <span className="text-sm font-medium text-zinc-300">Knowledge Base</span>
@@ -36,6 +36,7 @@ export default function Sidebar({ docs, selectedId, onSelect }: { docs: DocMeta[
           <div key={name}>
             <button
               onClick={() => toggle(name)}
+              aria-expanded={!collapsed[name]}
               className="w-full text-left px-4 py-1.5 flex items-center gap-1.5 hover:bg-zinc-900 text-zinc-400 text-xs"
             >
               {collapsed[name] ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
@@ -46,6 +47,7 @@ export default function Sidebar({ docs, selectedId, onSelect }: { docs: DocMeta[
               <button
                 key={doc.id}
                 onClick={() => onSelect(doc.id)}
+                aria-current={selectedId === doc.id ? "page" : undefined}
                 className={`w-full text-left pl-8 pr-3 py-1.5 flex items-start gap-2 text-xs hover:bg-zinc-900 transition-colors ${selectedId === doc.id ? "bg-zinc-900 text-zinc-100" : "text-zinc-400"}`}
               >
                 <FileText size={13} className="mt-0.5 shrink-0 text-zinc-600" />

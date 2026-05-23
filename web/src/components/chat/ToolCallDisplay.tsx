@@ -13,6 +13,7 @@ export function ToolCallBlock({ name, args, result }: ToolCallBlockProps) {
     <div className="my-1.5 rounded-lg border border-zinc-800 bg-zinc-900/50 text-sm">
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-2 text-zinc-400 hover:text-zinc-200 transition-colors"
       >
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -74,7 +75,7 @@ export function ResearchProgressBar({ progress }: ResearchProgressBarProps) {
   const totalSteps = progress.length
 
   return (
-    <div className="mt-1.5 rounded-lg border border-blue-500/20 bg-blue-950/30 px-3 py-2 text-xs space-y-1.5">
+    <div className="mt-1.5 rounded-lg border border-blue-500/20 bg-blue-950/30 px-3 py-2 text-xs space-y-1.5" role="status" aria-live="polite" aria-label="深度研究进度">
       <div className="flex items-center justify-between text-blue-400">
         <span className="flex items-center gap-1.5 font-medium">
           <Search size={12} className="animate-pulse" />
@@ -92,7 +93,7 @@ export function ResearchProgressBar({ progress }: ResearchProgressBarProps) {
         )}
       </div>
       {totalSteps > 0 && (
-        <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+        <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden" role="progressbar" aria-valuenow={Math.min(100, (doneSteps / totalSteps) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={`研究进度 ${doneSteps}/${totalSteps}`}>
           <div
             className="h-full bg-blue-500 rounded-full transition-all duration-500"
             style={{ width: `${Math.min(100, (doneSteps / totalSteps) * 100)}%` }}

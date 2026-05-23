@@ -8,3 +8,4 @@ web/dist/
 .opencode/session-registry.json
 *-report.html
 .DS_Store
+.env

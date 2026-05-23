@@ -18,6 +18,7 @@ export function PipelineResultsCard({ searchResult, onIngest, onGenerateWorkKey 
         </span>
         <button
           onClick={() => onGenerateWorkKey(searchResult.query, searchResult.results)}
+          aria-label="生成 Work Key"
           className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-violet-800/50 text-violet-300 hover:bg-violet-700/50 transition-colors ml-auto"
         >
           <Key size={10} />
@@ -97,7 +98,7 @@ function PipelineResultItem({ item, query, onIngest }: {
             </div>
             <p className={`text-[10px] text-zinc-500 mt-0.5 ${expanded ? "" : "line-clamp-2"}`}>{item.snippet}</p>
             {item.snippet && item.snippet.length > 80 && (
-              <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500 hover:text-zinc-300">
+              <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500 hover:text-zinc-300">
                 {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                 {expanded ? "收起" : "展开"}
               </button>
@@ -127,6 +128,7 @@ function PipelineResultItem({ item, query, onIngest }: {
           <button
             onClick={handleDeepRead}
             disabled={reading}
+            aria-label={reading ? "正在读取" : "深度读取"}
             className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-50 transition-colors"
           >
             {reading ? <Loader2 size={10} className="animate-spin" /> : <BookOpen size={10} />}
@@ -140,6 +142,7 @@ function PipelineResultItem({ item, query, onIngest }: {
           {detail !== "深度读取失败" && (
             <button
               onClick={() => onIngest(query, detailTitle || item.title, detail, item.url)}
+              aria-label="存入知识库"
               className="flex items-center gap-1 px-2 py-1 mt-2 rounded text-[10px] font-medium bg-teal-700 text-white hover:bg-teal-600 transition-colors"
             >
               <Save size={10} />

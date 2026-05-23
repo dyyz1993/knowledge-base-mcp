@@ -27,7 +27,7 @@ function snippetRelevance(query: string, result: SearchResult): number {
   try {
     const host = new URL(result.url).hostname.toLowerCase()
     if (LOW_QUALITY_DOMAINS.some(d => host.endsWith(d))) score -= 30
-  } catch {}
+  } catch (e) { logger.debug('URL parse for domain check failed:', e) }
   return score
 }
 

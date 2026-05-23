@@ -21,7 +21,7 @@ function useCopy(timeout = 1500) {
 function CopyBtn({ text, size = 12 }: { text: string; size?: number }) {
   const { copied, copy } = useCopy()
   return (
-    <button onClick={() => copy(text)} className="flex items-center gap-1 hover:text-zinc-300 transition-colors text-zinc-500">
+    <button onClick={() => copy(text)} className="flex items-center gap-1 hover:text-zinc-300 transition-colors text-zinc-500" aria-label="复制代码">
       {copied ? <><Check size={size} className="text-green-400" /> <span className="text-green-400">Copied!</span></> : <><Copy size={size} /> Copy</>}
     </button>
   )
@@ -137,13 +137,14 @@ export default function DocViewer({ doc, loading }: { doc: { meta: DocMeta; cont
 来源项目: ${meta.source_project}`
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto" role="article" aria-label={doc ? doc.meta.title : "文档查看器"}>
       <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur border-b border-zinc-800 px-8 py-2 flex items-center gap-3">
         <FileText size={14} className="text-zinc-500" />
         <span className="text-sm text-zinc-300 truncate flex-1">{meta.title}</span>
         <span className="text-xs text-zinc-600 font-mono">{meta.id}</span>
         <button
           onClick={() => copy(refText)}
+          aria-label="复制文档引用"
           className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs border transition-all ${copied ? "bg-green-900/30 border-green-700 text-green-400" : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"}`}
         >
           <ClipboardCopy size={13} />

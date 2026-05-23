@@ -10,7 +10,7 @@ import { handleShareSession } from "../chat/api-share.js"
 import { handleScanSkills, handleGetSkillPaths, handleUpdateSkillPaths } from "../chat/api-skills.js"
 import { handleBrowserDetect } from "../chat/api-browser.js"
 import { getAllKeywords } from "../storage/index.js"
-import { readBody, json, parseBody, createRateLimiter } from "./helpers.js"
+import { readBody, json, parseBody, createTieredRateLimiter } from "./helpers.js"
 import { handleStreamableHttp, handleSSE, handleSSEMessage } from "./handle-mcp.js"
 import { handleRestAPI } from "./handle-api.js"
 import { createLogger } from "../utils/logger.js"
@@ -46,8 +46,8 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
     return auth === `Bearer ${apiKey}`
   }
 
-  // Rate limiter: 60 requests per minute per IP for API endpoints
-  const rateLimit = createRateLimiter({ windowMs: 60_000, maxRequests: 60 })
+  // Tiered rate limiter: different limits per endpoint category
+  const rateLimit = createTieredRateLimiter()
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, `http://${req.headers.host}`)
@@ -68,9 +68,11 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
         json(res, { error: "Unauthorized" }, 401)
         return
       }
-      // Rate limit: apply to all API endpoints
+      // Rate limit: tiered by endpoint category
       if (url.pathname.startsWith("/api/")) {
-        const { allowed, retryAfterMs } = rateLimit(req)
+        const { allowed, retryAfterMs, limit, remaining } = rateLimit(req, url.pathname)
+        res.setHeader("X-RateLimit-Limit", String(limit))
+        res.setHeader("X-RateLimit-Remaining", String(remaining))
         if (!allowed) {
           res.writeHead(429, {
             "Content-Type": "application/json",

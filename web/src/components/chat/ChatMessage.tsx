@@ -9,7 +9,7 @@ interface ThinkingMessageProps {
 
 export function ThinkingMessage({ content, streaming }: ThinkingMessageProps) {
   return (
-    <div className="mx-auto max-w-[80%] md:max-w-[80%] rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 italic">
+    <div role="status" aria-live="polite" className="mx-auto max-w-[80%] md:max-w-[80%] rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 italic">
       <span className="font-medium text-zinc-400">{streaming ? "Thinking..." : "Thinking"}</span>
       <p className="mt-1 whitespace-pre-wrap">{content}</p>
     </div>
@@ -23,7 +23,7 @@ interface AssistantMessageProps {
 
 export function AssistantMessage({ content, messageKey }: AssistantMessageProps) {
   return (
-    <div className="flex justify-start">
+    <div className="flex justify-start" role="article" aria-label="助手消息">
       <div className="max-w-[85%] md:max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
         <div className="group relative markdown-body">
           <MarkdownRenderer content={content} />
@@ -43,7 +43,7 @@ interface UserMessageProps {
 
 export function UserMessage({ content }: UserMessageProps) {
   return (
-    <div className="flex justify-end">
+    <div className="flex justify-end" role="article" aria-label="用户消息">
       <div className="max-w-[85%] md:max-w-[80%] rounded-2xl bg-blue-600 text-white px-4 py-2.5 text-sm leading-relaxed">
         <p className="whitespace-pre-wrap">{content}</p>
       </div>
@@ -53,7 +53,7 @@ export function UserMessage({ content }: UserMessageProps) {
 
 export function StreamingIndicator() {
   return (
-    <span className="inline-flex gap-1 ml-1">
+    <span className="inline-flex gap-1 ml-1" role="status" aria-label="正在输入">
       <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
       <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
       <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
@@ -83,6 +83,7 @@ function StarButton({ messageId, content }: { messageId: string; content: string
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] hover:bg-white/10 transition-all ${
         isFaved ? "text-yellow-500 opacity-100" : "opacity-0 group-hover:opacity-100"
       }`}
+      aria-label={isFaved ? "已收藏" : "收藏"}
       title="收藏"
     >
       <Star size={12} fill={isFaved ? "currentColor" : "none"} />

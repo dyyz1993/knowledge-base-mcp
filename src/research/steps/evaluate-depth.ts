@@ -17,7 +17,7 @@ function extractJson(text: string): string | null {
   const partial = cleaned.slice(braceStart)
   const fixed = partial.replace(/[,]\s*([}\]])/g, "$1").replace(/\}\s*$/, "}")
   if (fixed.startsWith("{")) {
-    try { JSON.parse(fixed); return fixed } catch {}
+    try { JSON.parse(fixed); return fixed } catch (e) { logger.debug('Partial JSON fix parse failed:', e) }
   }
   return null
 }

@@ -59,6 +59,7 @@ export default function AskPanel() {
           {models.length > 0 && (
             <select
               value={currentModel ? `${currentModel.provider}|${currentModel.id}` : ""}
+              aria-label="选择模型"
               onChange={(e) => {
                 const val = e.target.value
                 if (val) {
@@ -78,7 +79,7 @@ export default function AskPanel() {
           )}
         </div>
         {messages.length > 0 && (
-          <button onClick={clear} className="p-1 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800">
+          <button onClick={clear} aria-label="清空消息" className="p-1 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800">
             <Trash2 size={14} />
           </button>
         )}
@@ -101,6 +102,7 @@ export default function AskPanel() {
           <div className="flex justify-start">
             <button
               onClick={cancel}
+              aria-label="停止查询"
               className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-xs text-zinc-400 flex items-center gap-2 hover:bg-zinc-800 hover:text-zinc-300 transition-colors"
             >
               <Square size={12} className="text-red-400" />

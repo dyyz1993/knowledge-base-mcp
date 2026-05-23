@@ -36,6 +36,7 @@ export function AskInput({
           onKeyDown={onKeyDown}
           placeholder="你想了解什么？描述一下你的问题..."
           rows={1}
+          aria-label="搜索问题"
           className="flex-1 resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 max-h-24"
         />
         <div className="shrink-0 flex flex-col gap-1">
@@ -44,6 +45,8 @@ export function AskInput({
               onClick={() => onResearchModeChange("quick")}
               className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "quick" ? "bg-amber-900/50 text-amber-300" : "bg-zinc-800 text-zinc-500"}`}
               title="快速 (5步)"
+              aria-label="快速研究模式"
+              aria-pressed={researchMode === "quick"}
             >
               <Zap size={10} />
             </button>
@@ -51,6 +54,8 @@ export function AskInput({
               onClick={() => onResearchModeChange("standard")}
               className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "standard" ? "bg-purple-900/50 text-purple-300" : "bg-zinc-800 text-zinc-500"}`}
               title="标准 (12步)"
+              aria-label="标准研究模式"
+              aria-pressed={researchMode === "standard"}
             >
               <Brain size={10} />
             </button>
@@ -58,6 +63,8 @@ export function AskInput({
               onClick={() => onResearchModeChange("deep")}
               className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "deep" ? "bg-blue-900/50 text-blue-300" : "bg-zinc-800 text-zinc-500"}`}
               title="深度 (25步)"
+              aria-label="深度研究模式"
+              aria-pressed={researchMode === "deep"}
             >
               <Cpu size={10} />
             </button>
@@ -67,6 +74,7 @@ export function AskInput({
             disabled={!input.trim() || loading}
             className="p-2 rounded-lg bg-purple-700 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-purple-600 transition-colors"
             title="Agent 深度研究"
+            aria-label="开始 Agent 深度研究"
           >
             <FlaskConical size={16} />
           </button>
@@ -74,6 +82,7 @@ export function AskInput({
         <button
           onClick={onSubmit}
           disabled={!input.trim() || loading}
+          aria-label="发送搜索"
           className="shrink-0 p-2 rounded-lg bg-amber-600 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-amber-500 transition-colors"
         >
           <Send size={16} />

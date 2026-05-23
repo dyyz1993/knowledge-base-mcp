@@ -1,5 +1,7 @@
 import type { SitemapCheck } from "../types"
 import type { SearchResult } from "../../search/types"
+import { createLogger } from "../../utils/logger.js"
+const logger = createLogger("research:steps:check-sitemap")
 
 export async function checkSitemap(
   hints: string[],
@@ -118,7 +120,7 @@ export async function checkSitemap(
       }
       // Boost short domains (official projects tend to have short domains)
       score -= host.split(".").length // hono.dev = 2 parts, docsmith.aigne.io = 3 parts
-    } catch {}
+    } catch (e) { logger.debug('Sitemap domain scoring failed:', e) }
     return { base: sp.base, paths: sp.paths, score }
   }).sort((a, b) => b.score - a.score)
 

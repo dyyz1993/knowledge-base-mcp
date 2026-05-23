@@ -1,5 +1,5 @@
 # Stage 1: Build web frontend
-FROM oven/bun:1 AS web-builder
+FROM oven/bun:1.2 AS web-builder
 WORKDIR /app/web
 COPY web/package.json web/bun.lock* ./
 RUN bun install --frozen-lockfile
@@ -7,7 +7,7 @@ COPY web/ ./
 RUN bun run build
 
 # Stage 2: Production image
-FROM oven/bun:1-slim
+FROM oven/bun:1.2-slim
 WORKDIR /app
 
 COPY package.json bun.lock* ./

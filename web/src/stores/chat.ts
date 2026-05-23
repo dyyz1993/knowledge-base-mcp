@@ -71,6 +71,19 @@ function emptyStreamState(): SessionStreamState {
   }
 }
 
+const MAX_STREAM_STATES = 10
+
+function pruneStreamStates(states: Map<string, SessionStreamState>): Map<string, SessionStreamState> {
+  if (states.size <= MAX_STREAM_STATES) return states
+  const next = new Map(states)
+  for (const [key, state] of next) {
+    if (!state.isStreaming && next.size > MAX_STREAM_STATES) {
+      next.delete(key)
+    }
+  }
+  return next
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   sessions: [],
   currentSessionId: null,
@@ -125,7 +138,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   switchSession: async (id) => {
-    set({ currentSessionId: id, messages: [] })
+    set((s) => {
+      const states = new Map(s.streamStates)
+      for (const [sessionId, state] of states) {
+        if (sessionId !== id && !state.isStreaming) {
+          states.delete(sessionId)
+        }
+      }
+      return { currentSessionId: id, messages: [], streamStates: states }
+    })
     const msgs = await api.getSessionMessages(id)
     const suggestionsMsg = msgs.filter((m) => m.role === "suggestions").slice(-1)[0]
     let restoredSuggestions: string[] = []
@@ -180,9 +201,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((s) => {
       const states = new Map(s.streamStates)
       states.set(targetSessionId, initialStreamState)
-      return { streamStates: states }
+      return { streamStates: pruneStreamStates(states) }
     })
-
     const userMsg: Message = { role: "user", content, timestamp: Date.now() }
     set((s) => ({ messages: [...s.messages, userMsg] }))
 
@@ -193,7 +213,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           sess.id === targetSessionId ? { ...sess, name } : sess
         ),
       }))
-      api.renameSession(targetSessionId, name).catch(() => {})
+      api.renameSession(targetSessionId, name).catch((e) => console.warn('[chat] renameSession failed:', e))
     }
 
     let textBuffer = ""

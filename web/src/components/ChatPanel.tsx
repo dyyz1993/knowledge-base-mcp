@@ -69,6 +69,7 @@ function SuggestionButtons({ suggestions, onFill }: { suggestions: string[]; onF
         <button
           key={i}
           onClick={() => onFill(s)}
+          aria-label={`建议: ${s}`}
           className="px-3 py-1.5 text-xs rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-colors cursor-pointer"
         >
           {s}
@@ -156,7 +157,7 @@ export default function ChatPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 md:px-4 py-3 space-y-3">
+      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 md:px-4 py-3 space-y-3" role="log" aria-label="聊天记录" aria-live="polite">
         {messages.length === 0 && !isStreaming && (
           <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
             Send a message to start chatting

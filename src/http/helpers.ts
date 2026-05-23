@@ -133,10 +133,20 @@ export async function parseBody(req: IncomingMessage, res: ServerResponse): Prom
   }
 }
 
-/** Simple in-memory rate limiter (sliding window) */
-export function createRateLimiter(opts: { windowMs: number; maxRequests: number }) {
+export interface RateLimitTier {
+  windowMs: number
+  maxRequests: number
+}
+
+export interface RateLimitResult {
+  allowed: boolean
+  retryAfterMs: number
+  limit: number
+  remaining: number
+}
+
+function createRateLimiterCore(opts: RateLimitTier) {
   const hits = new Map<string, number[]>()
-  // Periodic cleanup of stale entries
   const cleanup = setInterval(() => {
     const cutoff = Date.now() - opts.windowMs
     for (const [ip, timestamps] of hits) {
@@ -147,7 +157,7 @@ export function createRateLimiter(opts: { windowMs: number; maxRequests: number 
   }, opts.windowMs)
   cleanup.unref?.()
 
-  return function checkRateLimit(req: IncomingMessage): { allowed: boolean; retryAfterMs: number } {
+  return function check(req: IncomingMessage): RateLimitResult {
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
       || req.socket?.remoteAddress
       || "unknown"
@@ -157,10 +167,67 @@ export function createRateLimiter(opts: { windowMs: number; maxRequests: number 
     if (timestamps.length >= opts.maxRequests) {
       const oldestInWindow = timestamps[0]
       const retryAfterMs = oldestInWindow + opts.windowMs - now
-      return { allowed: false, retryAfterMs: Math.max(retryAfterMs, 1000) }
+      return { allowed: false, retryAfterMs: Math.max(retryAfterMs, 1000), limit: opts.maxRequests, remaining: 0 }
     }
     timestamps.push(now)
     hits.set(ip, timestamps)
-    return { allowed: true, retryAfterMs: 0 }
+    return { allowed: true, retryAfterMs: 0, limit: opts.maxRequests, remaining: opts.maxRequests - timestamps.length }
+  }
+}
+
+export type RateLimitCategory = "general" | "llm" | "write"
+
+const DEFAULT_TIERS: Record<RateLimitCategory, RateLimitTier> = {
+  general: { windowMs: 60_000, maxRequests: 60 },
+  llm:     { windowMs: 60_000, maxRequests: 20 },
+  write:   { windowMs: 60_000, maxRequests: 30 },
+}
+
+function envInt(key: string, fallback: number): number {
+  const v = process.env[key]
+  return v ? Math.max(parseInt(v, 10) || fallback, 1) : fallback
+}
+
+export function createTieredRateLimiter() {
+  const tiers: Record<RateLimitCategory, RateLimitTier> = {
+    general: { windowMs: 60_000, maxRequests: envInt("RATE_LIMIT_GENERAL", DEFAULT_TIERS.general.maxRequests) },
+    llm:     { windowMs: 60_000, maxRequests: envInt("RATE_LIMIT_LLM", DEFAULT_TIERS.llm.maxRequests) },
+    write:   { windowMs: 60_000, maxRequests: envInt("RATE_LIMIT_WRITE", DEFAULT_TIERS.write.maxRequests) },
+  }
+  const limiters: Record<RateLimitCategory, ReturnType<typeof createRateLimiterCore>> = {
+    general: createRateLimiterCore(tiers.general),
+    llm:     createRateLimiterCore(tiers.llm),
+    write:   createRateLimiterCore(tiers.write),
+  }
+
+  function categorize(pathname: string): RateLimitCategory {
+    if (
+      pathname === "/api/chat" ||
+      pathname === "/api/agent-research" ||
+      pathname === "/api/ask-work-key" ||
+      pathname.startsWith("/api/ask-")
+    ) return "llm"
+    if (
+      pathname === "/api/docs" ||
+      pathname === "/api/docs/write" ||
+      pathname === "/api/ingest-site" ||
+      pathname === "/api/ingest-url" ||
+      pathname === "/api/ask-summarize"
+    ) return "write"
+    return "general"
+  }
+
+  return function checkRateLimit(req: IncomingMessage, pathname: string): RateLimitResult {
+    const category = categorize(pathname)
+    return limiters[category](req)
+  }
+}
+
+/** @deprecated Use createTieredRateLimiter instead */
+export function createRateLimiter(opts: { windowMs: number; maxRequests: number }) {
+  const core = createRateLimiterCore(opts)
+  return function checkRateLimit(req: IncomingMessage): { allowed: boolean; retryAfterMs: number } {
+    const r = core(req)
+    return { allowed: r.allowed, retryAfterMs: r.retryAfterMs }
   }
 }
