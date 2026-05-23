@@ -5,6 +5,7 @@ import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
 import { loadVectors, indexDoc, rebuildAllVectors, initDb } from "../search/vector-store"
 import { loadConfig } from "../config"
 import { createLogger } from "../utils/logger.js"
+import { tokenize } from "../utils/tokenizer"
 
 /** Dynamic paths — always read KB_DIR from env at call time for test isolation */
 
@@ -267,7 +268,7 @@ export function readDoc(id: string, truncate = true): { meta: DocMeta; content: 
 
 function extractSnippet(content: string, q: string, radius = 120): string {
   const lower = content.toLowerCase()
-  const tokens = q.split(/[\s\-_]+/).filter(Boolean)
+  const tokens = tokenize(q, { lowercase: true, splitChars: "-_" })
   let bestPos = -1
   for (const token of tokens) {
     const pos = lower.indexOf(token)
@@ -340,7 +341,7 @@ export function searchDocs(
     const body = readDocContent(doc.file_path).toLowerCase()
 
     if (q) {
-      const tokens = q.split(/[\s\-_]+/).filter(Boolean)
+      const tokens = tokenize(q, { lowercase: false, splitChars: "-_" })
       for (const token of tokens) {
         if (tokenMatch(doc.title, token)) { score += 10; if (!matched_by.includes("title")) matched_by.push("title") }
         if (doc.keywords.some(k => tokenMatch(k, token))) { score += 4; if (!matched_by.includes("keywords")) matched_by.push("keywords") }

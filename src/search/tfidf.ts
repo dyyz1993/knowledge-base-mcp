@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import { parseFrontmatter } from "../storage/markdown"
 import type { DocMeta } from "../storage/index"
+import { tokenize } from "../utils/tokenizer"
 
 const FIELD_WEIGHTS: [string, number][] = [
   ["title", 3],
@@ -20,21 +21,8 @@ function readDocBody(filePath: string): string {
   }
 }
 
-export function tokenize(text: string): string[] {
-  const tokens: string[] = []
-  const lower = text.toLowerCase()
-
-  const segments = lower.match(/[\u4e00-\u9fff]+/g) || []
-  for (const seg of segments) {
-    for (let i = 0; i < seg.length - 1; i++) {
-      tokens.push(seg[i] + seg[i + 1])
-    }
-  }
-
-  const words = lower.match(/[a-z0-9]+/g) || []
-  tokens.push(...words)
-
-  return tokens
+function tokenizeBigram(text: string): string[] {
+  return tokenize(text, { bigram: true })
 }
 
 export function buildTF(tokens: string[]): Map<string, number> {
@@ -55,7 +43,7 @@ function buildWeightedTF(doc: DocMeta): Map<string, number> {
     [readDocBody(doc.file_path), 0.8],
   ]
   for (const [text, weight] of fields) {
-    const tf = buildTF(tokenize(text))
+    const tf = buildTF(tokenizeBigram(text))
     for (const [token, freq] of tf) {
       combined.set(token, (combined.get(token) || 0) + freq * weight)
     }
@@ -105,7 +93,7 @@ export function tfidfSearch(
 ): (DocMeta & { score: number })[] {
   if (!query || docs.length === 0) return []
 
-  const queryTokens = tokenize(query)
+  const queryTokens = tokenizeBigram(query)
   if (queryTokens.length === 0) return []
 
   const N = docs.length

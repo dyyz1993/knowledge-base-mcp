@@ -1,4 +1,4 @@
-import { describe, it, expect, mock, beforeEach } from "bun:test"
+import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test"
 import {
   buildWebSearchSuggestion,
   multiSearch,
@@ -65,6 +65,10 @@ describe("multiSearch", () => {
     }))
   })
 
+  afterEach(() => {
+    mock.restore()
+  })
+
   it("returns empty when searchDocs returns nothing", async () => {
     const result = await multiSearch(["query1", "query2"])
     expect(result).toEqual([])
@@ -123,6 +127,10 @@ describe("buildMissResponse", () => {
     }))
   })
 
+  afterEach(() => {
+    mock.restore()
+  })
+
   it("returns miss response with correct structure", () => {
     const result = buildMissResponse("test query", ["q1", "q2"], 2)
 
@@ -177,120 +185,114 @@ describe("buildMissResponse", () => {
 })
 
 describe("buildSearchPipelineSources", () => {
-  let loadConfigMock: ReturnType<typeof mock>
-
-  beforeEach(() => {
-    loadConfigMock = mock(() => ({}))
-    mock.module("../src/config", () => ({
-      loadConfig: loadConfigMock,
-    }))
-  })
-
   it("returns empty array when no sources configured", () => {
-    loadConfigMock.mockReturnValue({
-      webSearch: { apiKey: "", tavilyApiKey: "", serperApiKey: "" },
+    const sources = buildSearchPipelineSources({
+      webSearch: { apiKey: "", enabled: true, tavilyApiKey: "", serperApiKey: "" },
       searchPipeline: {
         enabled: true,
         sources: {
           webSearchPrime: { enabled: false },
-          xbrowser: { enabled: false },
+          xbrowser: { enabled: false, engine: "google", engines: [], cdpEndpoint: "", headless: true, timeout: 30000 },
+          llmDirect: { enabled: false, baseUrl: "", apiKey: "", model: "" },
+          plugin: { enabled: false, prompt: "" },
           tavily: { enabled: false },
           serper: { enabled: false },
-          aiSearch: { enabled: false },
+          aiSearch: { enabled: false, engines: [], timeout: 60000 },
         },
+        maxResults: 10,
       },
-    })
-
-    const sources = buildSearchPipelineSources()
+    } as any)
     expect(sources).toEqual([])
   })
 
   it("includes webSearchPrime when enabled with apiKey", () => {
-    loadConfigMock.mockReturnValue({
-      webSearch: { apiKey: "test-key", tavilyApiKey: "", serperApiKey: "" },
+    const sources = buildSearchPipelineSources({
+      webSearch: { apiKey: "test-key", enabled: true, tavilyApiKey: "", serperApiKey: "" },
       searchPipeline: {
         enabled: true,
         sources: {
           webSearchPrime: { enabled: true },
-          xbrowser: { enabled: false },
+          xbrowser: { enabled: false, engine: "google", engines: [], cdpEndpoint: "", headless: true, timeout: 30000 },
+          llmDirect: { enabled: false, baseUrl: "", apiKey: "", model: "" },
+          plugin: { enabled: false, prompt: "" },
           tavily: { enabled: false },
           serper: { enabled: false },
-          aiSearch: { enabled: false },
+          aiSearch: { enabled: false, engines: [], timeout: 60000 },
         },
+        maxResults: 10,
       },
-    })
-
-    const sources = buildSearchPipelineSources()
+    } as any)
     expect(sources.length).toBeGreaterThan(0)
     expect(sources[0]!.name).toBe("web-search-prime")
   })
 
   it("excludes webSearchPrime when enabled but no apiKey", () => {
-    loadConfigMock.mockReturnValue({
-      webSearch: { apiKey: "", tavilyApiKey: "", serperApiKey: "" },
+    const sources = buildSearchPipelineSources({
+      webSearch: { apiKey: "", enabled: true, tavilyApiKey: "", serperApiKey: "" },
       searchPipeline: {
         enabled: true,
         sources: {
           webSearchPrime: { enabled: true },
-          xbrowser: { enabled: false },
+          xbrowser: { enabled: false, engine: "google", engines: [], cdpEndpoint: "", headless: true, timeout: 30000 },
+          llmDirect: { enabled: false, baseUrl: "", apiKey: "", model: "" },
+          plugin: { enabled: false, prompt: "" },
           tavily: { enabled: false },
           serper: { enabled: false },
-          aiSearch: { enabled: false },
+          aiSearch: { enabled: false, engines: [], timeout: 60000 },
         },
+        maxResults: 10,
       },
-    })
-
-    const sources = buildSearchPipelineSources()
+    } as any)
     const names = sources.map(s => s.name)
     expect(names).not.toContain("web-search-prime")
   })
 
   it("includes tavily when enabled with apiKey", () => {
-    loadConfigMock.mockReturnValue({
-      webSearch: { apiKey: "", tavilyApiKey: "tav-key", serperApiKey: "" },
+    const sources = buildSearchPipelineSources({
+      webSearch: { apiKey: "", enabled: true, tavilyApiKey: "tav-key", serperApiKey: "" },
       searchPipeline: {
         enabled: true,
         sources: {
           webSearchPrime: { enabled: false },
-          xbrowser: { enabled: false },
+          xbrowser: { enabled: false, engine: "google", engines: [], cdpEndpoint: "", headless: true, timeout: 30000 },
+          llmDirect: { enabled: false, baseUrl: "", apiKey: "", model: "" },
+          plugin: { enabled: false, prompt: "" },
           tavily: { enabled: true },
           serper: { enabled: false },
-          aiSearch: { enabled: false },
+          aiSearch: { enabled: false, engines: [], timeout: 60000 },
         },
+        maxResults: 10,
       },
-    })
-
-    const sources = buildSearchPipelineSources()
+    } as any)
     const names = sources.map(s => s.name)
     expect(names).toContain("tavily")
   })
 
   it("includes serper when enabled with apiKey", () => {
-    loadConfigMock.mockReturnValue({
-      webSearch: { apiKey: "", tavilyApiKey: "", serperApiKey: "serper-key" },
+    const sources = buildSearchPipelineSources({
+      webSearch: { apiKey: "", enabled: true, tavilyApiKey: "", serperApiKey: "serper-key" },
       searchPipeline: {
         enabled: true,
         sources: {
           webSearchPrime: { enabled: false },
-          xbrowser: { enabled: false },
+          xbrowser: { enabled: false, engine: "google", engines: [], cdpEndpoint: "", headless: true, timeout: 30000 },
+          llmDirect: { enabled: false, baseUrl: "", apiKey: "", model: "" },
+          plugin: { enabled: false, prompt: "" },
           tavily: { enabled: false },
           serper: { enabled: true },
-          aiSearch: { enabled: false },
+          aiSearch: { enabled: false, engines: [], timeout: 60000 },
         },
+        maxResults: 10,
       },
-    })
-
-    const sources = buildSearchPipelineSources()
+    } as any)
     const names = sources.map(s => s.name)
     expect(names).toContain("serper")
   })
 
   it("returns empty when searchPipeline is undefined", () => {
-    loadConfigMock.mockReturnValue({
-      webSearch: { apiKey: "", tavilyApiKey: "", serperApiKey: "" },
-    })
-
-    const sources = buildSearchPipelineSources()
+    const sources = buildSearchPipelineSources({
+      webSearch: { apiKey: "", enabled: true, tavilyApiKey: "", serperApiKey: "" },
+    } as any)
     expect(sources).toEqual([])
   })
 })

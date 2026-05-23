@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test"
+import { tokenize } from "../src/utils/tokenizer"
 import {
-  tokenize,
   buildTF,
   buildIDF,
   cosineSimilarity,
@@ -36,8 +36,8 @@ describe("tokenize", () => {
     expect(tokenize("HELLO")).toContain("hello")
   })
 
-  test("removes punctuation", () => {
-    const t = tokenize("hello, world! foo-bar")
+  test("removes punctuation with bigram mode", () => {
+    const t = tokenize("hello, world! foo-bar", { bigram: true })
     expect(t).toContain("hello")
     expect(t).toContain("world")
     expect(t).toContain("foo")
@@ -45,14 +45,14 @@ describe("tokenize", () => {
   })
 
   test("Chinese bigrams", () => {
-    const t = tokenize("插件开发")
+    const t = tokenize("插件开发", { bigram: true })
     expect(t).toContain("插件")
     expect(t).toContain("件开")
     expect(t).toContain("开发")
   })
 
   test("mixed Chinese and English", () => {
-    const t = tokenize("React 插件开发 guide")
+    const t = tokenize("React 插件开发 guide", { bigram: true })
     expect(t).toContain("react")
     expect(t).toContain("插件")
     expect(t).toContain("开发")
@@ -64,7 +64,7 @@ describe("tokenize", () => {
   })
 
   test("single Chinese char produces no bigrams", () => {
-    expect(tokenize("你")).toEqual([])
+    expect(tokenize("你", { bigram: true })).toEqual([])
   })
 
   test("numbers are tokens", () => {

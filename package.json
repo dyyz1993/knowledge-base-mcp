@@ -39,11 +39,9 @@
   "dependencies": {
     "@dyyz1993/pi-agent-core": "latest",
     "@dyyz1993/pi-ai": "latest",
-    "@dyyz1993/xbrowser": "^0.7.1",
-    "@modelcontextprotocol/sdk": "^1.12.1",
-    "playwright": "^1.59.1",
-    "turndown-plugin-gfm": "^1.0.2",
-    "zod": "^4.4.2"
+    "@dyyz1993/xbrowser": "^0.13.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
   },
   "optionalDependencies": {
     "@huggingface/transformers": "^4.2.0"

@@ -3,6 +3,7 @@ import type { DocMeta } from "../storage/index"
 import { callLlm, type LlmConfig } from "./llm-caller"
 import { getConfiguredModels } from "../chat/api-models"
 import { loadConfig } from "../config"
+import type { AppConfig } from "../config"
 import type { SearchSource, SearchResult } from "./types"
 import { llmStats } from "../statistics"
 import { WebSearchPrimeSource } from "./source-web-search-prime"
@@ -253,8 +254,8 @@ export function buildWebSearchSuggestion(
   return { reason, search_query: searchQuery, missing_aspects: missingAspects }
 }
 
-export function buildSearchPipelineSources(): SearchSource[] {
-  const config = loadConfig()
+export function buildSearchPipelineSources(overrideConfig?: AppConfig): SearchSource[] {
+  const config = overrideConfig ?? loadConfig()
   const sources: SearchSource[] = []
 
   if (config.searchPipeline?.sources.webSearchPrime.enabled && config.webSearch.apiKey) {
