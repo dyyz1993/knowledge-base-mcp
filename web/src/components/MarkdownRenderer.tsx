@@ -16,29 +16,30 @@ function LazyHighlighter({ language, code }: { language: string; code: string })
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([
-      import("react-syntax-highlighter/dist/esm/styles/prism"),
-      import("react-syntax-highlighter/dist/esm/prism-light"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/typescript"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/javascript"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/jsx"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/tsx"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/python"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/bash"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/json"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/yaml"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/sql"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/css"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/markup"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/markdown"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/go"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/rust"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/java"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/c"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/cpp"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/docker"),
-      import("react-syntax-highlighter/dist/esm/languages/prism/shell-session"),
-    ]).then(([styles, mod, ...langs]) => {
+    ;(async () => {
+      const [styles, mod, ...langs] = await Promise.all([
+        import("react-syntax-highlighter/dist/esm/styles/prism"),
+        import("react-syntax-highlighter/dist/esm/prism-light"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/typescript"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/javascript"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/jsx"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/tsx"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/python"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/bash"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/json"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/yaml"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/sql"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/css"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/markup"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/markdown"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/go"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/rust"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/java"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/c"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/cpp"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/docker"),
+        import("react-syntax-highlighter/dist/esm/languages/prism/shell-session"),
+      ])
       if (cancelled) return
       langs.forEach((lang) => {
         if (lang.default) mod.default.registerLanguage(lang.default.name || lang.default, lang.default)
@@ -47,7 +48,7 @@ function LazyHighlighter({ language, code }: { language: string; code: string })
       const SH = mod.default as unknown as ComponentType<SHProps>
       const Wrapped = (props: SHProps) => <SH {...props} style={style} />
       setComponent(() => Wrapped)
-    })
+    })()
     return () => { cancelled = true }
   }, [])
 

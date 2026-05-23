@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+import { getDataDir } from "../config"
 
-const BASE_DIR = `${process.env.HOME}/.kb-chat`
+const BASE_DIR = getDataDir()
 const FILE_PATH = `${BASE_DIR}/session-favorites.json`
 
 export interface SessionFavorite {

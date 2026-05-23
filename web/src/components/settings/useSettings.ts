@@ -63,7 +63,12 @@ export function useSettings(open: boolean) {
 
   useEffect(() => {
     if (open) {
-      getSkillPaths().then(data => setSkillPaths(data.paths || [])).catch((e) => console.warn('[SettingsPanel] getSkillPaths failed:', e))
+      ;(async () => {
+        try {
+          const data = await getSkillPaths()
+          setSkillPaths(data.paths || [])
+        } catch (e) { if (import.meta.env.DEV) console.warn('[SettingsPanel] getSkillPaths failed:', e) }
+      })()
       setScanResult(null)
     }
   }, [open])

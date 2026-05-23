@@ -47,8 +47,9 @@ describe("slugify", () => {
     expect(slugify("React Hooks 最佳实践!")).toBe("react-hooks-最佳实践")
   })
 
-  test("empty string", () => {
-    expect(slugify("")).toBe("")
+  test("empty string returns fallback hash", () => {
+    const result = slugify("")
+    expect(result).toMatch(/^[a-f0-9]{8}$/)
   })
 })
 

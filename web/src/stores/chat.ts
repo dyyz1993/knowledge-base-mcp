@@ -213,7 +213,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           sess.id === targetSessionId ? { ...sess, name } : sess
         ),
       }))
-      api.renameSession(targetSessionId, name).catch((e) => console.warn('[chat] renameSession failed:', e))
+      api.renameSession(targetSessionId, name).catch((e) => { if (import.meta.env.DEV) console.warn('[chat] renameSession failed:', e) })
     }
 
     let textBuffer = ""

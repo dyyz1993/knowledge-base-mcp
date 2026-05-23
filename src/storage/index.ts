@@ -4,7 +4,7 @@ import { parseFrontmatter, buildFrontmatter } from "./markdown"
 import { tfidfSearch, buildIDF, invalidateIDFCache } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
 import { loadVectors, indexDoc, rebuildAllVectors, initDb } from "../search/vector-store"
-import { loadConfig } from "../config"
+import { loadConfig, getKbDir } from "../config"
 import { createLogger } from "../utils/logger.js"
 import { tokenize } from "../utils/tokenizer"
 import { MAX_SEARCH_LIMIT } from "../search/constants"
@@ -12,7 +12,6 @@ import { MAX_SEARCH_LIMIT } from "../search/constants"
 /** Dynamic paths — always read KB_DIR from env at call time for test isolation */
 
 const logger = createLogger("storage:index")
-function getKbDir(): string { return process.env.KB_DIR || `${process.env.HOME}/.knowledge` }
 function getIndexPath(): string { return `${getKbDir()}/index.json` }
 function getMissLogPath(): string { return `${getKbDir()}/miss-log.json` }
 

@@ -8,7 +8,7 @@
  * 4. 首页链接发现（兜底）
  */
 
-import { writeDoc } from "../storage/index.js"
+import { writeDoc, type DocMeta } from "../storage/index.js"
 import { createLogger } from "../utils/logger.js"
 
 const logger = createLogger("ingest:site-ingester")
@@ -371,7 +371,7 @@ async function discoverFromLinks(baseUrl: string, onProgress: ProgressCallback, 
    options: SiteIngestOptions,
    onProgress?: ProgressCallback,
     /** @internal Test injection point — avoids mock.module global pollution */
-    _writeDoc?: (meta: any, content: string) => any,
+    _writeDoc?: (meta: Omit<DocMeta, "id" | "file_path" | "created_at"> & { id?: string; file_path?: string; created_at?: number }, content: string) => DocMeta,
     /** @internal Test injection point — avoids globalThis.fetch pollution */
     _fetchText?: (url: string, timeout?: number) => Promise<string | null>,
   ): Promise<IngestResult> {

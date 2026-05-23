@@ -1,12 +1,15 @@
 import { searchDocs, readDoc, listDocs, writeDoc, getOutline } from "../storage/index.js"
-import { existsSync, readFileSync, writeFileSync, unlinkSync, rmSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { join } from "node:path"
-import { tmpdir } from "node:os"
-import { execSync } from "node:child_process"
 import { expandQuery } from "./query-expander.js"
 import { launchBrowserForScrape, cleanupBrowser } from "./browser-launcher.js"
 import { loadConfig } from "../config.js"
 import { createLogger } from "../utils/logger.js"
+import { executeUrlFetch } from "./tools/url-fetch.js"
+import { executeGitClone } from "./tools/git-clone.js"
+import { executeScanProject } from "./tools/scan-project.js"
+import { executeRunScript } from "./tools/run-script.js"
+import { executeReadFile, executeGrepSearch } from "./tools/file-search.js"
 
 const logger = createLogger("chat:tools")
 
@@ -300,40 +303,6 @@ export const toolDefinitions: OpenAITool[] = [
   ]
 
 
-function buildTree(lines: string[]): string {
-  const root: Record<string, string[]> = {}
-  for (const line of lines) {
-    const clean = line.replace(/^\.\//, "")
-    if (!clean) continue
-    const parts = clean.split("/")
-    const dir = parts.slice(0, -1).join("/")
-    const file = parts[parts.length - 1]
-    if (!root[dir]) root[dir] = []
-    root[dir].push(file)
-  }
-
-  const result: string[] = []
-  const sortedDirs = Object.keys(root).sort()
-
-  for (const dir of sortedDirs) {
-    if (!dir) {
-      const files = root[""].filter(f => !f.includes(".") || f === ".").sort()
-      result.push(...files.map(f => f))
-      continue
-    }
-    const indent = dir.split("/").map(() => "│   ").join("").slice(0, -4) + "├── "
-    const dirName = dir.split("/").pop() || dir
-    result.push(`${indent}${dirName}/`)
-    const items = (root[dir] || []).sort()
-    for (const item of items) {
-      const itemIndent = dir.split("/").map(() => "│   ").join("")
-      result.push(`${itemIndent}├── ${item}`)
-    }
-  }
-
-  return result.join("\n")
-}
-
 export type ToolProgressCallback = (progress: { step: string; status: string; output?: unknown }) => void
 
 export async function executeTool(
@@ -460,89 +429,7 @@ export async function executeTool(
       return header + body
     }
     case "scan_project": {
-      const projectPath = String(args.path ?? "")
-      if (!projectPath) return "Project path is required."
-      if (!existsSync(projectPath)) return `Directory not found: ${projectPath}`
-
-      const shouldSave = args.save === true
-      const results: string[] = []
-      const projectName = projectPath.split("/").pop() || projectPath
-
-      const pkgPath = join(projectPath, "package.json")
-      if (existsSync(pkgPath)) {
-        const pkg = JSON.parse(await Bun.file(pkgPath).text())
-        results.push(`## package.json`)
-        results.push(`Name: ${pkg.name || projectName}`)
-        results.push(`Version: ${pkg.version || "N/A"}`)
-        results.push(`Description: ${pkg.description || "N/A"}`)
-        if (pkg.dependencies) results.push(`Dependencies: ${Object.keys(pkg.dependencies).join(", ")}`)
-        if (pkg.devDependencies) results.push(`DevDependencies: ${Object.keys(pkg.devDependencies).join(", ")}`)
-        if (pkg.scripts) results.push(`Scripts: ${Object.keys(pkg.scripts).join(", ")}`)
-      }
-
-      const readmePath = join(projectPath, "README.md")
-      if (existsSync(readmePath)) {
-        const readme = await Bun.file(readmePath).text()
-        const lines = readme.split("\n").slice(0, 30)
-        results.push(`\n## README.md (前30行)`)
-        results.push(lines.join("\n"))
-      }
-
-      results.push(`\n## 目录结构（树状）`)
-      try {
-        const treeOutput = execSync(
-          `cd "${projectPath}" && find . -maxdepth 4 -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -not -path '*/.next/*' -not -path '*/build/*' -not -path '*/coverage/*' | sort | head -150`,
-          { encoding: "utf-8", timeout: 10000 }
-        )
-        const lines = treeOutput.trim().split("\n")
-        const tree = buildTree(lines)
-        results.push(`${projectName}/\n${tree}`)
-      } catch (e) {
-        logger.warn(e instanceof Error ? e.message : String(e))
-        results.push("(无法获取目录结构)")
-      }
-
-      const configFiles = ["tsconfig.json", "vite.config.ts", "vite.config.js", "next.config.ts", "next.config.js", "nuxt.config.ts", "tailwind.config.ts", "tailwind.config.js", ".eslintrc.js", ".eslintrc.json"]
-      for (const cf of configFiles) {
-        const fp = join(projectPath, cf)
-        if (existsSync(fp)) {
-          const content = await Bun.file(fp).text()
-          const lines = content.split("\n").slice(0, 20)
-          results.push(`\n## ${cf}`)
-          results.push(lines.join("\n"))
-        }
-      }
-
-      const srcPath = join(projectPath, "src")
-      if (existsSync(srcPath)) {
-        try {
-          const srcOutput = await Bun.$`find ${srcPath} -maxdepth 2 -type f -not -path '*/node_modules/*' | head -50`.text()
-          results.push(`\n## src/ 文件结构`)
-          results.push(srcOutput)
-        } catch (e) {
-          logger.warn(e instanceof Error ? e.message : String(e))
-        }
-      }
-
-      const scanContent = results.join("\n")
-
-      if (shouldSave) {
-        const doc = writeDoc({
-          title: `${projectName} 项目扫描报告`,
-          tags: ["reference", "architecture"],
-          keywords: [projectName, "项目扫描", "project-scan"],
-          intent: `项目 ${projectName} 的自动扫描报告`,
-          project_description: projectName,
-          project_path: projectPath,
-          source_project: projectPath,
-          source_worktree: "",
-          related_projects: [],
-          related_files: [],
-        }, scanContent)
-        return `✅ 项目扫描完成并已存入知识库:\n  ID: ${doc.id}\n  Title: ${doc.title}\n\n${scanContent}`
-      }
-
-      return `📋 项目扫描结果 (${projectName}):\n\n${scanContent}\n\n💡 提示: 如需保存到知识库，可以让我用 kb_write 存储。`
+      return executeScanProject(args)
     }
     case "browser_scrape": {
       const { url, format = "markdown", selector, max_length = 10000 } = args as { url: string; format?: string; selector?: string; timeout?: number; max_length?: number }
@@ -721,142 +608,19 @@ export async function executeTool(
       return combined.slice(0, max_length)
     }
     case "url_fetch": {
-      const { url, max_length = 10000 } = args as { url: string; max_length?: number }
-
-      if (!url.startsWith("http://") && !url.startsWith("https://")) {
-        return "URL 必须以 http:// 或 https:// 开头"
-      }
-
-      try {
-        const result = execSync(`curl -sL --max-time 15 "${url}"`, { encoding: "utf-8", timeout: 20000, maxBuffer: 2 * 1024 * 1024 })
-
-        let text = result
-        if (text.includes("<html") || text.includes("<!DOCTYPE")) {
-          text = text
-            .replace(/<script[\s\S]*?<\/script>/gi, "")
-            .replace(/<style[\s\S]*?<\/style>/gi, "")
-            .replace(/<br\s*\/?>/gi, "\n")
-            .replace(/<\/p>/gi, "\n")
-            .replace(/<\/h[1-6]>/gi, "\n")
-            .replace(/<\/li>/gi, "\n")
-            .replace(/<\/div>/gi, "\n")
-            .replace(/<[^>]+>/g, "")
-            .replace(/&nbsp;/g, " ")
-            .replace(/&amp;/g, "&")
-            .replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
-            .replace(/&quot;/g, '"')
-            .replace(/\n{3,}/g, "\n\n")
-            .trim()
-        }
-
-        return text.slice(0, max_length) || "(无内容)"
-      } catch (e: unknown) {
-        return `访问失败: ${e instanceof Error ? e.message : String(e)}`
-      }
+      return executeUrlFetch(args)
     }
     case "git_clone": {
-      const { url, branch, depth = 1 } = args as { url: string; branch?: string; depth?: number }
-
-      if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("git://")) {
-        return "URL 必须以 http://, https:// 或 git:// 开头"
-      }
-
-      const repoName = url.split("/").pop()?.replace(".git", "") || "repo"
-      const targetDir = join(tmpdir(), `kb-clone-${repoName}-${Date.now()}`)
-
-      try {
-        let cmd = `git clone --depth=${depth}`
-        if (branch) cmd += ` --branch ${branch}`
-        cmd += ` "${url}" "${targetDir}"`
-
-        execSync(cmd, { encoding: "utf-8", timeout: 120000 })
-
-        const structure = execSync(
-          `cd "${targetDir}" && find . -maxdepth 3 -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' | head -100`,
-          { encoding: "utf-8" }
-        )
-
-        return JSON.stringify({
-          path: targetDir,
-          message: `已克隆到 ${targetDir}`,
-          structure: structure.trim(),
-        })
-      } catch (e: unknown) {
-        try { rmSync(targetDir, { recursive: true }) } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
-        return `克隆失败: ${e instanceof Error ? e.message : String(e)}`
-      }
+      return executeGitClone(args)
     }
     case "read_file": {
-      const p = String(args.path ?? "")
-      if (!p) return "File path is required."
-      if (p.includes("..")) return "安全限制：路径不允许包含 .."
-      if (!existsSync(p)) return `File not found: ${p}`
-      const offset = Number(args.offset) || 0
-      const limit = Number(args.limit) || 100
-      try {
-        const content = readFileSync(p, "utf-8")
-        const lines = content.split("\n")
-        const sliced = lines.slice(offset, offset + limit)
-        const header = offset > 0
-          ? `(第 ${offset + 1}-${Math.min(offset + limit, lines.length)} 行，共 ${lines.length} 行)\n\n`
-          : `(共 ${lines.length} 行，显示前 ${sliced.length} 行)\n\n`
-        return header + sliced.map((l, i) => `${offset + i + 1}: ${l}`).join("\n")
-      } catch (e) {
-        return `Error reading file: ${e instanceof Error ? e.message : String(e)}`
-      }
+      return executeReadFile(args)
     }
     case "grep_search": {
-      const pattern = String(args.pattern ?? "")
-      if (!pattern) return "Search pattern is required."
-      const dir = String(args.path ?? ".")
-      if (dir.includes("..")) return "安全限制：路径不允许包含 .."
-      const include = args.include ? String(args.include) : "*"
-      const maxResults = Number(args.max_results) || 20
-      try {
-        const cmd = `grep -rn --include='${include}' -E "${pattern.replace(/"/g, '\\"')}" "${dir}" 2>/dev/null | head -${maxResults}`
-        const result = execSync(cmd, { encoding: "utf-8", timeout: 10000, maxBuffer: 512 * 1024 })
-        if (!result.trim()) return `No matches found for pattern "${pattern}" in ${dir}`
-        return result.trim()
-      } catch (e: unknown) {
-        const err = e as { status?: number; message?: string }
-        if (err.status === 1) return `No matches found for pattern "${pattern}" in ${dir}`
-        return `搜索失败: ${err.message || String(e)}`
-      }
+      return executeGrepSearch(args)
     }
     case "run_script": {
-      const language = String((args as { language: string; code: string }).language ?? "")
-      const code = String((args as { language: string; code: string }).code ?? "")
-      if (!language || !code) return "language and code are required."
-
-      const forbidden = /writeFile|writeSync|mkdir|rmdir|unlink|rename|chmod|fork|exec\s*\(|spawn|child_process/
-      if (forbidden.test(code)) return "安全限制：脚本不允许执行写操作或子进程操作"
-
-      try {
-        if (language === "python") {
-          const tmpFile = join(tmpdir(), `kb-script-${Date.now()}.py`)
-          writeFileSync(tmpFile, code, "utf-8")
-          try {
-            const result = execSync(`timeout 30 python3 "${tmpFile}" 2>&1`, { encoding: "utf-8", timeout: 35000, maxBuffer: 1024 * 1024 })
-            return result.slice(0, 5000) || "(脚本执行成功，无输出)"
-          } finally {
-            unlinkSync(tmpFile)
-          }
-        } else {
-          const tmpFile = join(tmpdir(), `kb-script-${Date.now()}.ts`)
-          writeFileSync(tmpFile, code, "utf-8")
-          try {
-            const result = execSync(`timeout 30 bun run "${tmpFile}" 2>&1`, { encoding: "utf-8", timeout: 35000, maxBuffer: 1024 * 1024 })
-            return result.slice(0, 5000) || "(脚本执行成功，无输出)"
-          } finally {
-            unlinkSync(tmpFile)
-          }
-        }
-      } catch (e: unknown) {
-        const err = e as { stdout?: string; stderr?: string; message?: string }
-        const output = err.stdout || err.stderr || err.message || String(e)
-        return `脚本执行错误: ${output.slice(0, 2000)}`
-      }
+      return executeRunScript(args)
     }
     case "kb_research": {
       const query = String(args.query || "")

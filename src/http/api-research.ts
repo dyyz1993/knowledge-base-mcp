@@ -241,7 +241,7 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
       const agent = new ResearchEvolutionAgent(
         {
           maxCycles: body.maxCycles || 3,
-          serverUrl: body.serverUrl || `http://localhost:${process.argv.includes("--port") ? process.argv[process.argv.indexOf("--port") + 1] : "19877"}`,
+          serverUrl: body.serverUrl || (() => { const i = process.argv.indexOf("--port"); return `http://localhost:${i >= 0 ? process.argv[i + 1] : "19877"}` })(),
           model: body.model || { provider: "zhipuai", id: "glm-5.1" },
           smallModel: body.smallModel || { provider: "zhipuai", id: "glm-4-flash" },
           targetMetrics: body.targetMetrics || undefined,

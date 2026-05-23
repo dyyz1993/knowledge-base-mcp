@@ -102,6 +102,7 @@ function resolveCdpUrl(cdpEndpoint: string): string {
     // Return the endpoint as-is for now — the caller should pre-resolve
     return cdpEndpoint
   } catch {
+    /* 忽略: CDP URL 解析失败时返回原始端点 */
     return cdpEndpoint
   }
 }
@@ -290,11 +291,13 @@ async function cleanupTabs(cdpEndpoint: string): Promise<void> {
     for (let i = 1; i < closeable.length; i++) {
       try {
         await fetch(`${httpBase}/json/close/${closeable[i].id}`, { signal: AbortSignal.timeout(2000) })
-      } catch {}
+      } catch {
+        /* 忽略: 关闭单个 tab 失败不影响主流程 */
+      }
     }
     logger.debug(`cleanupTabs: closed ${closeable.length - 1}/${tabs.length} tabs`)
   } catch {
-    // Tab cleanup is best-effort
+    /* 忽略: Tab 清理是 best-effort 操作 */
   }
 }
 
@@ -365,7 +368,7 @@ export class XBrowserCLI {
           return []
         }
       } catch {
-        // JSON parse also failed, try line-based fallback
+        /* 忽略: JSON/YAML 解析失败，回退到行级解析 */
         const fallbackResults = parseLineBasedFallback(raw)
         if (fallbackResults.length > 0) {
           logger.debug(`search("${query}") engine=${this.config.engine}: parsed ${fallbackResults.length} results from line-based fallback`)
@@ -393,7 +396,7 @@ export class XBrowserCLI {
       logger.debug(`search FAILED engine=${this.config.engine} query="${query}": ${e instanceof Error ? e.message : String(e)}`)
       return []
     } finally {
-      cleanupTabs(this.config.cdpEndpoint).catch(() => {})
+      cleanupTabs(this.config.cdpEndpoint).catch((e) => { logger.debug("cleanupTabs in finally failed", e instanceof Error ? e.message : String(e)) })
     }
   }
 
@@ -420,6 +423,7 @@ export class XBrowserCLI {
           content: parsed.content || parsed.markdown || "",
         }
       } catch {
+        /* 忽略: JSON 解析失败，回退到纯文本解析 */
         const lines = raw.split("\n")
         const titleLine = lines[0] || ""
         const title = titleLine.startsWith("# ")
@@ -432,6 +436,7 @@ export class XBrowserCLI {
         }
       }
     } catch {
+      /* 忽略: scrape 整体失败返回 null */
       return null
     }
   }
@@ -470,6 +475,7 @@ export class XBrowserCLI {
 
       return []
     } catch {
+      /* 忽略: map URL 发现失败返回空数组 */
       return []
     }
   }
@@ -550,6 +556,7 @@ export class XBrowserCLI {
         })
         .filter((r): r is ScrapeResult => r !== null && r.url !== "")
     } catch {
+      /* 忽略: crawl 失败返回空数组 */
       return []
     }
   }

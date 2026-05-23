@@ -56,7 +56,7 @@ export async function streamChat(params: {
   const heartbeatCheck = setInterval(() => {
     if (Date.now() - lastEventTime > heartbeatTimeout) {
       params.onError("SSE 心跳超时: 30秒未收到数据")
-      reader.cancel().catch((e) => console.warn('[chat] reader.cancel failed:', e))
+      reader.cancel().catch((e) => { if (import.meta.env.DEV) console.warn('[chat] reader.cancel failed:', e) })
       clearInterval(heartbeatCheck)
     }
   }, 5000)

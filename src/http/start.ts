@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs"
 import { join, extname, resolve } from "node:path"
-import { createServer } from "node:http"
+import { createServer, type IncomingMessage } from "node:http"
 import { handleChat } from "../chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "../chat/api-models.js"
 import { handleListSessions, handleCreateSession, handleDeleteSession, handleGetMessages, handleRenameSession } from "../chat/api-sessions.js"
@@ -40,7 +40,7 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
   const apiKey = options?.apiKey ?? process.env.KB_API_KEY
   const requireAuth = !!apiKey
 
-  function checkAuth(req: any): boolean {
+  function checkAuth(req: IncomingMessage): boolean {
     if (!requireAuth) return true
     const auth = req.headers["authorization"] || ""
     return auth === `Bearer ${apiKey}`

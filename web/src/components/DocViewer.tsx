@@ -85,11 +85,13 @@ function MermaidBlock({ code }: { code: string }) {
   useEffect(() => {
     if (!ref.current || !code.trim()) return
     let cancelled = false
-    import("mermaid").then(m => {
+    ;(async () => {
+      const m = await import("mermaid")
       if (cancelled) return
       m.default.initialize({ startOnLoad: false, theme: "dark", themeVariables: { background: "#18181b", primaryColor: "#3b82f6" } })
       const id = "mermaid-" + Math.random().toString(36).slice(2, 8)
-      m.default.render(id, code).then(({ svg }) => {
+      try {
+        const { svg } = await m.default.render(id, code)
         if (!cancelled && ref.current) {
           try {
             ref.current.innerHTML = sanitizeSvg(svg)
@@ -97,10 +99,10 @@ function MermaidBlock({ code }: { code: string }) {
             ref.current.textContent = svg
           }
         }
-      }).catch((e: unknown) => {
+      } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
-      })
-    })
+      }
+    })()
     return () => { cancelled = true }
   }, [code])
 

@@ -1,11 +1,12 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { createLogger } from "../utils/logger.js"
+import { getDataDir } from "../config"
 
 
 const logger = createLogger("chat:store-sessions")
 function getSessionsDir(): string {
-  return `${process.env.HOME}/.kb-chat/sessions`
+  return join(getDataDir(), "sessions")
 }
 
 export interface ChatSession {

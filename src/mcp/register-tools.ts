@@ -5,7 +5,7 @@ import { z } from "zod"
 import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateOutline, slugify, searchDocsSemantic, searchDocsCombined, listAllOutlines, rebuildAllVectors, getAllKeywords, listRecentDocs, recordMiss, resolveMiss, getMissStats } from "../storage/index.js"
 import { kbAskPipeline } from "../search/kb-ask-pipeline.js"
 import { mcpStats } from "../statistics/index.js"
-import { loadConfig } from "../config.js"
+import { loadConfig, getKbDir } from "../config.js"
 import { createLogger } from "../utils/logger.js"
 
 
@@ -764,7 +764,7 @@ ${keyFiles}
     "检查知识库中 related_files 引用的文件是否已变更，返回过期文档列表。",
     {},
     async () => {
-      const idx = readFileSync(`${process.env.KB_DIR || `${process.env.HOME}/.knowledge`}/index.json`, "utf-8")
+      const idx = readFileSync(`${getKbDir()}/index.json`, "utf-8")
       interface IndexDoc { id: string; title: string; related_files?: string[]; updated_at?: number }
       const docs = JSON.parse(idx).documents as Record<string, IndexDoc>
       const stale: Array<{ id: string; title: string; file: string; doc_updated: number; file_modified: number }> = []

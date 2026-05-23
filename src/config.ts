@@ -5,8 +5,17 @@ import { createLogger } from "./utils/logger.js"
 
 
 const logger = createLogger("config")
-const CONFIG_DIR = join(homedir(), ".kb-chat")
-const CONFIG_PATH = join(CONFIG_DIR, "config.json")
+
+export function getDataDir(): string {
+  return process.env.KB_DIR || join(homedir(), ".kb-chat")
+}
+
+export function getKbDir(): string {
+  return process.env.KB_DIR || join(homedir(), ".knowledge")
+}
+
+function getConfigDir(): string { return getDataDir() }
+function getConfigPath(): string { return join(getConfigDir(), "config.json") }
 const CONFIG_CACHE_TTL = Number(process.env.KB_CONFIG_CACHE_TTL_MS) || 5000
 
 let configCache: AppConfig | null = null
@@ -208,8 +217,8 @@ export function loadConfig(forceReload = false): AppConfig {
   }
 
   try {
-    if (existsSync(CONFIG_PATH)) {
-      const raw = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"))
+    if (existsSync(getConfigPath())) {
+      const raw = JSON.parse(readFileSync(getConfigPath(), "utf-8"))
       const result: AppConfig = {
         ...DEFAULT_CONFIG,
         ...raw,
@@ -261,8 +270,8 @@ export function loadConfig(forceReload = false): AppConfig {
 
 export function saveConfig(config: AppConfig): void {
   configCache = null
-  if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true })
-  const tmpPath = CONFIG_PATH + ".tmp"
+  if (!existsSync(getConfigDir())) mkdirSync(getConfigDir(), { recursive: true })
+  const tmpPath = getConfigPath() + ".tmp"
   writeFileSync(tmpPath, JSON.stringify(config, null, 2), "utf-8")
-  renameSync(tmpPath, CONFIG_PATH)
+  renameSync(tmpPath, getConfigPath())
 }

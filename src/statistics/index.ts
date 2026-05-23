@@ -1,10 +1,12 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs"
 import { readFile, writeFile, rename } from "node:fs/promises"
+import { join } from "node:path"
 import { createLogger } from "../utils/logger.js"
+import { getDataDir } from "../config"
 
 
 const logger = createLogger("statistics:index")
-const STATS_DIR = `${process.env.HOME}/.kb-chat/stats`
+const STATS_DIR = join(getDataDir(), "stats")
 const SEARCH_STATS_PATH = `${STATS_DIR}/search.json`
 const LLM_STATS_PATH = `${STATS_DIR}/llm.json`
 const EMBEDDING_STATS_PATH = `${STATS_DIR}/embedding.json`

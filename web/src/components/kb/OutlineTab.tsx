@@ -13,7 +13,9 @@ export function OutlineTab() {
   const [expandedLoading, setExpandedLoading] = useState(false)
 
   useEffect(() => {
-    fetchOutlines().then(setProjects).catch((e) => console.warn('[KBPanel] fetchOutlines failed:', e))
+    ;(async () => {
+      try { const data = await fetchOutlines(); setProjects(data) } catch (e) { if (import.meta.env.DEV) console.warn('[KBPanel] fetchOutlines failed:', e) }
+    })()
   }, [])
 
   useEffect(() => {
@@ -23,7 +25,7 @@ export function OutlineTab() {
       }
       return
     }
-    fetchOutline(selectedProject).then(setOutline).catch(() => setOutline(null))
+    ;(async () => { try { const data = await fetchOutline(selectedProject); setOutline(data) } catch { setOutline(null) } })()
   }, [selectedProject, projects])
 
   const toggleDoc = useCallback(async (doc: OutlineDoc) => {

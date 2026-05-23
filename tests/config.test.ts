@@ -1,36 +1,23 @@
 import { test, expect, describe, beforeEach, afterEach } from "bun:test"
 import { join } from "node:path"
-import { homedir } from "node:os"
-import { existsSync, mkdirSync, writeFileSync, rmSync, renameSync } from "node:fs"
-import { loadConfig, saveConfig, clearConfigCache } from "../src/config"
+import { tmpdir } from "node:os"
+import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs"
 
-const CONFIG_DIR = join(homedir(), ".kb-chat")
-const CONFIG_PATH = join(CONFIG_DIR, "config.json")
-const BACKUP_PATH = CONFIG_PATH + ".bak"
+const TEST_DIR = join(tmpdir(), `kb-config-test-${Date.now()}`)
+process.env.KB_DIR = TEST_DIR
 
-function backupConfig() {
-  if (existsSync(CONFIG_PATH)) {
-    renameSync(CONFIG_PATH, BACKUP_PATH)
-  }
-}
+const { loadConfig, saveConfig, clearConfigCache } = await import("../src/config")
 
-function restoreConfig() {
-  if (existsSync(BACKUP_PATH)) {
-    renameSync(BACKUP_PATH, CONFIG_PATH)
-  } else if (existsSync(CONFIG_PATH)) {
-    rmSync(CONFIG_PATH)
-  }
-}
+const CONFIG_PATH = join(TEST_DIR, "config.json")
 
 describe("config", () => {
   beforeEach(() => {
-    backupConfig()
     clearConfigCache()
   })
 
   afterEach(() => {
     clearConfigCache()
-    restoreConfig()
+    if (existsSync(CONFIG_PATH)) rmSync(CONFIG_PATH)
   })
 
   describe("DEFAULT_CONFIG values", () => {
@@ -123,7 +110,7 @@ describe("config", () => {
       }
 
       clearConfigCache()
-      if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true })
+      if (!existsSync(TEST_DIR)) mkdirSync(TEST_DIR, { recursive: true })
       writeFileSync(CONFIG_PATH, JSON.stringify(partialConfig), "utf-8")
 
       const config = loadConfig()
@@ -137,7 +124,7 @@ describe("config", () => {
 
     test("should handle corrupt config file gracefully", () => {
       clearConfigCache()
-      if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true })
+      if (!existsSync(TEST_DIR)) mkdirSync(TEST_DIR, { recursive: true })
       writeFileSync(CONFIG_PATH, "not valid json{{{", "utf-8")
 
       const config = loadConfig()
@@ -166,7 +153,7 @@ describe("config", () => {
       }
 
       clearConfigCache()
-      if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true })
+      if (!existsSync(TEST_DIR)) mkdirSync(TEST_DIR, { recursive: true })
       writeFileSync(CONFIG_PATH, JSON.stringify(override), "utf-8")
 
       const config = loadConfig()

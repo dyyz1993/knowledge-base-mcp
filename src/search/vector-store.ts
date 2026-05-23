@@ -4,11 +4,12 @@ import { existsSync, readFileSync, mkdirSync, statSync } from "node:fs"
 import { embed, embedBatch, docToSearchableText } from "./embedding"
 import type { DocMeta } from "../storage/index"
 import { createLogger } from "../utils/logger.js"
+import { getKbDir } from "../config"
 
 
 const logger = createLogger("search:vector-store")
 function getDir() {
-  return process.env.KB_DIR || `${process.env.HOME}/.knowledge`
+  return getKbDir()
 }
 
 function dbPath() {

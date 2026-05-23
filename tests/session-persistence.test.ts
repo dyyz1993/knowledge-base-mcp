@@ -3,10 +3,10 @@ import { existsSync, rmSync, readFileSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import os from "node:os"
 
-const tmpHome = join(os.tmpdir(), `kb-session-test-${Date.now()}`)
-const origHome = process.env.HOME
-process.env.HOME = tmpHome
-mkdirSync(join(tmpHome, ".kb-chat", "sessions"), { recursive: true })
+const tmpDir = join(os.tmpdir(), `kb-session-test-${Date.now()}`)
+const origKBDir = process.env.KB_DIR
+process.env.KB_DIR = join(tmpDir, ".kb-chat")
+mkdirSync(join(tmpDir, ".kb-chat", "sessions"), { recursive: true })
 
 const store = await import("../src/chat/store-sessions")
 const session = await import("../src/chat/session")
@@ -20,8 +20,8 @@ afterAll(() => {
   for (const id of createdSessions) {
     try { deleteSession(id) } catch {}
   }
-  if (existsSync(tmpHome)) rmSync(tmpHome, { recursive: true })
-  process.env.HOME = origHome
+  if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true })
+  process.env.KB_DIR = origKBDir
 })
 
 function track(id: string) {
@@ -156,7 +156,7 @@ describe("session.jsonl file format", () => {
     track(sess.id)
     appendMessage(sess.id, { role: "user", content: "hi", timestamp: Date.now() })
 
-    const path = join(tmpHome, ".kb-chat", "sessions", `${sess.id}.jsonl`)
+    const path = join(tmpDir, ".kb-chat", "sessions", `${sess.id}.jsonl`)
     expect(existsSync(path)).toBe(true)
 
     const lines = readFileSync(path, "utf-8").trim().split("\n")
@@ -176,7 +176,7 @@ describe("readMessages validates role types", () => {
   test("only returns messages with valid roles", () => {
     const sess = createSession()
     track(sess.id)
-    const path = join(tmpHome, ".kb-chat", "sessions", `${sess.id}.jsonl`)
+    const path = join(tmpDir, ".kb-chat", "sessions", `${sess.id}.jsonl`)
 
     const { appendFileSync } = require("node:fs")
     appendFileSync(path, JSON.stringify({ role: "user", content: "hi", timestamp: 1 }) + "\n")

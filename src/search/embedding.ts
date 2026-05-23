@@ -10,7 +10,12 @@ import { createLogger } from "../utils/logger.js"
 
 const logger = createLogger("search:embedding")
 let transformersAvailable = true
-let pipelineFn: any = null
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamically loaded @huggingface/transformers pipeline; types are not available at compile time
+type PipelineFn = (...args: any[]) => Promise<any>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- embedder returned by pipeline(); opaque runtime object
+type EmbedderType = (input: string | string[], options: Record<string, unknown>) => Promise<{ data: Float32Array; [key: string]: unknown }>
+
+let pipelineFn: PipelineFn | null = null
 let envConfigured = false
 
 const embeddingCache = new Map<string, number[]>()
@@ -59,16 +64,16 @@ async function loadTransformers() {
   }
 }
 
-let embedder: any = null
+let embedder: EmbedderType | null = null
 
 async function embedLocal(text: string): Promise<number[]> {
   const pipe = await loadTransformers()
   if (!pipe) throw new Error("Semantic search unavailable: @huggingface/transformers not installed")
   if (!embedder) {
-    embedder = await pipe("feature-extraction", "Xenova/paraphrase-multilingual-MiniLM-L12-v2", {
+    embedder = (await pipe("feature-extraction", "Xenova/paraphrase-multilingual-MiniLM-L12-v2", {
       dtype: "fp32",
       local_files_only: true,
-    })
+    })) as unknown as EmbedderType
   }
   const output = await embedder(text, { pooling: "mean", normalize: true })
   return Array.from(output.data) as number[]
@@ -149,10 +154,10 @@ async function embedBatchExternal(texts: string[]): Promise<number[][]> {
     throw new Error(`Embedding API error: ${resp.status} ${err}`)
   }
 
-  const data = await resp.json()
+  const data = await resp.json() as { data: { index: number; embedding: number[] }[] }
   return data.data
-    .sort((a: any, b: any) => a.index - b.index)
-    .map((d: any) => d.embedding)
+    .sort((a, b) => a.index - b.index)
+    .map((d) => d.embedding)
 }
 
 async function embedBatchLocal(texts: string[]): Promise<number[][]> {
@@ -164,10 +169,10 @@ async function embedBatchLocal(texts: string[]): Promise<number[][]> {
   if (!pipe) throw new Error("Semantic search unavailable: @huggingface/transformers not installed")
 
   if (!embedder) {
-    embedder = await pipe("feature-extraction", "Xenova/paraphrase-multilingual-MiniLM-L12-v2", {
+    embedder = (await pipe("feature-extraction", "Xenova/paraphrase-multilingual-MiniLM-L12-v2", {
       dtype: "fp32",
       local_files_only: true,
-    })
+    })) as unknown as EmbedderType
   }
 
   const BATCH_SIZE = 32
@@ -177,7 +182,7 @@ async function embedBatchLocal(texts: string[]): Promise<number[][]> {
     const batch = texts.slice(i, i + BATCH_SIZE)
     const outputs = await embedder(batch, { pooling: "mean", normalize: true })
     for (let j = 0; j < batch.length; j++) {
-      const row = outputs[j as number]
+      const row = (outputs as unknown as Record<number, { data: Float32Array }>)[j]
       results.push(Array.from(row.data) as number[])
     }
   }
