@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react"
 import { Search, FileText, Tag, Plus, ChevronDown, ChevronRight } from "lucide-react"
+import { Empty } from "antd"
 import { readDoc } from "../../services/api"
 import { MarkdownRenderer } from "../MarkdownRenderer"
 
@@ -138,10 +139,14 @@ export function SearchTab({
           </div>
         ))}
         {kbQuery && kbResults.length === 0 && (
-          <div className="text-xs text-zinc-600 text-center py-4">No results</div>
+          <div className="py-8">
+            <Empty description={<span className="text-xs text-zinc-500">未找到匹配的文档</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          </div>
         )}
         {!kbQuery && (
-          <div className="text-xs text-zinc-600 text-center py-4">Search to find documents</div>
+          <div className="py-8">
+            <Empty description={<span className="text-xs text-zinc-500">输入关键词搜索知识库</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          </div>
         )}
       </div>
     </>

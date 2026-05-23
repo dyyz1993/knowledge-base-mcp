@@ -20,6 +20,7 @@ import {
   MIN_RESULTS_FOR_COMPLETE,
   MIN_CONTENT_LENGTH,
   MIN_SHORT_CONTENT_LENGTH,
+  AUTO_COMPLETE_THRESHOLD,
   RRF_K,
 } from "./constants"
 
@@ -431,6 +432,23 @@ export async function kbAskPipeline(
     if (best.score >= highScoreThreshold) {
       const full = readDoc(best.id, false)
       const content = full ? full.content : ""
+
+      const canAutoComplete = best.score >= AUTO_COMPLETE_THRESHOLD && content.length >= MIN_CONTENT_LENGTH
+      if (canAutoComplete) {
+        const baseResult: AskResult = {
+          from_kb: true,
+          id: best.id,
+          title: best.title,
+          score: best.score,
+          content: content.slice(0, 4000),
+          quality: "high",
+          completeness: "complete",
+          loops_used: loop,
+          queries_used: allQueriesUsed,
+          hint: `Auto-complete: high score skip LLM evaluation (score=${best.score}, content=${content.length}c, loop=${loop})`,
+        }
+        return baseResult
+      }
 
       try {
         const evaluation = await evaluateQuality(query, intent, best, content, results, llm)

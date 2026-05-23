@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, type ReactNode } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, MessageSquare } from "lucide-react"
 import { useChatStore, type TimelineEvent } from "../stores/chat"
 import type { TokenUsage } from "../services/api"
 import CopyButton from "./CopyButton"
@@ -159,8 +159,9 @@ export default function ChatPanel() {
     <div className="flex flex-col h-full">
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 md:px-4 py-3 space-y-3" role="log" aria-label="聊天记录" aria-live="polite">
         {messages.length === 0 && !isStreaming && (
-          <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
-            Send a message to start chatting
+          <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-2">
+            <MessageSquare size={28} className="text-zinc-700" />
+            <span className="text-xs text-zinc-500">发送消息开始聊天</span>
           </div>
         )}
 

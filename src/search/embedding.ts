@@ -13,6 +13,35 @@ let transformersAvailable = true
 let pipelineFn: any = null
 let envConfigured = false
 
+const embeddingCache = new Map<string, number[]>()
+const MAX_CACHE_SIZE = 500
+
+function getCacheKey(text: string): string {
+  return `${text.length}:${text}`
+}
+
+function cacheGet(text: string): number[] | undefined {
+  return embeddingCache.get(getCacheKey(text))
+}
+
+function cacheSet(text: string, embedding: number[]): void {
+  const key = getCacheKey(text)
+  if (embeddingCache.has(key)) {
+    embeddingCache.delete(key)
+    embeddingCache.set(key, embedding)
+    return
+  }
+  if (embeddingCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = embeddingCache.keys().next().value
+    if (firstKey !== undefined) embeddingCache.delete(firstKey)
+  }
+  embeddingCache.set(key, embedding)
+}
+
+export function clearEmbeddingCache(): void {
+  embeddingCache.clear()
+}
+
 async function loadTransformers() {
   if (pipelineFn) return pipelineFn
   try {
@@ -72,6 +101,9 @@ async function embedExternal(text: string): Promise<number[]> {
 }
 
 export async function embed(text: string): Promise<number[]> {
+  const cached = cacheGet(text)
+  if (cached) return cached
+
   const config = loadConfig()
   const t0 = Date.now()
   let result: number[]
@@ -91,6 +123,7 @@ export async function embed(text: string): Promise<number[]> {
   const tokens = text.length
   embeddingStats.recordCall(tokens, ms)
 
+  cacheSet(text, result)
   return result
 }
 
@@ -155,17 +188,42 @@ async function embedBatchLocal(texts: string[]): Promise<number[][]> {
 export async function embedBatch(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return []
 
-  const config = loadConfig()
+  const results: number[][] = new Array(texts.length)
+  const toCompute: { index: number; text: string }[] = []
 
-  if (config.embedding.enabled && config.embedding.apiKey) {
-    try {
-      return await embedBatchExternal(texts)
-    } catch (e) {
-      logger.error("External batch embedding failed, falling back to local:", e)
+  for (let i = 0; i < texts.length; i++) {
+    const cached = cacheGet(texts[i])
+    if (cached) {
+      results[i] = cached
+    } else {
+      toCompute.push({ index: i, text: texts[i] })
     }
   }
 
-  return embedBatchLocal(texts)
+  if (toCompute.length === 0) return results
+
+  const computeTexts = toCompute.map(t => t.text)
+  let computed: number[][]
+
+  const config = loadConfig()
+  if (config.embedding.enabled && config.embedding.apiKey) {
+    try {
+      computed = await embedBatchExternal(computeTexts)
+    } catch (e) {
+      logger.error("External batch embedding failed, falling back to local:", e)
+      computed = await embedBatchLocal(computeTexts)
+    }
+  } else {
+    computed = await embedBatchLocal(computeTexts)
+  }
+
+  for (let i = 0; i < toCompute.length; i++) {
+    const { index, text } = toCompute[i]
+    results[index] = computed[i]
+    cacheSet(text, computed[i])
+  }
+
+  return results
 }
 
 export function cosineSimilarityVec(a: number[], b: number[]): number {

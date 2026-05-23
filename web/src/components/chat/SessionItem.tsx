@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Trash2, MessageSquare, Loader2, Star } from "lucide-react"
+import { message } from "antd"
 import { useChatStore } from "../../stores/chat"
 import { buildShareUrl } from "../../services/api"
 import { SessionContextMenu } from "./SessionContextMenu"
@@ -25,7 +26,6 @@ export function SessionItem({
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState("")
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
   const editRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -34,12 +34,6 @@ export function SessionItem({
       editRef.current.select()
     }
   }, [editing])
-
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 2000)
-    return () => clearTimeout(t)
-  }, [toast])
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -90,9 +84,9 @@ export function SessionItem({
     try {
       const url = buildShareUrl(session.id)
       await copyText(url)
-      setToast("已复制分享链接")
+      message.success("已复制分享链接")
     } catch {
-      setToast("分享失败")
+      message.error("分享失败")
     }
   }, [session.id, copyText])
 
@@ -163,11 +157,6 @@ export function SessionItem({
         >
           <Trash2 size={12} />
         </button>
-        {toast && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-zinc-700 text-xs text-zinc-100 whitespace-nowrap z-[100] shadow-xl border border-zinc-600" role="status" aria-live="polite">
-            {toast}
-          </div>
-        )}
       </div>
 
       {contextMenu && (

@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react"
+import { Empty } from "antd"
 import { useChatStore } from "../../stores/chat"
 import { SessionItem } from "./SessionItem"
 
@@ -41,7 +42,9 @@ export default function SessionList() {
           />
         ))}
         {sessions.length === 0 && (
-          <div className="text-xs text-zinc-600 text-center py-4">No sessions</div>
+          <div className="py-8">
+            <Empty description={<span className="text-xs text-zinc-500">暂无会话</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          </div>
         )}
       </div>
     </div>

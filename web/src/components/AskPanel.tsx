@@ -8,7 +8,7 @@ import { AskInput } from "./ask/AskInput"
 import { ResultCard } from "./ask/ResultCard"
 
 export default function AskPanel() {
-  const { messages, loading, ask, agentResearchAction, cancel, clear } = useAskStore()
+  const { messages, loading, statusText, ask, agentResearchAction, cancel, clear } = useAskStore()
   const { models, currentModel, setModel: setChatModel } = useChatStore()
   const [input, setInput] = useState("")
   const [researchMode, setResearchMode] = useState<ResearchMode>("standard")
@@ -99,7 +99,7 @@ export default function AskPanel() {
           </div>
         ))}
         {loading && (
-          <div className="flex justify-start">
+          <div className="flex justify-start items-center gap-2">
             <button
               onClick={cancel}
               aria-label="停止查询"
@@ -108,6 +108,9 @@ export default function AskPanel() {
               <Square size={12} className="text-red-400" />
               停止查询
             </button>
+            {statusText && (
+              <span className="text-[11px] text-zinc-500 animate-pulse">{statusText}</span>
+            )}
           </div>
         )}
         <div ref={bottomRef} />

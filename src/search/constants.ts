@@ -7,6 +7,8 @@ export const MAX_SEARCH_LIMIT = 500
 export const MIN_CONTENT_LENGTH = 300
 export const MIN_SHORT_CONTENT_LENGTH = 100
 
+export const AUTO_COMPLETE_THRESHOLD = 90
+
 export const RRF_K = 60
 
 export const SEARCH_WEIGHTS = {

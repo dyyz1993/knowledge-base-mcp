@@ -25,9 +25,11 @@ function restoreConfig() {
 describe("config", () => {
   beforeEach(() => {
     backupConfig()
+    clearConfigCache()
   })
 
   afterEach(() => {
+    clearConfigCache()
     restoreConfig()
   })
 

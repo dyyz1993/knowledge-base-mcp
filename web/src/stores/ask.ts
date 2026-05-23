@@ -18,6 +18,7 @@ interface Message {
 interface AskState {
   messages: Message[]
   loading: boolean
+  statusText: string
   ask: (query: string) => Promise<void>
   search: (query: string) => Promise<void>
   research: (query: string) => Promise<void>
@@ -65,12 +66,13 @@ function getModel() {
 export const useAskStore = create<AskState>((set, get) => ({
   messages: [],
   loading: false,
+  statusText: "",
 
   cancel: () => {
     for (const [key] of abortControllers) {
       abortAction(key)
     }
-    set({ loading: false })
+    set({ loading: false, statusText: "" })
   },
 
   ask: async (query) => {
@@ -82,7 +84,7 @@ export const useAskStore = create<AskState>((set, get) => ({
       content: query,
       timestamp: Date.now(),
     }
-    set((s) => ({ messages: [...s.messages, userMsg], loading: true }))
+    set((s) => ({ messages: [...s.messages, userMsg], loading: true, statusText: "正在搜索知识库..." }))
 
     try {
       const result = await smartAsk(query, ac.signal)
@@ -96,7 +98,7 @@ export const useAskStore = create<AskState>((set, get) => ({
           errorDetail: result.error,
           timestamp: Date.now(),
         }
-        set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
+        set((s) => ({ messages: [...s.messages, errorMsg], loading: false, statusText: "" }))
         return
       }
       if (result.from_kb) {
@@ -107,11 +109,13 @@ export const useAskStore = create<AskState>((set, get) => ({
           result,
           timestamp: Date.now(),
         }
-        set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
+        set((s) => ({ messages: [...s.messages, systemMsg], loading: false, statusText: "" }))
       } else {
+        set({ statusText: "知识库未找到，正在联网搜索..." })
         try {
           const searchResult = await askSearch(query, getModel() || undefined, ac.signal)
           if (ac.signal.aborted) return
+          set({ statusText: "正在分析结果..." })
           const systemMsg: Message = {
             id: `msg-${++msgId}`,
             role: "system",
@@ -120,7 +124,7 @@ export const useAskStore = create<AskState>((set, get) => ({
             searchResult,
             timestamp: Date.now(),
           }
-          set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
+          set((s) => ({ messages: [...s.messages, systemMsg], loading: false, statusText: "" }))
         } catch {
           if (ac.signal.aborted) return
           const systemMsg: Message = {
@@ -130,7 +134,7 @@ export const useAskStore = create<AskState>((set, get) => ({
             result,
             timestamp: Date.now(),
           }
-          set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
+          set((s) => ({ messages: [...s.messages, systemMsg], loading: false, statusText: "" }))
         }
       }
     } catch (e: unknown) {
@@ -145,7 +149,7 @@ export const useAskStore = create<AskState>((set, get) => ({
         errorDetail,
         timestamp: Date.now(),
       }
-      set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
+      set((s) => ({ messages: [...s.messages, errorMsg], loading: false, statusText: "" }))
     } finally {
       cleanupAbortController("ask", ac)
     }
@@ -160,7 +164,7 @@ export const useAskStore = create<AskState>((set, get) => ({
       content: `🔍 ${query}`,
       timestamp: Date.now(),
     }
-    set((s) => ({ messages: [...s.messages, userMsg], loading: true }))
+    set((s) => ({ messages: [...s.messages, userMsg], loading: true, statusText: "正在搜索..." }))
 
     try {
       const searchResult = await askSearch(query, getModel() || undefined, ac.signal)
@@ -172,7 +176,7 @@ export const useAskStore = create<AskState>((set, get) => ({
         searchResult,
         timestamp: Date.now(),
       }
-      set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
+      set((s) => ({ messages: [...s.messages, systemMsg], loading: false, statusText: "" }))
     } catch (e: unknown) {
       if (ac.signal.aborted) return
       const errorDetail = e instanceof Error ? e.message : String(e)
@@ -185,7 +189,7 @@ export const useAskStore = create<AskState>((set, get) => ({
         errorDetail,
         timestamp: Date.now(),
       }
-      set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
+      set((s) => ({ messages: [...s.messages, errorMsg], loading: false, statusText: "" }))
     } finally {
       cleanupAbortController("search", ac)
     }
@@ -200,7 +204,7 @@ export const useAskStore = create<AskState>((set, get) => ({
       content: `🔬 ${query}`,
       timestamp: Date.now(),
     }
-    set((s) => ({ messages: [...s.messages, userMsg], loading: true }))
+    set((s) => ({ messages: [...s.messages, userMsg], loading: true, statusText: "正在深度研究..." }))
 
     try {
       const researchResult = await askResearch(query, getModel() || undefined, ac.signal)
@@ -212,7 +216,7 @@ export const useAskStore = create<AskState>((set, get) => ({
         researchResult,
         timestamp: Date.now(),
       }
-      set((s) => ({ messages: [...s.messages, systemMsg], loading: false }))
+      set((s) => ({ messages: [...s.messages, systemMsg], loading: false, statusText: "" }))
     } catch (e: unknown) {
       if (ac.signal.aborted) return
       const errorDetail = e instanceof Error ? e.message : String(e)
@@ -225,7 +229,7 @@ export const useAskStore = create<AskState>((set, get) => ({
         errorDetail,
         timestamp: Date.now(),
       }
-      set((s) => ({ messages: [...s.messages, errorMsg], loading: false }))
+      set((s) => ({ messages: [...s.messages, errorMsg], loading: false, statusText: "" }))
     } finally {
       cleanupAbortController("research", ac)
     }
@@ -313,7 +317,7 @@ export const useAskStore = create<AskState>((set, get) => ({
       agentResearchProgress: [],
       timestamp: Date.now(),
     }
-    set((s) => ({ messages: [...s.messages, userMsg, progressMsg], loading: true }))
+    set((s) => ({ messages: [...s.messages, userMsg, progressMsg], loading: true, statusText: "Agent 研究中..." }))
 
     try {
       const model = getModel() || undefined
@@ -353,7 +357,7 @@ export const useAskStore = create<AskState>((set, get) => ({
             content: result.summary || "Agent 研究完成",
           }
         }
-        return { messages: msgs, loading: false }
+        return { messages: msgs, loading: false, statusText: "" }
       })
     } catch (e: unknown) {
       if (ac.signal.aborted) return
@@ -366,12 +370,12 @@ export const useAskStore = create<AskState>((set, get) => ({
         if (idx >= 0) {
           msgs[idx] = { ...msgs[idx], content: "Agent 研究失败，请重试", errorDetail }
         }
-        return { messages: msgs, loading: false }
+        return { messages: msgs, loading: false, statusText: "" }
       })
     } finally {
       cleanupAbortController("agentResearch", ac)
     }
   },
 
-  clear: () => set({ messages: [] }),
+  clear: () => set({ messages: [], statusText: "" }),
 }))
