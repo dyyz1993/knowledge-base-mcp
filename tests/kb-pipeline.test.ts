@@ -51,12 +51,13 @@ describe("buildWebSearchSuggestion", () => {
 })
 
 describe("multiSearch", () => {
-  let searchDocsMock: ReturnType<typeof mock>
+  let searchDocsCombinedMock: ReturnType<typeof mock>
 
   beforeEach(() => {
-    searchDocsMock = mock(() => [])
+    searchDocsCombinedMock = mock(() => Promise.resolve([]))
     mock.module("../src/storage/index", () => ({
-      searchDocs: searchDocsMock,
+      searchDocs: mock(() => []),
+      searchDocsCombined: searchDocsCombinedMock,
       readDoc: mock(() => null),
       writeDoc: mock(() => ({ id: "x" })),
       resolveMiss: mock(() => {}),
@@ -64,46 +65,46 @@ describe("multiSearch", () => {
     }))
   })
 
-  it("returns empty when searchDocs returns nothing", () => {
-    const result = multiSearch(["query1", "query2"])
+  it("returns empty when searchDocs returns nothing", async () => {
+    const result = await multiSearch(["query1", "query2"])
     expect(result).toEqual([])
   })
 
-  it("deduplicates by id and sums scores", () => {
+  it("deduplicates by id and sums scores", async () => {
     const doc1 = makeDoc({ id: "a", title: "Doc A", score: 30 })
     const doc2 = makeDoc({ id: "b", title: "Doc B", score: 20 })
 
-    searchDocsMock.mockImplementation((q: string) => {
-      if (q === "q1") return [doc1, doc2]
-      if (q === "q2") return [makeDoc({ ...doc1, score: 15 })]
-      return []
+    searchDocsCombinedMock.mockImplementation((q: string) => {
+      if (q === "q1") return Promise.resolve([doc1, doc2])
+      if (q === "q2") return Promise.resolve([makeDoc({ ...doc1, score: 15 })])
+      return Promise.resolve([])
     })
 
-    const result = multiSearch(["q1", "q2"])
+    const result = await multiSearch(["q1", "q2"])
     const docA = result.find(r => r.id === "a")
     expect(docA).toBeDefined()
     expect(docA!.score).toBe(45)
     expect(result.find(r => r.id === "b")).toBeDefined()
   })
 
-  it("sorts results by score descending", () => {
+  it("sorts results by score descending", async () => {
     const low = makeDoc({ id: "low", title: "Low", score: 10 })
     const high = makeDoc({ id: "high", title: "High", score: 80 })
     const mid = makeDoc({ id: "mid", title: "Mid", score: 40 })
 
-    searchDocsMock.mockReturnValueOnce([low, high, mid])
+    searchDocsCombinedMock.mockReturnValueOnce(Promise.resolve([low, high, mid]))
 
-    const result = multiSearch(["single-query"])
+    const result = await multiSearch(["single-query"])
     expect(result[0]!.id).toBe("high")
     expect(result[1]!.id).toBe("mid")
     expect(result[2]!.id).toBe("low")
   })
 
-  it("respects limit parameter for each query", () => {
+  it("respects limit parameter for each query", async () => {
     const docs = Array.from({ length: 10 }, (_, i) => makeDoc({ id: `doc${i}`, score: i }))
-    searchDocsMock.mockReturnValueOnce(docs.slice(0, 3))
+    searchDocsCombinedMock.mockReturnValueOnce(Promise.resolve(docs.slice(0, 3)))
 
-    const result = multiSearch(["q"], 3)
+    const result = await multiSearch(["q"], 3)
     expect(result).toHaveLength(3)
   })
 })

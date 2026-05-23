@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Database, Globe, ChevronDown, ChevronUp } from "lucide-react"
+import { AlertTriangle, Database, Globe, ChevronDown, ChevronUp } from "lucide-react"
 import { useAskStore } from "../../stores/ask"
 import { AgentResearchCard } from "./AgentResearchCard"
 import { ResearchResultCard } from "./ResearchResultCard"
@@ -96,6 +96,12 @@ export function ResultCard({ msg, expanded, onToggle }: ResultCardProps) {
             </div>
           )}
         </div>
+        {result.degraded && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-amber-400 bg-amber-400/10 border-t border-amber-400/20">
+            <AlertTriangle size={12} />
+            <span>搜索结果可能不完整 — 部分搜索服务暂时不可用</span>
+          </div>
+        )}
       </div>
     )
   }
@@ -122,6 +128,12 @@ export function ResultCard({ msg, expanded, onToggle }: ResultCardProps) {
           <p className="text-[11px] text-zinc-600">未配置联网搜索，请在设置中填写 Web Search API Key</p>
         )}
       </div>
+      {result.degraded && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-amber-400 bg-amber-400/10 border-t border-amber-400/20">
+          <AlertTriangle size={12} />
+          <span>搜索结果可能不完整 — 部分搜索服务暂时不可用</span>
+        </div>
+      )}
     </div>
   )
 }

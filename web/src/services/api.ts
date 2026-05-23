@@ -468,6 +468,7 @@ export interface AskResult {
   web_results?: WebSearchItem[]
   total_misses?: number
   recurring?: boolean
+  degraded?: boolean
 }
 
 export interface IngestResult {

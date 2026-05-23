@@ -1,4 +1,4 @@
-import { searchDocs, readDoc, writeDoc, resolveMiss, recordMiss } from "../storage/index"
+import { searchDocs, searchDocsCombined, readDoc, writeDoc, resolveMiss, recordMiss } from "../storage/index"
 import type { DocMeta } from "../storage/index"
 import { callLlm, type LlmConfig } from "./llm-caller"
 import { getConfiguredModels } from "../chat/api-models"
@@ -10,6 +10,7 @@ import { TavilySource } from "./source-tavily"
 import { SerperSource } from "./source-serper"
 import { createXBrowserSources } from "./source-xbrowser"
 import { AiSearchSource } from "./source-ai-search"
+import { LlmDirectSource } from "./source-llm-direct"
 import { SearchPipeline } from "./search-pipeline"
 
 function getAskPipelineConfig() {
@@ -52,6 +53,7 @@ interface IntentAnalysis {
   researchType: string
   rewrittenQuery: string
   missingAspects: string[]
+  degraded?: boolean
 }
 
 interface QualityEvaluation {
@@ -134,6 +136,7 @@ Rules:
       researchType: "concept",
       rewrittenQuery: query,
       missingAspects: [],
+      degraded: true,
     }
   }
 }
@@ -224,17 +227,17 @@ IMPORTANT: Evaluate based on SUBSTANCE, not just topic match. A document titled 
   }
 }
 
-export function multiSearch(queries: string[], limit = 5): (DocMeta & { score: number; snippet?: string; matched_by: string[] })[] {
+export async function multiSearch(queries: string[], limit = 5): Promise<(DocMeta & { score: number; snippet?: string; matched_by: string[] })[]> {
   const seen = new Map<string, DocMeta & { score: number; snippet?: string; matched_by: string[] }>()
 
   for (const q of queries) {
-    const results = searchDocs(q, undefined, undefined, limit)
+    const results = await searchDocsCombined(q, undefined, undefined, limit)
     for (const r of results) {
       const existing = seen.get(r.id)
       if (existing) {
         existing.score += r.score
       } else {
-        seen.set(r.id, { ...r })
+        seen.set(r.id, { ...r, matched_by: [] })
       }
     }
   }
@@ -278,6 +281,9 @@ export function buildSearchPipelineSources(): SearchSource[] {
   }
   if (config.searchPipeline?.sources.aiSearch?.enabled) {
     sources.push(new AiSearchSource())
+  }
+  if (config.searchPipeline?.sources.llmDirect?.enabled && config.searchPipeline.sources.llmDirect.apiKey) {
+    sources.push(new LlmDirectSource())
   }
 
   return sources
@@ -367,6 +373,7 @@ export async function kbAskPipeline(
   }
 
   const intent = await analyzeIntent(query, llm)
+  const intentDegraded = !!(intent as IntentAnalysis & { degraded?: boolean }).degraded
   if (intent.rewrittenQuery && intent.rewrittenQuery !== query) {
     allQueriesUsed.push(intent.rewrittenQuery)
   }
@@ -390,7 +397,7 @@ export async function kbAskPipeline(
       }
     }
 
-    const results = multiSearch(allQueries, 5)
+    const results = await multiSearch(allQueries, 5)
 
     if (results.length === 0) {
       if (loop >= maxLoops) break
@@ -736,6 +743,8 @@ function fallbackSearch(
       hint: "Direct match (no LLM) | 🌐 建议联网确认",
     }
   }
+
+  recordMiss(query)
 
   return {
     from_kb: false,

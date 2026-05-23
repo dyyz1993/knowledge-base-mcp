@@ -204,7 +204,8 @@ export async function semanticSearch(
   topK = 10,
 ): Promise<(DocMeta & { score: number })[]> {
   if (!query || docs.length === 0) return []
-  if (!transformersAvailable) return []
+  const config = loadConfig()
+  if (!transformersAvailable && !config.embedding?.enabled) return []
   try {
     const queryVec = await embed(query)
     const scored = docs.map(d => ({
