@@ -1,6 +1,7 @@
 import type { DeepReadItem } from "../types"
 import type { SearchResult } from "../../search/types"
 import { createLogger } from "../../utils/logger.js"
+import { validateUrl } from "../../http/helpers.js"
 
 
 const logger = createLogger("research:steps:deep-read")
@@ -177,6 +178,12 @@ export async function deepReadUrls(
       const resolved = await resolveRedirect(item.url)
       if (resolved === item.url) return base
       fetchItem = { ...item, url: resolved }
+    }
+
+    const urlCheck = validateUrl(fetchItem.url)
+    if (!urlCheck.safe) {
+      logger.debug(`URL blocked by SSRF check: ${fetchItem.url} — ${urlCheck.reason}`)
+      return base
     }
 
     try {

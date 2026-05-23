@@ -13,6 +13,15 @@ import { createXBrowserSources } from "./source-xbrowser"
 import { AiSearchSource } from "./source-ai-search"
 import { LlmDirectSource } from "./source-llm-direct"
 import { SearchPipeline } from "./search-pipeline"
+import {
+  HIGH_RELEVANCE_SCORE,
+  LOW_RELEVANCE_SCORE,
+  MIN_SUMMARY_LENGTH,
+  MIN_RESULTS_FOR_COMPLETE,
+  MIN_CONTENT_LENGTH,
+  MIN_SHORT_CONTENT_LENGTH,
+  RRF_K,
+} from "./constants"
 
 function getAskPipelineConfig() {
   const config = loadConfig()
@@ -234,12 +243,14 @@ export async function multiSearch(queries: string[], limit = 5): Promise<(DocMet
 
   for (const q of queries) {
     const results = await searchDocsCombined(q, undefined, undefined, limit)
-    for (const r of results) {
+    for (let rank = 0; rank < results.length; rank++) {
+      const r = results[rank]
+      const rrfScore = 1 / (RRF_K + rank + 1)
       const existing = seen.get(r.id)
       if (existing) {
-        existing.score += r.score
+        existing.score += rrfScore
       } else {
-        seen.set(r.id, { ...r, matched_by: [] })
+        seen.set(r.id, { ...r, score: rrfScore, matched_by: [] })
       }
     }
   }
@@ -427,9 +438,9 @@ export async function kbAskPipeline(
         // Content substance calibration: detect code-less docs for API/tool queries
         let calibratedCompleteness = evaluation.completeness
         const contentLen = content.length
-        if (contentLen < 300 && evaluation.completeness === "complete") {
+        if (contentLen < MIN_CONTENT_LENGTH && evaluation.completeness === "complete") {
           calibratedCompleteness = "partial"
-        } else if (contentLen < 100 && evaluation.completeness === "partial") {
+        } else if (contentLen < MIN_SHORT_CONTENT_LENGTH && evaluation.completeness === "partial") {
           calibratedCompleteness = "incomplete"
         }
 
@@ -446,7 +457,7 @@ export async function kbAskPipeline(
           title: best.title,
           score: best.score,
           content: content.slice(0, 4000),
-          quality: evaluation.relevanceScore >= 70 ? "high" : "medium",
+          quality: evaluation.relevanceScore >= HIGH_RELEVANCE_SCORE ? "high" : "medium",
           completeness: calibratedCompleteness,
           loops_used: loop,
           queries_used: allQueriesUsed,
@@ -545,7 +556,7 @@ export async function kbAskPipeline(
             title: best.title,
             score: best.score,
             content: content.slice(0, 4000),
-            quality: evaluation.relevanceScore >= 70 ? "high" : "medium",
+            quality: evaluation.relevanceScore >= HIGH_RELEVANCE_SCORE ? "high" : "medium",
             completeness: evaluation.completeness,
             loops_used: loop,
             queries_used: allQueriesUsed,
@@ -561,7 +572,7 @@ export async function kbAskPipeline(
               evaluation.missingAspects,
             )
             baseResult.hint += ` | 🌐 建议联网搜索: "${evaluation.webSearchQuery}"`
-            if (evaluation.completeness === "incomplete" || (evaluation.completeness === "partial" && evaluation.relevanceScore < 60)) {
+            if (evaluation.completeness === "incomplete" || (evaluation.completeness === "partial" && evaluation.relevanceScore < LOW_RELEVANCE_SCORE)) {
               return await augmentWithWebSearch(baseResult, evaluation.webSearchQuery, maxWebResults)
             }
           }
@@ -668,7 +679,7 @@ async function autoResearch(query: string, allQueriesUsed: string[]): Promise<As
     )
     const result = await agent.run()
 
-    if (!result.summary || result.summary.length < 200) return null
+    if (!result.summary || result.summary.length < MIN_SUMMARY_LENGTH) return null
 
     const dr = result.deepReadResults || []
     const drSuccess = dr.filter(r => r.success).length
@@ -713,8 +724,8 @@ async function autoResearch(query: string, allQueriesUsed: string[]): Promise<As
       title: doc.title,
       score: 50,
       content: result.summary.slice(0, 8000),
-      quality: result.finalQualityScore >= 7 ? "high" : "medium",
-      completeness: result.finalCoverageScore >= 7 ? "complete" : "partial",
+      quality: result.finalQualityScore >= MIN_RESULTS_FOR_COMPLETE ? "high" : "medium",
+      completeness: result.finalCoverageScore >= MIN_RESULTS_FOR_COMPLETE ? "complete" : "partial",
       loops_used: getAskPipelineConfig().maxLoops,
       queries_used: allQueriesUsed,
       auto_saved: true,

@@ -3,14 +3,6 @@ import { parseFrontmatter } from "../storage/markdown"
 import type { DocMeta } from "../storage/index"
 import { tokenize } from "../utils/tokenizer"
 
-const FIELD_WEIGHTS: [string, number][] = [
-  ["title", 3],
-  ["keywords", 2],
-  ["intent", 1.5],
-  ["project_description", 1],
-  ["body", 0.8],
-]
-
 function readDocBody(filePath: string): string {
   try {
     const raw = readFileSync(filePath, "utf-8")
@@ -51,11 +43,46 @@ function buildWeightedTF(doc: DocMeta): Map<string, number> {
   return combined
 }
 
-export function buildIDF(docs: DocMeta[]): Map<string, number> {
+let idfCache: Map<string, number> | null = null
+let idfCacheDocCount = 0
+let idfCacheTime = 0
+const IDF_CACHE_TTL = 30000
+
+export function getIDF(docs: DocMeta[]): Map<string, number> {
+  if (idfCache && Date.now() - idfCacheTime < IDF_CACHE_TTL && idfCacheDocCount === docs.length) {
+    return idfCache
+  }
+  const idf = buildIDFUncached(docs)
+  idfCache = idf
+  idfCacheDocCount = docs.length
+  idfCacheTime = Date.now()
+  return idf
+}
+
+export function invalidateIDFCache(): void {
+  idfCache = null
+  idfCacheDocCount = 0
+  tfVectorCache.clear()
+}
+
+const tfVectorCache = new Map<string, { time: number; vec: Map<string, number> }>()
+const TF_CACHE_TTL = 60000
+
+function getCachedWeightedTF(doc: DocMeta): Map<string, number> {
+  const cached = tfVectorCache.get(doc.id)
+  if (cached && Date.now() - cached.time < TF_CACHE_TTL) {
+    return cached.vec
+  }
+  const vec = buildWeightedTF(doc)
+  tfVectorCache.set(doc.id, { time: Date.now(), vec })
+  return vec
+}
+
+function buildIDFUncached(docs: DocMeta[]): Map<string, number> {
   const N = docs.length
   const df = new Map<string, number>()
   for (const doc of docs) {
-    const tf = buildWeightedTF(doc)
+    const tf = getCachedWeightedTF(doc)
     for (const token of tf.keys()) {
       df.set(token, (df.get(token) || 0) + 1)
     }
@@ -65,6 +92,10 @@ export function buildIDF(docs: DocMeta[]): Map<string, number> {
     idf.set(token, Math.log(N / (1 + count)))
   }
   return idf
+}
+
+export function buildIDF(docs: DocMeta[]): Map<string, number> {
+  return getIDF(docs)
 }
 
 export function cosineSimilarity(
@@ -106,7 +137,7 @@ export function tfidfSearch(
 
   const results: (DocMeta & { score: number })[] = []
   for (const doc of docs) {
-    const docTF = buildWeightedTF(doc)
+    const docTF = getCachedWeightedTF(doc)
     const docVec = new Map<string, number>()
     for (const [t, freq] of docTF) {
       docVec.set(t, freq * (idf.get(t) || 0))

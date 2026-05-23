@@ -7,6 +7,10 @@ import { createLogger } from "./utils/logger.js"
 const logger = createLogger("config")
 const CONFIG_DIR = join(homedir(), ".kb-chat")
 const CONFIG_PATH = join(CONFIG_DIR, "config.json")
+const CONFIG_CACHE_TTL = Number(process.env.KB_CONFIG_CACHE_TTL_MS) || 5000
+
+let configCache: AppConfig | null = null
+let configCacheTime = 0
 
 export interface EmbeddingConfig {
   provider: "siliconflow" | "local" | "openai" | "custom"
@@ -192,11 +196,21 @@ function expandPath(p: string): string {
   return p.startsWith("~/") ? join(homedir(), p.slice(2)) : p
 }
 
-export function loadConfig(): AppConfig {
+export function clearConfigCache(): void {
+  configCache = null
+  configCacheTime = 0
+}
+
+export function loadConfig(forceReload = false): AppConfig {
+  const now = Date.now()
+  if (!forceReload && configCache && (now - configCacheTime) < CONFIG_CACHE_TTL) {
+    return configCache
+  }
+
   try {
     if (existsSync(CONFIG_PATH)) {
       const raw = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"))
-      return {
+      const result: AppConfig = {
         ...DEFAULT_CONFIG,
         ...raw,
         embedding: { ...DEFAULT_CONFIG.embedding, ...raw.embedding },
@@ -232,14 +246,21 @@ export function loadConfig(): AppConfig {
         timeouts: { ...DEFAULT_CONFIG.timeouts, ...raw.timeouts },
         askPipeline: { ...DEFAULT_CONFIG.askPipeline, ...raw.askPipeline },
       }
+      configCache = result
+      configCacheTime = now
+      return result
     }
   } catch (e) {
     logger.warn(e instanceof Error ? e.message : String(e))
   }
-  return { ...DEFAULT_CONFIG, skills: { ...DEFAULT_CONFIG.skills, paths: DEFAULT_CONFIG.skills.paths.map(expandPath) }, storage: { ...DEFAULT_CONFIG.storage }, timeouts: { ...DEFAULT_CONFIG.timeouts }, askPipeline: { ...DEFAULT_CONFIG.askPipeline } }
+  const fallback = { ...DEFAULT_CONFIG, skills: { ...DEFAULT_CONFIG.skills, paths: DEFAULT_CONFIG.skills.paths.map(expandPath) }, storage: { ...DEFAULT_CONFIG.storage }, timeouts: { ...DEFAULT_CONFIG.timeouts }, askPipeline: { ...DEFAULT_CONFIG.askPipeline } }
+  configCache = fallback
+  configCacheTime = now
+  return fallback
 }
 
 export function saveConfig(config: AppConfig): void {
+  configCache = null
   if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true })
   const tmpPath = CONFIG_PATH + ".tmp"
   writeFileSync(tmpPath, JSON.stringify(config, null, 2), "utf-8")

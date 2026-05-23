@@ -2,7 +2,7 @@ import { test, expect, describe, beforeEach, afterEach } from "bun:test"
 import { join } from "node:path"
 import { homedir } from "node:os"
 import { existsSync, mkdirSync, writeFileSync, rmSync, renameSync } from "node:fs"
-import { loadConfig, saveConfig } from "../src/config"
+import { loadConfig, saveConfig, clearConfigCache } from "../src/config"
 
 const CONFIG_DIR = join(homedir(), ".kb-chat")
 const CONFIG_PATH = join(CONFIG_DIR, "config.json")
@@ -120,6 +120,7 @@ describe("config", () => {
         search: { minScore: 10.0 },
       }
 
+      clearConfigCache()
       if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true })
       writeFileSync(CONFIG_PATH, JSON.stringify(partialConfig), "utf-8")
 
@@ -133,6 +134,7 @@ describe("config", () => {
     })
 
     test("should handle corrupt config file gracefully", () => {
+      clearConfigCache()
       if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true })
       writeFileSync(CONFIG_PATH, "not valid json{{{", "utf-8")
 
@@ -161,6 +163,7 @@ describe("config", () => {
         },
       }
 
+      clearConfigCache()
       if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true })
       writeFileSync(CONFIG_PATH, JSON.stringify(override), "utf-8")
 

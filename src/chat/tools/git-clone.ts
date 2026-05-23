@@ -26,11 +26,19 @@ export const gitCloneDef: OpenAITool = {
   },
 }
 
+function validateBranchName(branch: string): boolean {
+  return /^[a-zA-Z0-9\/_.-]+$/.test(branch)
+}
+
 export async function executeGitClone(args: Record<string, unknown>): Promise<string> {
   const { url, branch, depth = 1 } = args as { url: string; branch?: string; depth?: number }
 
   if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("git://")) {
     return "URL 必须以 http://, https:// 或 git:// 开头"
+  }
+
+  if (branch && !validateBranchName(branch)) {
+    return `Invalid branch name: ${branch}`
   }
 
   const repoName = url.split("/").pop()?.replace(".git", "") || "repo"

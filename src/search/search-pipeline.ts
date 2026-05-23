@@ -2,6 +2,7 @@ import type { SearchSource, AggregatedResult, SourceTiming, SearchResult } from 
 import { aggregateResults } from "./result-aggregator"
 import { searchStats } from "../statistics"
 import { createLogger } from "../utils/logger.js"
+import { EARLY_STOP_THRESHOLD } from "./constants"
 
 
 const logger = createLogger("search:search-pipeline")
@@ -57,15 +58,15 @@ export class SearchPipeline {
     log("INFO", `Fast phase done: ${allResults.length} results`)
 
     // If fast sources already gave enough, skip medium/slow
-    if (allResults.length >= 10) {
-      log("INFO", `Fast results sufficient (${allResults.length} >= 10), skipping medium/slow sources`)
+    if (allResults.length >= EARLY_STOP_THRESHOLD) {
+      log("INFO", `Fast results sufficient (${allResults.length} >= ${EARLY_STOP_THRESHOLD}), skipping medium/slow sources`)
       // But still wait for medium if it's already running and nearly done
       const mediumDone = Promise.race([
         mediumPromise,
         new Promise<void>(resolve => setTimeout(() => resolve(), 3000)),
       ])
       await mediumDone
-      if (allResults.length > 10) {
+      if (allResults.length > EARLY_STOP_THRESHOLD) {
         log("INFO", `After medium: ${allResults.length} total results`)
       }
     } else {

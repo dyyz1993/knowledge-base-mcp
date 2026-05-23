@@ -1,11 +1,12 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, renameSync } from "node:fs"
 import { parseFrontmatter, buildFrontmatter } from "./markdown"
-import { tfidfSearch, buildIDF } from "../search/tfidf"
+import { tfidfSearch, buildIDF, invalidateIDFCache } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
 import { loadVectors, indexDoc, rebuildAllVectors, initDb } from "../search/vector-store"
 import { loadConfig } from "../config"
 import { createLogger } from "../utils/logger.js"
 import { tokenize } from "../utils/tokenizer"
+import { MAX_SEARCH_LIMIT } from "../search/constants"
 
 /** Dynamic paths — always read KB_DIR from env at call time for test isolation */
 
@@ -29,6 +30,9 @@ export interface DocMeta {
   created_at: number
   updated_at?: number
   file_path: string
+  content_length?: number
+  code_block_count?: number
+  quality_boost?: number
 }
 
 export interface IndexFile {
@@ -238,6 +242,11 @@ export function writeDoc(
   const md = buildFrontmatter(doc) + "\n" + content
   writeFileSync(file_path, md)
 
+  const metrics = computeQualityMetrics(content)
+  doc.content_length = metrics.contentLength
+  doc.code_block_count = metrics.codeBlockCount
+  doc.quality_boost = metrics.qualityBoost
+
   idx.documents[id] = doc
   writeIndex(idx)
   updateOutline(doc.source_project || "", idx)
@@ -245,6 +254,8 @@ export function writeDoc(
   indexDoc(id, docToSearchableText(doc)).catch(e => {
     logger.warn("writeDoc: async vector indexing failed:", e instanceof Error ? e.message : String(e))
   })
+
+  invalidateIDFCache()
 
   return doc
 }
@@ -259,7 +270,7 @@ export function readDoc(id: string, truncate = true): { meta: DocMeta; content: 
   if (!truncate) return { meta, content, truncated: false }
 
   const lines = content.split("\n")
-  const limit = 500
+  const limit = MAX_SEARCH_LIMIT
   if (lines.length > limit) {
     return { meta, content: lines.slice(0, limit).join("\n"), truncated: true }
   }
@@ -294,6 +305,17 @@ function readDocContent(filePath: string): string {
   }
 }
 
+function computeQualityMetrics(content: string): { contentLength: number; codeBlockCount: number; qualityBoost: number } {
+  const contentLength = content.length
+  const codeBlockCount = Math.floor(((content.match(/```/g) || []).length) / 2)
+  let qualityBoost = 0
+  qualityBoost += Math.min(codeBlockCount, 3) * 3
+  if (contentLength >= 3000) qualityBoost += 5
+  else if (contentLength >= 2000) qualityBoost += 4
+  else if (contentLength >= 500) qualityBoost += 2
+  return { contentLength, codeBlockCount, qualityBoost }
+}
+
 function tokenMatch(text: string, token: string): boolean {
   if (token.length <= 3) {
     const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -305,23 +327,11 @@ function tokenMatch(text: string, token: string): boolean {
   return text.toLowerCase().includes(token)
 }
 
-function contentQualityBoost(filePath: string): number {
-  let boost = 0
-  try {
-    const body = readDocContent(filePath)
-    if (!body) return 0
-
-    const codeBlockPairs = ((body.match(/```/g) || []).length) / 2
-    boost += Math.min(codeBlockPairs, 3) * 3
-
-    const len = body.length
-    if (len >= 3000) boost += 5
-    else if (len >= 2000) boost += 4
-    else if (len >= 500) boost += 2
-  } catch (e) {
-    logger.warn("contentQualityBoost: failed to read file for boost:", e instanceof Error ? e.message : String(e))
-  }
-  return boost
+function contentQualityBoost(doc: DocMeta): number {
+  if (doc.quality_boost !== undefined) return doc.quality_boost
+  const body = readDocContent(doc.file_path)
+  if (!body) return 0
+  return computeQualityMetrics(body).qualityBoost
 }
 
 export function searchDocs(
@@ -378,7 +388,7 @@ export function searchDocs(
       if (doc.keywords.some(k => keywords.some(kw => tokenMatch(k, kw)))) { score += 3; if (!matched_by.includes("keywords")) matched_by.push("keywords") }
     }
     if (score > 0) {
-      score += contentQualityBoost(doc.file_path)
+      score += contentQualityBoost(doc)
       results.push({ ...doc, score, snippet, matched_by })
     }
   }
@@ -445,22 +455,32 @@ export async function searchDocsCombined(
     }
   }
 
-  const p0Results = searchDocs(query, keywords, tags, limit * 2)
-
-  const idx = readIndex()
-  const allDocs = Object.values(idx.documents)
-  const idf = buildIDF(allDocs)
-  const p1Results = tfidfSearch(query, allDocs, idf, limit * 2)
-
-  let p2Results: (DocMeta & { score: number })[] = []
-  try {
-    // Timeout protection: semantic search should not block longer than 8s
-    p2Results = await Promise.race([
+  const [p0Settled, p1Settled, p2Settled] = await Promise.allSettled([
+    Promise.resolve(searchDocs(query, keywords, tags, limit * 2)),
+    Promise.resolve((() => {
+      const idx = readIndex()
+      const allDocs = Object.values(idx.documents)
+      const idf = buildIDF(allDocs)
+      return tfidfSearch(query, allDocs, idf, limit * 2)
+    })()),
+    Promise.race([
       searchDocsSemantic(query, limit * 2),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("semantic search timeout")), 8000)),
-    ])
-  } catch (e) {
-    logger.warn("searchDocsCombined: semantic search failed, skipping:", e instanceof Error ? e.message : String(e))
+    ]),
+  ])
+
+  const p0Results = p0Settled.status === "fulfilled" ? p0Settled.value : []
+  const p1Results = p1Settled.status === "fulfilled" ? p1Settled.value : []
+  const p2Results = p2Settled.status === "fulfilled" ? p2Settled.value : []
+
+  if (p0Settled.status === "rejected") {
+    logger.warn("searchDocsCombined: token search failed:", p0Settled.reason instanceof Error ? p0Settled.reason.message : String(p0Settled.reason))
+  }
+  if (p1Settled.status === "rejected") {
+    logger.warn("searchDocsCombined: tfidf search failed:", p1Settled.reason instanceof Error ? p1Settled.reason.message : String(p1Settled.reason))
+  }
+  if (p2Settled.status === "rejected") {
+    logger.warn("searchDocsCombined: semantic search failed, skipping:", p2Settled.reason instanceof Error ? p2Settled.reason.message : String(p2Settled.reason))
   }
 
   const combined = new Map<string, DocMeta & { score: number }>()
@@ -478,9 +498,12 @@ export async function searchDocsCombined(
 
   const normalize = (results: (DocMeta & { score: number })[]): (DocMeta & { score: number })[] => {
     if (results.length === 0) return results
-    const max = results.reduce((m, r) => Math.max(m, r.score), 0)
-    if (max <= 0) return results
-    return results.map(r => ({ ...r, score: r.score / max }))
+    const scores = results.map(r => r.score)
+    const min = Math.min(...scores)
+    const max = Math.max(...scores)
+    const range = max - min
+    if (range === 0) return results.map(r => ({ ...r, score: 0.5 }))
+    return results.map(r => ({ ...r, score: (r.score - min) / range }))
   }
 
   addScores(normalize(p0Results), weights.token)
@@ -529,6 +552,7 @@ export function listRecentDocs(options: {
 
 export function deleteDoc(id: string): boolean {
   invalidateCache()
+  invalidateIDFCache()
   const idx = readIndex()
   const doc = idx.documents[id]
   if (!doc) return false

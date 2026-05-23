@@ -2,6 +2,7 @@ import type { OpenAITool } from "./types.js"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { stripHtmlTags } from "./helpers.js"
+import { validateUrl } from "../../http/helpers.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -26,6 +27,11 @@ export async function executeUrlFetch(args: Record<string, unknown>): Promise<st
 
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
     return "URL 必须以 http:// 或 https:// 开头"
+  }
+
+  const urlCheck = validateUrl(url)
+  if (!urlCheck.safe) {
+    return `URL blocked: ${urlCheck.reason}`
   }
 
   try {

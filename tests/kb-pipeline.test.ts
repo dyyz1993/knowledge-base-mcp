@@ -74,7 +74,7 @@ describe("multiSearch", () => {
     expect(result).toEqual([])
   })
 
-  it("deduplicates by id and sums scores", async () => {
+  it("deduplicates by id and applies RRF fusion", async () => {
     const doc1 = makeDoc({ id: "a", title: "Doc A", score: 30 })
     const doc2 = makeDoc({ id: "b", title: "Doc B", score: 20 })
 
@@ -87,18 +87,20 @@ describe("multiSearch", () => {
     const result = await multiSearch(["q1", "q2"])
     const docA = result.find(r => r.id === "a")
     expect(docA).toBeDefined()
-    expect(docA!.score).toBe(45)
+    // RRF: doc-a appears at rank 0 in q1 (1/61) and rank 0 in q2 (1/61) = 2/61
+    expect(docA!.score).toBeCloseTo(2 / 61, 10)
     expect(result.find(r => r.id === "b")).toBeDefined()
   })
 
-  it("sorts results by score descending", async () => {
+  it("sorts results by RRF score descending", async () => {
     const low = makeDoc({ id: "low", title: "Low", score: 10 })
     const high = makeDoc({ id: "high", title: "High", score: 80 })
     const mid = makeDoc({ id: "mid", title: "Mid", score: 40 })
 
-    searchDocsCombinedMock.mockReturnValueOnce(Promise.resolve([low, high, mid]))
+    searchDocsCombinedMock.mockReturnValueOnce(Promise.resolve([high, mid, low]))
 
     const result = await multiSearch(["single-query"])
+    // RRF: rank 0 = high (1/61), rank 1 = mid (1/62), rank 2 = low (1/63)
     expect(result[0]!.id).toBe("high")
     expect(result[1]!.id).toBe("mid")
     expect(result[2]!.id).toBe("low")
