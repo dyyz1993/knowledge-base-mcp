@@ -335,6 +335,14 @@ export class ResearchAgent {
         : [this.query]
     }
 
+    queries = queries.map(q => {
+      const tokens = q.split(/\s+/).filter(w => w.length > 1)
+      if (tokens.length >= 2 && !q.includes('"') && tokens.length <= 5) {
+        return `"${q}" ${q}`
+      }
+      return q
+    })
+
     const allResults: SearchResult[] = []
     const concurrency = Math.min(queries.length, 5)
     for (let qi = 0; qi < queries.length; qi += concurrency) {

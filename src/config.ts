@@ -149,7 +149,7 @@ const DEFAULT_CONFIG: AppConfig = {
       xbrowser: {
         enabled: false,
         engine: "google",
-        engines: ["bing"] as XBrowserEngine[],
+        engines: ["google"] as XBrowserEngine[],
         cdpEndpoint: "ws://localhost:9221",
         headless: true,
         timeout: 30000,

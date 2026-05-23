@@ -106,12 +106,13 @@ Return JSON ONLY (no markdown fences):
 Rules:
 - coreKeywords: 3-7 essential terms, remove filler words (什么是 如何 怎么 为什么 我想 请帮我 的 了 吗 呢)
 - subQueries: 3-5 search queries, include:
-  1. English keyword-only query (e.g. "iOS debugger MCP")
-  2. Chinese keyword query
-  3. Technical variation with different synonyms
+  1. English keyword-only query preserving ALL concepts from original (e.g. "Docker sandbox isolation" not just "Docker")
+  2. Chinese keyword query preserving ALL concepts
+  3. Technical variation with different synonyms but keeping ALL concepts
   Keep subQueries SHORT (2-5 words), keyword-focused, no full sentences
+  CRITICAL: Every subQuery MUST include ALL core concepts. Never drop keywords. "Docker sandbox" → subQueries must contain BOTH "docker" AND "sandbox", not just "docker".
 - researchType: categorize the intent
-- rewrittenQuery: the best short keyword-only query combining core keywords`,
+- rewrittenQuery: the best short keyword-only query combining ALL core keywords, NEVER dropping any`,
     },
   ]
 
@@ -295,8 +296,17 @@ async function searchViaPipeline(query: string, maxResults: number): Promise<Sea
   if (sources.length === 0) return []
 
   const pipeline = new SearchPipeline(sources)
-  const result = await pipeline.search(query, maxResults)
+  const optimizedQuery = optimizeQueryForSearchEngine(query)
+  const result = await pipeline.search(optimizedQuery, maxResults)
   return result.results
+}
+
+function optimizeQueryForSearchEngine(query: string): string {
+  const tokens = query.split(/\s+/).filter(w => w.length > 1)
+  if (tokens.length >= 2 && !query.includes('"')) {
+    return `"${query}" ${query}`
+  }
+  return query
 }
 
 async function augmentWithWebSearch(

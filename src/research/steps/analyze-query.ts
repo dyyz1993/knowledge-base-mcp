@@ -1,6 +1,7 @@
 import type { AnalyzeQueryResult } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
 import { createLogger } from "../../utils/logger.js"
+import { extractJsonObject } from "../utils/json-parser.js"
 
 
 const logger = createLogger("research:steps:analyze-query")
@@ -24,6 +25,7 @@ Rules:
   * 2 targeting specific SUB-TOPICS or features (break down the query)
   * 1 broad OVERVIEW query
   NEVER repeat the original query. Each subQuery MUST be meaningfully different.
+  CRITICAL: Every subQuery MUST preserve ALL core concepts from the original query. Do NOT drop any important keyword. E.g. "Docker sandbox" → subQueries must include BOTH "docker" AND "sandbox" concepts.
 - researchType: one of doc|api|code|concept|comparison
 - language: zh|en|mixed
 
@@ -54,9 +56,13 @@ function extractKeywords(query: string): string[] {
 }
 
 function parseResponse(raw: string, query: string): AnalyzeQueryResult {
-  const cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim()
+  const jsonStr = extractJsonObject(raw)
+  if (!jsonStr) {
+    logger.warn("Failed to extract JSON from LLM response, using fallback")
+    return buildFallback(query)
+  }
   try {
-    const parsed = JSON.parse(cleaned) as Record<string, unknown>
+    const parsed = JSON.parse(jsonStr) as Record<string, unknown>
     const coreKeywords = Array.isArray(parsed.coreKeywords)
       ? parsed.coreKeywords as string[]
       : [query]

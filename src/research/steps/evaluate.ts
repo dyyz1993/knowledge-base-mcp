@@ -1,7 +1,7 @@
 import type { EvaluateResult } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
 import type { SearchResult } from "../../search/types"
-import { extractJsonObject } from "../utils/json-parser.js"
+import { extractJsonArray, extractJsonObject } from "../utils/json-parser.js"
 import { createLogger } from "../../utils/logger.js"
 
 /** Domains that are almost never relevant for technical research queries */
@@ -66,8 +66,9 @@ async function retryEvaluateSimple(
       200,
     )
 
-    const cleaned = retryRaw.replace(/```json\s*|```/g, "").trim()
-    const indices = JSON.parse(cleaned) as number[]
+    const jsonStr = extractJsonArray(retryRaw)
+    if (!jsonStr) throw new Error("No JSON array found in retry response")
+    const indices = JSON.parse(jsonStr) as number[]
     if (Array.isArray(indices) && indices.length > 0) {
       return {
         selectedIndices: indices.filter((idx) => idx >= 0 && idx < capped.length),

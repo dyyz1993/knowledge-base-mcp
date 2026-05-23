@@ -248,6 +248,57 @@ function extractString(val: unknown, field: string): string {
   return ""
 }
 
+/** Fallback: extract title/url pairs from raw text line by line */
+function parseLineBasedFallback(raw: string): SearchResult[] {
+  const clean = stripAnsi(raw)
+  const urlRegex = /https?:\/\/[^\s)\]>"',]+/g
+  const results: SearchResult[] = []
+  const lines = clean.split("\n")
+  let lastTitle = ""
+
+  for (const line of lines) {
+    const urls = line.match(urlRegex)
+    if (urls) {
+      for (const url of urls) {
+        results.push({
+          title: lastTitle || url,
+          url,
+          snippet: "",
+        })
+      }
+      lastTitle = ""
+    } else {
+      const trimmed = line.trim()
+      if (trimmed && !trimmed.match(/^[\s#\-=*]/) && trimmed.length > 3 && trimmed.length < 200) {
+        lastTitle = trimmed.replace(/^\d+[\.\)]\s*/, "")
+      }
+    }
+  }
+
+  return results
+}
+
+/** Close leftover browser tabs via CDP, keeping only the first tab */
+async function cleanupTabs(cdpEndpoint: string): Promise<void> {
+  try {
+    const httpBase = cdpEndpoint.replace(/^ws/, "http").replace(/\/devtools\/browser\/.*$/, "")
+    const listUrl = `${httpBase}/json/list`
+    const resp = await fetch(listUrl, { signal: AbortSignal.timeout(3000) })
+    const tabs = await resp.json() as Array<{ id: string; url: string; type: string }>
+    const closeable = tabs.filter(t => t.type === "page" && t.url && !t.url.startsWith("chrome"))
+    if (closeable.length <= 1) return
+
+    for (let i = 1; i < closeable.length; i++) {
+      try {
+        await fetch(`${httpBase}/json/close/${closeable[i].id}`, { signal: AbortSignal.timeout(2000) })
+      } catch {}
+    }
+    logger.debug(`cleanupTabs: closed ${closeable.length - 1}/${tabs.length} tabs`)
+  } catch {
+    // Tab cleanup is best-effort
+  }
+}
+
 export class XBrowserCLI {
   private config: XBrowserConfig
   private cdpResolved = false
@@ -278,18 +329,22 @@ export class XBrowserCLI {
         this.config.engine,
         "--limit",
         String(limit),
-        "--format",
-        "json",
         ...buildBaseArgs(this.config),
       ]
 
       const raw = await runCommand(args, this.config.timeout)
       logger.debug(`raw output for engine=${this.config.engine}: length=${raw.length}, preview=${raw.substring(0, 200)}`)
 
-      let parsed: unknown
+      // Priority: YAML parse > JSON parse > line-based fallback
+      const yamlResults = parseYamlOutput(raw)
+      if (yamlResults.length > 0) {
+        logger.debug(`search("${query}") engine=${this.config.engine}: parsed ${yamlResults.length} results from YAML`)
+        return yamlResults
+      }
+
       let items: unknown[]
       try {
-        parsed = parseJsonOutput<unknown>(raw)
+        const parsed = parseJsonOutput<unknown>(raw)
 
         if (Array.isArray(parsed)) {
           items = parsed
@@ -311,13 +366,13 @@ export class XBrowserCLI {
           return []
         }
       } catch {
-        // JSON parse failed, try YAML-like parsing
-        const yamlResults = parseYamlOutput(raw)
-        if (yamlResults.length > 0) {
-          logger.debug(`parsed ${yamlResults.length} results from YAML output`)
-          return yamlResults
+        // JSON parse also failed, try line-based fallback
+        const fallbackResults = parseLineBasedFallback(raw)
+        if (fallbackResults.length > 0) {
+          logger.debug(`search("${query}") engine=${this.config.engine}: parsed ${fallbackResults.length} results from line-based fallback`)
+          return fallbackResults
         }
-        logger.debug(`parseJson and parseYaml both failed for engine=${this.config.engine} query="${query}"`)
+        logger.debug(`parseYaml, parseJson, and line-based all failed for engine=${this.config.engine} query="${query}"`)
         return []
       }
 
@@ -338,6 +393,8 @@ export class XBrowserCLI {
     } catch (e) {
       logger.debug(`search FAILED engine=${this.config.engine} query="${query}": ${e instanceof Error ? e.message : String(e)}`)
       return []
+    } finally {
+      cleanupTabs(this.config.cdpEndpoint).catch(() => {})
     }
   }
 

@@ -335,7 +335,7 @@ describe("searchDocs", () => {
     const results = searchDocs("kw-alpha")
     expect(results.length).toBe(1)
     expect(results[0].title).toBe("UniqueTitle ABC")
-    expect(results[0].score).toBe(13)
+    expect(results[0].score).toBe(27)
   })
 
   test("matches by intent with score=5", () => {
@@ -391,8 +391,8 @@ describe("searchDocs", () => {
     const docB = results.find(r => r.title === "OtherTitle JKL")
     expect(docA).toBeDefined()
     expect(docB).toBeDefined()
-    expect(docA!.score).toBe(11)
-    expect(docB!.score).toBe(11)
+    expect(docA!.score).toBe(25)
+    expect(docB!.score).toBe(25)
   })
 
   test("returns empty for no match", () => {

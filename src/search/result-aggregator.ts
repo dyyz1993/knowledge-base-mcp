@@ -71,8 +71,21 @@ function computeScore(result: SearchResult, query: string, crossSourceCount: num
   const qWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 1)
   const titleLower = result.title.toLowerCase()
   const snippetLower = result.snippet.toLowerCase()
-  const matchCount = qWords.filter(w => titleLower.includes(w) || snippetLower.includes(w)).length
-  score += Math.round((matchCount / Math.max(qWords.length, 1)) * 20)
+  const matchedWords = qWords.filter(w => titleLower.includes(w) || snippetLower.includes(w))
+  const matchCount = matchedWords.length
+  const coverageRatio = matchCount / Math.max(qWords.length, 1)
+  if (qWords.length > 1 && coverageRatio < 0.5) {
+    score = Math.round(score * Math.max(coverageRatio, 0.2))
+  } else {
+    score += Math.round(coverageRatio * 20)
+    if (matchCount === qWords.length && qWords.length > 1) {
+      score += 15
+    }
+    const queryLower = query.toLowerCase()
+    if (titleLower.includes(queryLower) || snippetLower.includes(queryLower)) {
+      score += 10
+    }
+  }
   return Math.min(score, 100)
 }
 

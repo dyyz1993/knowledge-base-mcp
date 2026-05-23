@@ -84,6 +84,8 @@ export async function executeSearch(state: SearchState): Promise<void> {
       : [state.query]
   }
 
+  queries = queries.map(optimizeSearchQuery)
+
   const allResults: SearchResult[] = []
   const concurrency = Math.min(queries.length, 5)
   for (let qi = 0; qi < queries.length; qi += concurrency) {
@@ -114,4 +116,12 @@ export async function executeSearch(state: SearchState): Promise<void> {
   })
 
   state.phaseLog.push(`search: ${state.collectedSearchResults.length} results from ${queries.length} queries`)
+}
+
+function optimizeSearchQuery(query: string): string {
+  const tokens = query.split(/\s+/).filter(w => w.length > 1)
+  if (tokens.length >= 2 && !query.includes('"') && tokens.length <= 5) {
+    return `"${query}" ${query}`
+  }
+  return query
 }

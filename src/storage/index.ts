@@ -342,19 +342,30 @@ export function searchDocs(
 
     if (q) {
       const tokens = tokenize(q, { lowercase: false, splitChars: "-_" })
+      let matchedTokenCount = 0
       for (const token of tokens) {
-        if (tokenMatch(doc.title, token)) { score += 10; if (!matched_by.includes("title")) matched_by.push("title") }
-        if (doc.keywords.some(k => tokenMatch(k, token))) { score += 4; if (!matched_by.includes("keywords")) matched_by.push("keywords") }
-        if (tokenMatch(doc.intent, token)) { score += 5; if (!matched_by.includes("intent")) matched_by.push("intent") }
-        if (tokenMatch(doc.project_description, token)) { score += 1; if (!matched_by.includes("project_description")) matched_by.push("project_description") }
-        if (body.includes(token)) { score += 2; if (!matched_by.includes("content")) matched_by.push("content") }
+        let tokenHit = false
+        if (tokenMatch(doc.title, token)) { score += 10; if (!matched_by.includes("title")) matched_by.push("title"); tokenHit = true }
+        if (doc.keywords.some(k => tokenMatch(k, token))) { score += 4; if (!matched_by.includes("keywords")) matched_by.push("keywords"); tokenHit = true }
+        if (tokenMatch(doc.intent, token)) { score += 5; if (!matched_by.includes("intent")) matched_by.push("intent"); tokenHit = true }
+        if (tokenMatch(doc.project_description, token)) { score += 1; if (!matched_by.includes("project_description")) matched_by.push("project_description"); tokenHit = true }
+        if (body.includes(token)) { score += 2; if (!matched_by.includes("content")) matched_by.push("content"); tokenHit = true }
+        if (tokenHit) matchedTokenCount++
       }
       if (tokens.length > 1) {
-        if (tokenMatch(doc.title, q)) score += 5
-        if (doc.keywords.some(k => k.toLowerCase().includes(q))) score += 3
-        if (tokenMatch(doc.intent, q)) score += 2
-        if (tokenMatch(doc.project_description, q)) score += 1
-        if (body.includes(q)) score += 3
+        if (tokenMatch(doc.title, q)) score += 8
+        if (doc.keywords.some(k => k.toLowerCase().includes(q))) score += 5
+        if (tokenMatch(doc.intent, q)) score += 3
+        if (tokenMatch(doc.project_description, q)) score += 2
+        if (body.includes(q)) score += 4
+        if (matchedTokenCount === tokens.length) {
+          score += Math.round(tokens.length * 6)
+        } else if (matchedTokenCount < tokens.length) {
+          const coverageRatio = matchedTokenCount / tokens.length
+          if (coverageRatio < 0.5) {
+            score = Math.round(score * coverageRatio)
+          }
+        }
       }
       if (body && tokens.some(t => body.includes(t))) {
         snippet = extractSnippet(readDocContent(doc.file_path), q)

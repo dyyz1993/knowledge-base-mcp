@@ -6,9 +6,19 @@ import { createLogger } from "../utils/logger.js"
 
 
 const logger = createLogger("search:source-xbrowser")
+
+function filterIrrelevant(query: string, results: Array<{ title: string; url: string; snippet: string }>): typeof results {
+  const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+  if (queryWords.length === 0 || results.length <= 3) return results
+
+  return results.filter(r => {
+    const text = `${r.title} ${r.snippet}`.toLowerCase()
+    return queryWords.some(w => text.includes(w))
+  })
+}
 const ENGINE_NAMES: Record<XBrowserEngine, SourceName> = {
-  bing: "xbrowser-bing",
   google: "xbrowser-google",
+  bing: "xbrowser-bing",
   baidu: "xbrowser-baidu",
   duckduckgo: "xbrowser-duckduckgo",
 }
@@ -33,8 +43,9 @@ export class XBrowserEngineSource implements SearchSource {
       const t0 = Date.now()
       const results = await this.cli.search(query, 10)
       const ms = Date.now() - t0
-      logger.debug(`[xbrowser-${this.engineName}] Query: "${query}" -> ${results.length} results in ${ms}ms`)
-      return results.map(r => ({
+      const filtered = filterIrrelevant(query, results)
+      logger.debug(`[xbrowser-${this.engineName}] Query: "${query}" -> ${filtered.length}/${results.length} results in ${ms}ms`)
+      return filtered.map(r => ({
         title: r.title,
         url: r.url,
         snippet: r.snippet.slice(0, 300),
@@ -146,7 +157,7 @@ export function createXBrowserSources(
 ): SearchSource[] {
   if (!config.enabled) return []
 
-  const engineList = engines.length > 0 ? engines : (["bing", "google"] as XBrowserEngine[])
+  const engineList = engines.length > 0 ? engines : (["google"] as XBrowserEngine[])
   return [new XBrowserMultiEngineSource(config, engineList)]
 }
 
