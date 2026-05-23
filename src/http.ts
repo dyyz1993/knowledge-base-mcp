@@ -13,3 +13,12 @@ export function readBody(req: IncomingMessage): Promise<string> {
     req.on("error", reject)
   })
 }
+
+export async function parseBody(req: IncomingMessage, res: ServerResponse): Promise<unknown | null> {
+  try {
+    return JSON.parse(await readBody(req))
+  } catch (e) {
+    json(res, { error: e instanceof Error ? e.message : "Invalid request body" }, 400)
+    return null
+  }
+}

@@ -9,6 +9,15 @@ import type {
   StreamCallbacks,
 } from "./types"
 
+async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, options)
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`)
+  }
+  return res.json()
+}
+
 export async function streamChat(params: {
   message: string
   sessionId: string
@@ -32,7 +41,11 @@ export async function streamChat(params: {
     return
   }
 
-  const reader = res.body!.getReader()
+  if (!res.body) {
+    params.onError("Response body is null")
+    return
+  }
+  const reader = res.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ""
   let currentEvent = ""
@@ -111,27 +124,23 @@ export async function streamChat(params: {
 }
 
 export async function getModels(): Promise<{ models: ModelInfo[]; current: { provider: string; id: string } | null }> {
-  const res = await fetch(`${BASE}/api/models`)
-  return res.json()
+  return requestJson(`${BASE}/api/models`)
 }
 
 export async function setModel(sessionId: string, provider: string, id: string) {
-  const res = await fetch(`${BASE}/api/models`, {
+  return requestJson(`${BASE}/api/models`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId, provider, id }),
   })
-  return res.json()
 }
 
 export async function listSessions(): Promise<SessionInfo[]> {
-  const res = await fetch(`${BASE}/api/sessions`)
-  return res.json()
+  return requestJson(`${BASE}/api/sessions`)
 }
 
 export async function createSession(): Promise<{ id: string; name: string }> {
-  const res = await fetch(`${BASE}/api/sessions`, { method: "POST" })
-  return res.json()
+  return requestJson(`${BASE}/api/sessions`, { method: "POST" })
 }
 
 export async function renameSession(id: string, name: string) {
@@ -147,22 +156,19 @@ export async function deleteSession(id: string) {
 }
 
 export async function getSessionMessages(id: string): Promise<Message[]> {
-  const res = await fetch(`${BASE}/api/sessions/${id}/messages`)
-  return res.json()
+  return requestJson(`${BASE}/api/sessions/${id}/messages`)
 }
 
 export async function listFavorites(): Promise<Favorite[]> {
-  const res = await fetch(`${BASE}/api/favorites`)
-  return res.json()
+  return requestJson(`${BASE}/api/favorites`)
 }
 
 export async function addFavorite(sessionId: string, messageId: string, content: string): Promise<{ id: string }> {
-  const res = await fetch(`${BASE}/api/favorites`, {
+  return requestJson(`${BASE}/api/favorites`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sessionId, messageId, content }),
   })
-  return res.json()
 }
 
 export async function deleteFavorite(id: string) {

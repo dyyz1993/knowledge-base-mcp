@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, renameSync } from "node:fs"
+import { randomUUID } from "node:crypto"
 import { parseFrontmatter, buildFrontmatter } from "./markdown"
 import { tfidfSearch, buildIDF, invalidateIDFCache } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
@@ -70,9 +71,11 @@ function serializedWrite(fn: () => void): void {
       fn()
     } finally {
       writing = false
-      // Drain any queued writes
-      const next = pendingWrites.shift()
-      if (next) serializedWrite(next)
+      while (pendingWrites.length > 0) {
+        const next = pendingWrites.shift()!
+        writing = true
+        try { next() } finally { writing = false }
+      }
     }
   } else {
     pendingWrites.push(fn)
@@ -187,11 +190,13 @@ function parseFrontmatterWithMeta(raw: string): { frontmatter: Record<string, un
 }
 
 export function generateId(): string {
-  return Math.random().toString(36).slice(2).padEnd(10, "0").slice(0, 10)
+  return randomUUID().replace(/-/g, "").slice(0, 16)
 }
 
 export function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-").replace(/^-|-$/g, "").slice(0, 60)
+  let slug = s.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-").replace(/^-|-$/g, "").slice(0, 60)
+  if (!slug) slug = generateId().slice(0, 8)
+  return slug
 }
 
 function docFilePath(id: string, title: string) {

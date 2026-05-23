@@ -91,10 +91,11 @@ export async function* streamResponse(resp: Response): AsyncGenerator<{
     for (const line of lines) {
       const trimmed = line.trim()
       if (!trimmed || trimmed === "data: [DONE]") continue
-      if (!trimmed.startsWith("data: ")) continue
+      const sseData = trimmed.startsWith("data: ") ? trimmed.slice(6) : trimmed.startsWith("data:") ? trimmed.slice(5) : null
+      if (sseData === null) continue
 
       try {
-        const chunk = JSON.parse(trimmed.slice(6))
+        const chunk = JSON.parse(sseData)
         const choice = chunk.choices?.[0]
         if (!choice) continue
 

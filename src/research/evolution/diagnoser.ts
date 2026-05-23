@@ -1,6 +1,7 @@
 import type { QualityMetrics, DiagnosisResult } from "./types"
 import { callLlm } from "../../search/llm-caller"
 import type { LlmConfig } from "../../search/llm-caller"
+import { extractJsonObject } from "../utils/json-parser.js"
 
 export async function diagnoseBottleneck(
   metrics: QualityMetrics,
@@ -83,8 +84,8 @@ Identify the SINGLE most impactful bottleneck. Return ONLY a JSON object:
     }
   }
 
-  const match = raw.match(/\{[\s\S]*"bottleneck"[\s\S]*\}/)
-  if (!match) {
+  const extracted = extractJsonObject(raw)
+  if (!extracted) {
     return {
       bottleneck: "Failed to parse diagnosis",
       severity: "low",
@@ -95,12 +96,12 @@ Identify the SINGLE most impactful bottleneck. Return ONLY a JSON object:
   }
 
   try {
-    return JSON.parse(match[0]) as DiagnosisResult
+    return JSON.parse(extracted) as DiagnosisResult
   } catch {
     return {
       bottleneck: "JSON parse failed",
       severity: "low",
-      rootCause: match[0].slice(0, 200),
+      rootCause: extracted.slice(0, 200),
       suggestedFix: "Review manually",
       targetFile: "",
     }

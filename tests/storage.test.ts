@@ -53,10 +53,11 @@ describe("slugify", () => {
 })
 
 describe("generateId", () => {
-  test("returns 10-char string", () => {
+  test("returns 16-char hex string", () => {
     const id = generateId()
     expect(typeof id).toBe("string")
-    expect(id.length).toBe(10)
+    expect(id.length).toBe(16)
+    expect(id).toMatch(/^[0-9a-f]+$/)
   })
 
   test("generates unique ids", () => {
@@ -162,7 +163,7 @@ describe("writeDoc", () => {
     }, "Content")
 
     expect(doc.id).toBeDefined()
-    expect(doc.id.length).toBe(10)
+    expect(doc.id.length).toBe(16)
     expect(doc.title).toBe("Meta Test")
     expect(doc.file_path).toContain(testDir)
     expect(doc.created_at).toBeGreaterThan(0)

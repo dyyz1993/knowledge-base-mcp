@@ -1,4 +1,4 @@
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from "node:fs"
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { createLogger } from "../utils/logger.js"
 
@@ -37,7 +37,7 @@ function sessionPath(id: string) {
 
 export function createSession(name?: string): ChatSession {
   ensureBase()
-  const id = crypto.randomUUID().slice(0, 8)
+  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 12)
   const session: ChatSession = { id, name: name || `Chat ${id}`, createdAt: Date.now(), model: null }
   writeFileSync(sessionPath(id), JSON.stringify({ type: "session", ...session }) + "\n")
   return session
@@ -134,11 +134,9 @@ export function listSessions(): (ChatSession & { messageCount: number })[] {
     .map(f => {
       const filePath = join(getSessionsDir(), f)
       try {
-        const fd = openSync(filePath, "r")
-        const buffer = Buffer.alloc(4096)
-        const bytesRead = readSync(fd, buffer, 0, 4096, 0)
-        closeSync(fd)
-        const firstLine = buffer.toString("utf-8", 0, bytesRead).split("\n")[0]
+        const content = readFileSync(filePath, "utf-8")
+        const firstLine = content.split("\n")[0]
+        if (!firstLine) return null
         const header = JSON.parse(firstLine)
         if (header.type !== "session") return null
         const fileSize = statSync(filePath).size

@@ -176,9 +176,10 @@ export class ResearchEvolutionAgent {
         const text = await resp.text()
         let result: Record<string, unknown> | null = null
         for (const line of text.split("\n")) {
-          if (line.startsWith("data:")) {
+          const sseData = line.startsWith("data: ") ? line.slice(6) : line.startsWith("data:") ? line.slice(5) : null
+          if (sseData !== null) {
             try {
-              const d = JSON.parse(line.slice(5))
+              const d = JSON.parse(sseData)
               if (d.phaseLog) result = d
             } catch (e) {
               logger.warn(e instanceof Error ? e.message : String(e))

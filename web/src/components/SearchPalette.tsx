@@ -53,7 +53,7 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
             ) : (
               <>
                 <div className="text-xs text-zinc-500 px-3 py-1">找到 {searchResults.length} 个结果</div>
-                {searchResults.map((doc: DocMeta & { score: number }) => (
+                {searchResults.map((doc) => (
                   <button
                     key={doc.id}
                     onClick={() => { onSelect(doc.id); onClose() }}
@@ -67,7 +67,7 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
                         {doc.tags.slice(0, 3).map(t => <TagBadge key={t} tag={t} />)}
                       </div>
                     </div>
-                    <span className="text-xs text-zinc-600 mt-1">{doc.score}pt</span>
+                    <span className="text-xs text-zinc-600 mt-1">{doc.score?.toFixed(1) ?? '-'}pt</span>
                   </button>
                 ))}
               </>

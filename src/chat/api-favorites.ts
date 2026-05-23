@@ -1,14 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import * as favs from "./store-favorites"
-import { json, readBody } from "../http.js"
+import { json, parseBody } from "../http.js"
 
 export async function handleListFavorites(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   json(res, favs.listFavorites())
 }
 
 export async function handleAddFavorite(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const body = JSON.parse(await readBody(req))
-  const { sessionId, messageId, content } = body as { sessionId: string; messageId: string; content: string }
+  const body = await parseBody(req, res)
+  if (!body) return
+  const { sessionId, messageId, content } = body as Record<string, string>
   if (!sessionId || !messageId || !content) {
     json(res, { error: "sessionId, messageId, and content are required" }, 400)
     return

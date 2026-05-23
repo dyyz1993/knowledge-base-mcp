@@ -14,14 +14,22 @@ import type {
   AgentResearchResult,
 } from "./types"
 
+async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, options)
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`)
+  }
+  return res.json()
+}
+
 export async function smartAsk(query: string, signal?: AbortSignal): Promise<AskResult> {
-  const res = await fetch(`${BASE}/api/kb-ask`, {
+  return requestJson<AskResult>(`${BASE}/api/kb-ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query }),
     signal,
   })
-  return res.json()
 }
 
 export async function ingestWebContent(params: {
@@ -31,59 +39,53 @@ export async function ingestWebContent(params: {
   tags?: string[]
   keywords?: string[]
 }): Promise<IngestResult> {
-  const res = await fetch(`${BASE}/api/kb-ingest`, {
+  return requestJson<IngestResult>(`${BASE}/api/kb-ingest`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   })
-  return res.json()
 }
 
 export async function webRead(url: string): Promise<WebReadResult> {
-  const res = await fetch(`${BASE}/api/web-read`, {
+  return requestJson<WebReadResult>(`${BASE}/api/web-read`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
   })
-  return res.json()
 }
 
 export async function askSearch(query: string, model?: { provider: string; id: string }, signal?: AbortSignal): Promise<PipelineSearchResponse> {
-  const res = await fetch(`${BASE}/api/ask-search`, {
+  return requestJson<PipelineSearchResponse>(`${BASE}/api/ask-search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, model }),
     signal,
   })
-  return res.json()
 }
 
 export async function askDeepRead(url: string): Promise<DeepReadResult> {
-  const res = await fetch(`${BASE}/api/ask-deep-read`, {
+  return requestJson<DeepReadResult>(`${BASE}/api/ask-deep-read`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
   })
-  return res.json()
 }
 
 export async function askWorkKey(query: string, results: PipelineSearchResult[], model?: { provider: string; id: string }): Promise<WorkKeyResult> {
-  const res = await fetch(`${BASE}/api/ask-work-key`, {
+  return requestJson<WorkKeyResult>(`${BASE}/api/ask-work-key`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, results, model }),
   })
-  return res.json()
 }
 
 export async function askResearch(query: string, model?: { provider: string; id: string }, signal?: AbortSignal): Promise<ResearchResult> {
-  const res = await fetch(`${BASE}/api/ask-research`, {
+  return requestJson<ResearchResult>(`${BASE}/api/ask-research`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ query, model }),
     signal,
   })
-  return res.json()
 }
 
 export function agentResearch(
@@ -171,10 +173,9 @@ export async function askSummarize(params: {
   tags?: string[]
   keywords?: string[]
 }): Promise<SummarizeResult> {
-  const res = await fetch(`${BASE}/api/ask-summarize`, {
+  return requestJson<SummarizeResult>(`${BASE}/api/ask-summarize`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
   })
-  return res.json()
 }

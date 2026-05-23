@@ -3,7 +3,7 @@ import * as fs from "node:fs"
 import * as path from "node:path"
 import * as os from "node:os"
 import * as session from "./session"
-import { json, readBody } from "../http.js"
+import { json, readBody, parseBody } from "../http.js"
 
 interface PiModel {
   id: string
@@ -114,8 +114,9 @@ export async function handleGetModels(_req: IncomingMessage, res: ServerResponse
 }
 
 export async function handleSetModel(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const body = JSON.parse(await readBody(req))
-  const { sessionId, provider, id } = body as { sessionId: string; provider: string; id: string }
+  const body = await parseBody(req, res)
+  if (!body) return
+  const { sessionId, provider, id } = body as Record<string, string>
   if (!sessionId || !provider || !id) {
     json(res, { error: "sessionId, provider, and id are required" }, 400)
     return

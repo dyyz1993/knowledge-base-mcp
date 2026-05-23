@@ -5,7 +5,7 @@ import { fetchDocs, fetchDoc, searchDocs } from "../services/api"
 interface DocState {
   docs: DocMeta[]
   current: { meta: DocMeta; content: string; truncated: boolean } | null
-  searchResults: (DocMeta & { score: number })[]
+  searchResults: (DocMeta & { score?: number })[]
   loading: boolean
   searchQuery: string
   load: () => Promise<void>
@@ -47,8 +47,7 @@ export const useDocStore = create<DocState>((set) => ({
       return
     }
     try {
-      const res = await searchDocs(query)
-      const results = Array.isArray(res) ? res : res.documents || []
+      const results = await searchDocs(query)
       set({ searchResults: results, searchQuery: query })
     } catch {
       set({ searchResults: [], searchQuery: query })

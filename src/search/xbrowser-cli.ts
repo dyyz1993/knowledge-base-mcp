@@ -140,15 +140,14 @@ async function runCommand(
     stderr: "pipe",
   })
 
-  const exitCode = await Promise.race([
-    proc.exited,
-    new Promise<null>((_, reject) =>
-      setTimeout(() => {
-        proc.kill()
-        reject(new Error(`xbrowser timed out after ${timeout}ms`))
-      }, timeout),
-    ),
-  ])
+  const timeoutPromise = new Promise<null>((_, reject) =>
+    setTimeout(() => {
+      proc.kill()
+      reject(new Error(`xbrowser timed out after ${timeout}ms`))
+    }, timeout),
+  )
+
+  const exitCode = await Promise.race([proc.exited, timeoutPromise])
 
   const stdout = await new Response(proc.stdout).text()
   const stderr = await new Response(proc.stderr).text()
@@ -186,7 +185,7 @@ function parseJsonOutput<T>(raw: string): T {
 
 /** Strip ANSI escape codes from string */
 function stripAnsi(str: string): string {
-  return str.replace(/\x1b\[[0-9;]*m/g, "")
+  return str.replace(/\x1b\[[^@-~]*[@-~]/g, "").replace(/\x1b\][^\x07]*\x07/g, "")
 }
 
 /** Parse xbrowser YAML-like output into structured data */

@@ -61,7 +61,11 @@ export function extractHtmlContent(html: string, fallbackTitle = ""): { title: s
     .replace(/<[^>]+>/g, " ")
     .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#(\d+);/g, (_, code) => {
+      const cp = Number(code)
+      if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) return "\uFFFD"
+      try { return String.fromCodePoint(cp) } catch { return "\uFFFD" }
+    })
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, MAX_CONTENT)
@@ -114,7 +118,8 @@ export function setupSSE(res: ServerResponse): { send: (event: string, data: unk
   })
   return {
     send: (event: string, data: unknown) => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+      const safeEvent = event.replace(/[\r\n]/g, "")
+      res.write(`event: ${safeEvent}\ndata: ${JSON.stringify(data)}\n\n`)
     },
     cleanup: () => {
       clearInterval(heartbeat)

@@ -55,7 +55,8 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
   })
 
   const send = (event: string, data: unknown) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    const safeEvent = event.replace(/[\r\n]/g, "")
+    res.write(`event: ${safeEvent}\ndata: ${JSON.stringify(data)}\n\n`)
   }
 
   try {

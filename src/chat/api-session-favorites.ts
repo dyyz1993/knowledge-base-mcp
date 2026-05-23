@@ -1,14 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import * as sf from "./store-session-favorites"
-import { json, readBody } from "../http.js"
+import { json, parseBody } from "../http.js"
 
 export async function handleListSessionFavorites(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   json(res, sf.listSessionFavorites())
 }
 
 export async function handleAddSessionFavorite(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const body = JSON.parse(await readBody(req))
-  const { sessionId, note } = body as { sessionId: string; note?: string }
+  const body = await parseBody(req, res)
+  if (!body) return
+  const { sessionId, note } = body as Record<string, string>
   if (!sessionId) {
     json(res, { error: "sessionId is required" }, 400)
     return

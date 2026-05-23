@@ -168,10 +168,14 @@ export class McpWebSearch {
       const content = result.content as Array<{ type: string; text: string }> | undefined
       if (!content?.[0]?.text) return null
 
-      let parsed: unknown = JSON.parse(content[0].text)
-      if (typeof parsed === "string") {
-        try { parsed = JSON.parse(parsed) } catch { /* ignore */ }
-      }
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(content[0].text)
+        if (typeof parsed === "string") {
+          try { parsed = JSON.parse(parsed) } catch { return null }
+        }
+      } catch { return null }
+      if (typeof parsed !== "object" || parsed === null) return null
       const data = parsed as Record<string, unknown>
       return {
         title: (data.title as string) || url,
