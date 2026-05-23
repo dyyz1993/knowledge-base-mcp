@@ -53,6 +53,7 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
       res.setHeader("X-Content-Type-Options", "nosniff")
       res.setHeader("X-Frame-Options", "DENY")
       res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
+      res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https:; font-src 'self' data:; worker-src 'self' blob:")
 
       // Health check: always accessible, no auth required
       if (url.pathname === "/health") {
