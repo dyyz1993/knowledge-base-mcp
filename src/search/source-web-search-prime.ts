@@ -1,6 +1,9 @@
 import { getMcpWebSearch } from "./mcp-web-search"
 import type { SearchSource, SearchResult, SourceType } from "./types"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("search:source-web-search-prime")
 function inferSourceType(url: string): SourceType {
   try {
     const u = new URL(url)
@@ -40,7 +43,7 @@ export class WebSearchPrimeSource implements SearchSource {
       this.consecutiveZeroCount++
       if (this.consecutiveZeroCount >= WebSearchPrimeSource.DISABLE_AFTER_CONSECUTIVE_ZEROS) {
         this.disabled = true
-        console.warn(`[search] [web-search-prime] Disabled after ${this.consecutiveZeroCount} consecutive zero-result calls`)
+        logger.warn(`[web-search-prime] Disabled after ${this.consecutiveZeroCount} consecutive zero-result calls`)
       }
     } else {
       this.consecutiveZeroCount = 0

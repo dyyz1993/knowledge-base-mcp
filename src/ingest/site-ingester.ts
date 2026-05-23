@@ -9,6 +9,9 @@
  */
 
 import { writeDoc } from "../storage/index.js"
+import { createLogger } from "../utils/logger.js"
+
+const logger = createLogger("ingest:site-ingester")
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -525,7 +528,7 @@ async function discoverFromLinks(baseUrl: string, onProgress: ProgressCallback, 
       )
       documents.push({ id: doc.id, title: page.title, section: page.section })
     } catch (e) {
-      console.warn(`[ingest-site] Failed to store ${page.url}:`, e instanceof Error ? e.message : String(e))
+      logger.warn(`Failed to store ${page.url}:`, e instanceof Error ? e.message : String(e))
     }
 
     if (i % 10 === 0) {

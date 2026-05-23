@@ -1,6 +1,9 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs"
 import { join } from "node:path"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("statistics:index")
 const STATS_DIR = `${process.env.HOME}/.kb-chat/stats`
 const SEARCH_STATS_PATH = `${STATS_DIR}/search.json`
 const LLM_STATS_PATH = `${STATS_DIR}/llm.json`
@@ -102,7 +105,7 @@ export class SearchStatistics {
       try {
         this.stats = JSON.parse(readFileSync(SEARCH_STATS_PATH, "utf-8"))
       } catch (e) {
-        console.warn("[stats] Failed to load search stats, using defaults:", e instanceof Error ? e.message : String(e))
+        logger.warn("Failed to load search stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
     }
   }
@@ -144,7 +147,7 @@ export class SearchStatistics {
 
     this.stats.totalResults += count
 
-    console.debug(`[stats] Search source: ${name} | call #${source.count} | ${count} results | ${timeMs}ms | avg: ${source.avgTime.toFixed(1)}ms`)
+    logger.debug(`Search source: ${name} | call #${source.count} | ${count} results | ${timeMs}ms | avg: ${source.avgTime.toFixed(1)}ms`)
 
     this.save()
   }
@@ -189,7 +192,7 @@ export class LLMStatistics {
       try {
         this.stats = JSON.parse(readFileSync(LLM_STATS_PATH, "utf-8"))
       } catch (e) {
-        console.warn("[stats] Failed to load LLM stats, using defaults:", e instanceof Error ? e.message : String(e))
+        logger.warn("Failed to load LLM stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
     }
   }
@@ -228,7 +231,7 @@ export class LLMStatistics {
     modelStats.avgTime = modelStats.totalTime / modelStats.count
     modelStats.lastCalledAt = Date.now()
 
-    console.debug(`[stats] LLM: ${model} | call #${modelStats.count} | ${tokens} tokens | ${timeMs}ms | cost: $${cost.toFixed(4)}`)
+    logger.debug(`LLM: ${model} | call #${modelStats.count} | ${tokens} tokens | ${timeMs}ms | cost: $${cost.toFixed(4)}`)
 
     this.save()
   }
@@ -266,7 +269,7 @@ export class EmbeddingStatistics {
       try {
         this.stats = JSON.parse(readFileSync(EMBEDDING_STATS_PATH, "utf-8"))
       } catch (e) {
-        console.warn("[stats] Failed to load embedding stats, using defaults:", e instanceof Error ? e.message : String(e))
+        logger.warn("Failed to load embedding stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
     }
   }
@@ -290,7 +293,7 @@ export class EmbeddingStatistics {
     this.stats.avgTime = this.stats.totalTime / this.stats.count
     this.stats.lastCalledAt = Date.now()
 
-    console.debug(`[stats] Embedding: call #${this.stats.count} | ${tokens} tokens | ${timeMs}ms`)
+    logger.debug(`Embedding: call #${this.stats.count} | ${tokens} tokens | ${timeMs}ms`)
 
     this.save()
   }
@@ -328,7 +331,7 @@ export class MCPStatistics {
       try {
         this.stats = JSON.parse(readFileSync(MCP_STATS_PATH, "utf-8"))
       } catch (e) {
-        console.warn("[stats] Failed to load MCP stats, using defaults:", e instanceof Error ? e.message : String(e))
+        logger.warn("Failed to load MCP stats, using defaults:", e instanceof Error ? e.message : String(e))
       }
     }
   }
@@ -367,7 +370,7 @@ export class MCPStatistics {
     tool.lastCalledAt = Date.now()
     if (error) tool.errors++
 
-    console.debug(`[stats] MCP tool: ${name} | call #${tool.count} | ${timeMs}ms | avg: ${tool.avgTime.toFixed(1)}ms`)
+    logger.debug(`MCP tool: ${name} | call #${tool.count} | ${timeMs}ms | avg: ${tool.avgTime.toFixed(1)}ms`)
 
     this.save()
   }

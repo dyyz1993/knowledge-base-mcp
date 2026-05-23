@@ -2,6 +2,9 @@ import { readdirSync, readFileSync, statSync, existsSync } from "node:fs"
 import { join, basename } from "node:path"
 import { homedir } from "node:os"
 import { writeDoc, listDocs, type DocMeta } from "../storage/index.js"
+import { createLogger } from "../utils/logger.js"
+
+const logger = createLogger("chat:skill-scanner")
 
 export interface ScanResult {
   total: number
@@ -36,7 +39,7 @@ function parseSkillMd(raw: string, dirName: string): ParsedSkill {
       if (idx === -1) continue
       const key = line.slice(0, idx).trim().toLowerCase()
       let val: string = line.slice(idx + 1).trim()
-      try { val = JSON.parse(val) } catch (e) { console.warn("[skill-scanner]", e instanceof Error ? e.message : String(e)) }
+      try { val = JSON.parse(val) } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
       if (key === "name") name = val || name
       if (key === "description") description = val
       if (key === "triggers") {

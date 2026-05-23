@@ -7,8 +7,11 @@ import { SearchPipeline } from "../search/search-pipeline.js"
 import { getConfiguredModels } from "../chat/api-models.js"
 import { loadConfig } from "../config.js"
 import { json, parseBody, validateUrl, extractHtmlContent, getApiUserAgent } from "./helpers.js"
+import { createLogger } from "../utils/logger.js"
 
 export async function handleSearchRoutes(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
+
+const logger = createLogger("http:api-search")
   if (url.pathname === "/api/search/semantic" && req.method === "POST") {
     const body = (await parseBody(req, res)) as Record<string, any>
     if (body === null) return true
@@ -35,7 +38,7 @@ export async function handleSearchRoutes(req: IncomingMessage, res: ServerRespon
       try {
         json(res, await searchDocsCombined(body.query, body.keywords, body.tags, body.limit))
       } catch (e) {
-        console.error("[search] Combined search failed, falling back:", e instanceof Error ? e.message : String(e))
+        logger.error("Combined search failed, falling back:", e instanceof Error ? e.message : String(e))
         json(res, searchDocs(body.query, body.keywords, body.tags, body.limit))
       }
       return true

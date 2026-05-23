@@ -1,6 +1,9 @@
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("chat:store-sessions")
 function getSessionsDir(): string {
   return `${process.env.HOME}/.kb-chat/sessions`
 }
@@ -51,7 +54,7 @@ export function readMessages(id: string): ChatMessage[] {
   if (!existsSync(path)) return []
   const lines = readFileSync(path, "utf-8").trim().split("\n").filter(Boolean)
   return lines.slice(1).map(line => {
-    try { return JSON.parse(line) as ChatMessage } catch (e) { console.warn("[store-sessions]", e instanceof Error ? e.message : String(e)); return null }
+    try { return JSON.parse(line) as ChatMessage } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)); return null }
   }).filter((m): m is ChatMessage => m !== null && m.role && m.content !== undefined && ["user", "assistant", "thinking", "tool_call", "tool_result", "suggestions", "usage"].includes(m.role))
 }
 
@@ -64,7 +67,7 @@ export function readSession(id: string): ChatSession | null {
     const parsed = JSON.parse(firstLine)
     if (parsed.type === "session") return { id: parsed.id, name: parsed.name, createdAt: parsed.createdAt, model: parsed.model, sharedUrl: parsed.sharedUrl }
   } catch (e) {
-    console.warn("[store-sessions]", e instanceof Error ? e.message : String(e))
+    logger.warn(e instanceof Error ? e.message : String(e))
   }
   return null
 }
@@ -83,7 +86,7 @@ export function updateSessionSharedUrl(id: string, sharedUrl: string): void {
       writeFileSync(path, lines.join("\n") + "\n")
     }
   } catch (e) {
-    console.warn("[store-sessions]", e instanceof Error ? e.message : String(e))
+    logger.warn(e instanceof Error ? e.message : String(e))
   }
 }
 
@@ -101,7 +104,7 @@ export function updateSessionName(id: string, name: string): void {
       writeFileSync(path, lines.join("\n") + "\n")
     }
   } catch (e) {
-    console.warn("[store-sessions]", e instanceof Error ? e.message : String(e))
+    logger.warn(e instanceof Error ? e.message : String(e))
   }
 }
 
@@ -119,7 +122,7 @@ export function updateSessionModel(id: string, model: { provider: string; id: st
       writeFileSync(path, lines.join("\n") + "\n")
     }
   } catch (e) {
-    console.warn("[store-sessions]", e instanceof Error ? e.message : String(e))
+    logger.warn(e instanceof Error ? e.message : String(e))
   }
 }
 
@@ -141,7 +144,7 @@ export function listSessions(): (ChatSession & { messageCount: number })[] {
         const fileSize = statSync(filePath).size
         const estimatedLines = Math.max(1, Math.round(fileSize / 256))
         return { id: header.id as string, name: header.name as string, createdAt: header.createdAt as number, model: header.model as ChatSession["model"], sharedUrl: header.sharedUrl as string | undefined, messageCount: estimatedLines - 1 } as (ChatSession & { messageCount: number }) | null
-      } catch (e) { console.warn("[store-sessions]", e instanceof Error ? e.message : String(e)); return null as (ChatSession & { messageCount: number }) | null }
+      } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)); return null as (ChatSession & { messageCount: number }) | null }
     })
     .filter((s): s is ChatSession & { messageCount: number } => s !== null)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

@@ -2,7 +2,10 @@ import { existsSync, readdirSync } from "node:fs"
 import { homedir } from "node:os"
 import { createSession, destroyBrowser, type ManagedSession, type BrowserLaunchOptions } from "@dyyz1993/xbrowser"
 import { loadConfig } from "../config.js"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("chat:browser-launcher")
 const MACOS_PATHS = [
   "/Applications/Chromium.app/Contents/MacOS/Chromium",
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -45,7 +48,7 @@ function findPlaywrightChromium(cacheDir: string): string | null {
       return existsSync(p) ? p : null
     }
   } catch (e) {
-    console.warn("[browser-launcher]", e instanceof Error ? e.message : String(e))
+    logger.warn(e instanceof Error ? e.message : String(e))
   }
   return null
 }

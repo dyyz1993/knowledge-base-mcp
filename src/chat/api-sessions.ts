@@ -3,6 +3,9 @@ import * as session from "./session"
 import * as store from "./store-sessions"
 import * as sf from "./store-session-favorites"
 import { json, readBody } from "../http.js"
+import { createLogger } from "../utils/logger.js"
+
+const logger = createLogger("chat:api-sessions")
 
 export async function handleListSessions(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   const sessions = session.list().map(s => ({ ...s, favorited: sf.isSessionFavorited(s.id) }))
@@ -11,7 +14,7 @@ export async function handleListSessions(_req: IncomingMessage, res: ServerRespo
 
 export async function handleCreateSession(req: IncomingMessage, res: ServerResponse): Promise<void> {
   let body: Record<string, string> = {}
-  try { body = JSON.parse(await readBody(req)) } catch (e) { console.warn("[api-sessions]", e instanceof Error ? e.message : String(e)) }
+  try { body = JSON.parse(await readBody(req)) } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
   const sess = store.createSession(body.name)
   json(res, sess)
 }
@@ -20,7 +23,7 @@ export async function handleRenameSession(req: IncomingMessage, res: ServerRespo
   const id = url.pathname.split("/").filter(Boolean)[2]
   if (!id) { json(res, { error: "Session ID required" }, 400); return }
   let body: Record<string, string> = {}
-  try { body = JSON.parse(await readBody(req)) } catch (e) { console.warn("[api-sessions]", e instanceof Error ? e.message : String(e)) }
+  try { body = JSON.parse(await readBody(req)) } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
   if (!body.name) { json(res, { error: "Name required" }, 400); return }
   session.setName(id, body.name)
   json(res, { ok: true })

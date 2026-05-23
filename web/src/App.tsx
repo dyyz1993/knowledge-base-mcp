@@ -7,12 +7,12 @@ import DocViewer from "./components/DocViewer"
 import SearchPalette from "./components/SearchPalette"
 import SessionList from "./components/SessionList"
 import ChatPanel from "./components/ChatPanel"
-import KBPanel from "./components/KBPanel"
-import FavoriteList from "./components/FavoriteList"
 import AskPanel from "./components/AskPanel"
 import { ListSkeleton } from "./components/Skeleton"
 
 const SettingsPanel = lazy(() => import("./components/SettingsPanel"))
+const LazyKBPanel = lazy(() => import("./components/KBPanel"))
+const LazyFavoriteList = lazy(() => import("./components/FavoriteList"))
 
 type Tab = "kb" | "ask" | "chat"
 
@@ -195,14 +195,18 @@ export default function App() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <KBPanel />
+              <Suspense fallback={<div className="p-4"><ListSkeleton /></div>}>
+                <LazyKBPanel />
+              </Suspense>
             </div>
             <div className="border-t border-zinc-800">
               <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-zinc-800">
                 <span className="text-xs font-medium text-zinc-400">Favorites</span>
               </div>
               <div className="p-2 max-h-40 overflow-y-auto">
-                <FavoriteList />
+                <Suspense fallback={null}>
+                  <LazyFavoriteList />
+                </Suspense>
               </div>
             </div>
           </aside>

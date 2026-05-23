@@ -2,8 +2,11 @@ import type { EvaluateResult } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
 import type { SearchResult } from "../../search/types"
 import { extractJsonObject } from "../utils/json-parser.js"
+import { createLogger } from "../../utils/logger.js"
 
 /** Domains that are almost never relevant for technical research queries */
+
+const logger = createLogger("research:steps:evaluate")
 const LOW_QUALITY_DOMAINS = [
   "deployhq.com", "linkedin.com", "facebook.com", "twitter.com",
   "pinterest.com", "instagram.com", "tiktok.com",
@@ -47,7 +50,7 @@ async function retryEvaluateSimple(
   }
 
   try {
-    console.warn("[evaluate] Retrying with simplified prompt...")
+    logger.warn("Retrying with simplified prompt...")
     const list = capped
       .map((r, i) => `[${i}] ${r.title} | ${r.snippet.slice(0, 150)}`)
       .join("\n")
@@ -75,7 +78,7 @@ async function retryEvaluateSimple(
       }
     }
   } catch {
-    console.warn("[evaluate] Retry also failed, using snippet-relevance fallback")
+    logger.warn("Retry also failed, using snippet-relevance fallback")
   }
   return fallback
 }

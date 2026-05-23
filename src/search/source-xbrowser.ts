@@ -2,7 +2,10 @@ import { XBrowserCLI } from "./xbrowser-cli"
 import type { SearchSource, SearchResult, SourceName } from "./types"
 import type { XBrowserConfig, XBrowserEngine } from "./xbrowser-cli"
 import { normalizeUrl } from "./utils"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("search:source-xbrowser")
 const ENGINE_NAMES: Record<XBrowserEngine, SourceName> = {
   bing: "xbrowser-bing",
   google: "xbrowser-google",
@@ -30,7 +33,7 @@ export class XBrowserEngineSource implements SearchSource {
       const t0 = Date.now()
       const results = await this.cli.search(query, 10)
       const ms = Date.now() - t0
-      console.debug(`[search] [xbrowser-${this.engineName}] Query: "${query}" -> ${results.length} results in ${ms}ms`)
+      logger.debug(`[xbrowser-${this.engineName}] Query: "${query}" -> ${results.length} results in ${ms}ms`)
       return results.map(r => ({
         title: r.title,
         url: r.url,
@@ -40,7 +43,7 @@ export class XBrowserEngineSource implements SearchSource {
         qualityScore: 0,
       }))
     } catch (err) {
-      console.debug(`[search] [xbrowser-${this.engineName}] ERROR for "${query}": ${err instanceof Error ? err.message : err}`)
+      logger.debug(`[xbrowser-${this.engineName}] ERROR for "${query}": ${err instanceof Error ? err.message : err}`)
       return []
     }
   }
@@ -88,7 +91,7 @@ export class XBrowserMultiEngineSource implements SearchSource {
       if (settled.status === "fulfilled") {
         allItems.push(...settled.value)
       } else {
-        console.debug(`[search] [xbrowser-multi] engine=${this.engines[i]} FAILED: ${settled.reason}`)
+        logger.debug(`[xbrowser-multi] engine=${this.engines[i]} FAILED: ${settled.reason}`)
       }
     }
 
@@ -130,7 +133,7 @@ export class XBrowserMultiEngineSource implements SearchSource {
 
     const ms = Date.now() - t0
     const succeeded = perEngine.filter(s => s.status === "fulfilled").length
-    console.debug(
+    logger.debug(
       `[search] [xbrowser-multi] Query: "${query}" -> ${results.length} results (from ${succeeded}/${this.engines.length} engines) in ${ms}ms`,
     )
     return results

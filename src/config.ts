@@ -1,7 +1,10 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
+import { createLogger } from "./utils/logger.js"
 
+
+const logger = createLogger("config")
 const CONFIG_DIR = join(homedir(), ".kb-chat")
 const CONFIG_PATH = join(CONFIG_DIR, "config.json")
 
@@ -231,7 +234,7 @@ export function loadConfig(): AppConfig {
       }
     }
   } catch (e) {
-    console.warn("[config]", e instanceof Error ? e.message : String(e))
+    logger.warn(e instanceof Error ? e.message : String(e))
   }
   return { ...DEFAULT_CONFIG, skills: { ...DEFAULT_CONFIG.skills, paths: DEFAULT_CONFIG.skills.paths.map(expandPath) }, storage: { ...DEFAULT_CONFIG.storage }, timeouts: { ...DEFAULT_CONFIG.timeouts }, askPipeline: { ...DEFAULT_CONFIG.askPipeline } }
 }

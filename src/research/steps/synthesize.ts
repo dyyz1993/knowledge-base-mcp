@@ -1,5 +1,8 @@
 import type { DeepReadItem } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
+import { createLogger } from "../../utils/logger.js"
+
+const logger = createLogger("research:steps:synthesize")
 
 export async function synthesize(
   query: string,
@@ -62,7 +65,7 @@ Answer in the same language as the query.`
       return { text: result.trim(), isFallback: false }
     }
   } catch (e) {
-    console.warn("[synthesize]", e instanceof Error ? e.message : String(e))
+    logger.warn(e instanceof Error ? e.message : String(e))
   }
 
   return { text: deepReadResults

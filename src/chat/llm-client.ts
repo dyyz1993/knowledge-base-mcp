@@ -1,5 +1,8 @@
 import type { IncomingMessage } from "node:http"
 import type { OpenAITool } from "./tools.js"
+import { createLogger } from "../utils/logger.js"
+
+const logger = createLogger("chat:llm-client")
 
 export interface ChatMessage {
   role: string
@@ -49,7 +52,7 @@ export async function callOpenAI(
 
     if ((resp.status === 429 || resp.status >= 500) && attempt < maxRetries) {
       const backoff = Math.pow(2, attempt) * 1000
-      console.warn(`Chat API ${resp.status} on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${backoff}ms…`)
+      logger.warn(`Chat API ${resp.status} on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${backoff}ms…`)
       await new Promise<void>(resolve => setTimeout(resolve, backoff))
       continue
     }

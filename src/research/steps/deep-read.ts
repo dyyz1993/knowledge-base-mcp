@@ -1,6 +1,9 @@
 import type { DeepReadItem } from "../types"
 import type { SearchResult } from "../../search/types"
+import { createLogger } from "../../utils/logger.js"
 
+
+const logger = createLogger("research:steps:deep-read")
 function decodeHtmlEntities(text: string): string {
   return text
     .replace(/&lt;/g, "<")
@@ -200,7 +203,7 @@ export async function deepReadUrls(
             return result
           }
         } catch (e) {
-          console.debug(`[deep-read] xbrowser scrape failed for ${fetchItem.url}: ${e instanceof Error ? e.message : e}`)
+          logger.debug(`xbrowser scrape failed for ${fetchItem.url}: ${e instanceof Error ? e.message : e}`)
         }
       }
 
@@ -266,7 +269,7 @@ export async function deepReadUrls(
           source: isLikelyNavigation ? "failed" : "fetch",
         }
         if (isLikelyNavigation) {
-          console.debug(`[deep-read] Content appears to be navigation/chrome for ${fetchItem.url}, marking as failed`)
+          logger.debug(`Content appears to be navigation/chrome for ${fetchItem.url}, marking as failed`)
         }
         deepReadCache.set(cacheKey, result)
         return result

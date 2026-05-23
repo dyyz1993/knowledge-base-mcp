@@ -1,8 +1,11 @@
 import type { DepthEvaluation, DeepReadItem, StepDecision } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
 import { extractJsonObject } from "../utils/json-parser.js"
+import { createLogger } from "../../utils/logger.js"
 
 /** Enhanced JSON extraction with trailing-comma fix for LLM responses */
+
+const logger = createLogger("research:steps:evaluate-depth")
 function extractJson(text: string): string | null {
   const extracted = extractJsonObject(text)
   if (extracted) return extracted
@@ -101,7 +104,7 @@ Now evaluate. Return ONLY the JSON object:
         missingTopics: Array.isArray(parsed.missingTopics) ? parsed.missingTopics.map(String) : [],
       }
     } catch (e) {
-      console.warn("[evaluate-depth]", e instanceof Error ? e.message : String(e))
+      logger.warn(e instanceof Error ? e.message : String(e))
     }
   }
 

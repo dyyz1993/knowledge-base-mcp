@@ -40,7 +40,7 @@ export class McpWebSearch {
     if (this._searchDisabled && Date.now() - this._disabledAt > McpWebSearch.DISABLED_COOLDOWN_MS) {
       this._searchDisabled = false
       this._disabledReason = ""
-      console.debug("[mcp-search] Cooldown expired, re-enabling search")
+      logger.debug("Cooldown expired, re-enabling search")
     }
     return !this._searchDisabled
   }
@@ -92,7 +92,7 @@ export class McpWebSearch {
 
   async search(query: string, maxResults = 5): Promise<WebSearchResult[]> {
     if (this._searchDisabled) {
-      console.warn(`[mcp-search] Skipped (disabled: ${this._disabledReason})`)
+      logger.warn(`Skipped (disabled: ${this._disabledReason})`)
       return []
     }
 
@@ -130,18 +130,18 @@ export class McpWebSearch {
           this._searchDisabled = true
           this._disabledAt = Date.now()
           this._disabledReason = message.slice(0, 100)
-          console.warn(`[mcp-search] Quota/rate limited, disabling search: ${message.slice(0, 80)}`)
+          logger.warn(`Quota/rate limited, disabling search: ${message.slice(0, 80)}`)
           return []
         }
 
         if (isRetryable && attempt < maxRetries) {
           const backoff = Math.pow(2, attempt) * 1000
-          console.warn(`[mcp-search] Retry ${attempt + 1}/${maxRetries} after ${backoff}ms: ${message.slice(0, 60)}`)
+          logger.warn(`Retry ${attempt + 1}/${maxRetries} after ${backoff}ms: ${message.slice(0, 60)}`)
           await new Promise(r => setTimeout(r, backoff))
           continue
         }
 
-        console.error(`[mcp-search] Error (attempt ${attempt + 1}): ${message.slice(0, 100)}`)
+        logger.error(`Error (attempt ${attempt + 1}): ${message.slice(0, 100)}`)
         return []
       }
     }
@@ -150,7 +150,7 @@ export class McpWebSearch {
 
   async readUrl(url: string): Promise<WebReadResult | null> {
     if (this._readerDisabled) {
-      console.warn(`[mcp-reader] Skipped (disabled: ${this._disabledReason})`)
+      logger.warn(`Skipped (disabled: ${this._disabledReason})`)
       return null
     }
 
@@ -183,9 +183,9 @@ export class McpWebSearch {
       if (isQuota) {
         this._readerDisabled = true
         this._disabledReason = message.slice(0, 100)
-        console.warn(`[mcp-reader] Quota/rate limited, disabling reader: ${message.slice(0, 80)}`)
+        logger.warn(`Quota/rate limited, disabling reader: ${message.slice(0, 80)}`)
       } else {
-        console.error(`[mcp-reader] Error: ${message.slice(0, 100)}`)
+        logger.error(`Error: ${message.slice(0, 100)}`)
       }
       return null
     }
@@ -206,7 +206,10 @@ export class McpWebSearch {
 }
 
 import { loadConfig } from "../config"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("search:mcp-web-search")
 let _instance: McpWebSearch | null = null
 
 export function getMcpWebSearch(): McpWebSearch | null {

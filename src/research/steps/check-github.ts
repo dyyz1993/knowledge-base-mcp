@@ -1,6 +1,9 @@
 import type { GitHubCheck } from "../types"
 import type { SearchResult } from "../../search/types"
+import { createLogger } from "../../utils/logger.js"
 
+
+const logger = createLogger("research:steps:check-github")
 const GITHUB_REPO_PATTERN = /github\.com\/([^/]+\/[^/]+)/
 
 export async function checkGithub(
@@ -97,7 +100,7 @@ export async function checkGithub(
   }
 
   if (rateLimited) {
-    console.warn("[check-github] GitHub API rate limit detected, results may be incomplete")
+    logger.warn("GitHub API rate limit detected, results may be incomplete")
   }
 
   return {
@@ -151,7 +154,7 @@ export async function fetchGitHubFile(
       return await resp.text()
     }
   } catch (e) {
-    console.warn("[check-github]", e instanceof Error ? e.message : String(e))
+    logger.warn(e instanceof Error ? e.message : String(e))
   }
 
   return ""

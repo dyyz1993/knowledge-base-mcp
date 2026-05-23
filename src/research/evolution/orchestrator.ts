@@ -11,6 +11,9 @@ import { computeCaseMetrics, aggregateMetrics, diffMetrics } from "./analyzer"
 import { diagnoseBottleneck } from "./diagnoser"
 import { tierToLlmConfig, inferModelTier } from "../model-tier"
 import { callLlm } from "../../search/llm-caller"
+import { createLogger } from "../../utils/logger.js"
+
+const logger = createLogger("research:evolution:orchestrator")
 
 export class ResearchEvolutionAgent {
   private config: EvolutionConfig
@@ -27,7 +30,7 @@ export class ResearchEvolutionAgent {
   ) {
     this.config = config
     this.benchmarks = benchmarks || DEFAULT_BENCHMARKS
-    this.onLog = onLog || ((msg: string) => console.debug(`[evolution] ${msg}`))
+    this.onLog = onLog || ((msg: string) => logger.debug(msg))
     this.model = {
       large: { baseUrl: "", apiKey: "", model: "" },
       small: { baseUrl: "", apiKey: "", model: "" },
@@ -178,7 +181,7 @@ export class ResearchEvolutionAgent {
               const d = JSON.parse(line.slice(5))
               if (d.phaseLog) result = d
             } catch (e) {
-              console.warn("[orchestrator]", e instanceof Error ? e.message : String(e))
+              logger.warn(e instanceof Error ? e.message : String(e))
             }
           }
         }

@@ -2,6 +2,9 @@ import type { SearchSource, SearchResult } from "./types"
 import { loadConfig } from "../config"
 import { XBrowserCLI } from "./xbrowser-cli"
 import type { XBrowserAIEngine } from "./xbrowser-cli"
+import { createLogger } from "../utils/logger.js"
+
+const logger = createLogger("search:source-ai-search")
 
 export class AiSearchSource implements SearchSource {
   name = "ai-search" as const
@@ -48,7 +51,7 @@ export class AiSearchSource implements SearchSource {
           }))
         }
       } catch (e) {
-        console.debug(`[ai-search] engine=${engine} failed: ${e instanceof Error ? e.message : String(e)}`)
+        logger.debug(`engine=${engine} failed: ${e instanceof Error ? e.message : String(e)}`)
       }
     }
 

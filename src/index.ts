@@ -10,7 +10,10 @@ import { initDb, closeDb } from "./search/vector-store.js"
 import { registerTools } from "./mcp/register-tools.js"
 import { startHttp } from "./http/start.js"
 import { flushStats } from "./statistics/index.js"
+import { createLogger } from "./utils/logger.js"
 
+
+const logger = createLogger("index")
 const noMcp = process.argv.includes("--no-mcp")
 
 const mcp = noMcp ? null : (() => {
@@ -23,16 +26,16 @@ const mcp = noMcp ? null : (() => {
 let httpServer: ReturnType<typeof startHttp> | null = null
 
 async function shutdown(signal: string) {
-  console.log(`\n[shutdown] Received ${signal}, shutting down gracefully...`)
+  logger.info(`\n[shutdown] Received ${signal}, shutting down gracefully...`)
   try {
     flushStats()
     closeDb()
     if (httpServer) {
       httpServer.close()
-      console.log("[shutdown] HTTP server closed")
+      logger.info("HTTP server closed")
     }
   } catch (e) {
-    console.error("[shutdown] Error during shutdown:", e)
+    logger.error("Error during shutdown:", e)
   }
   process.exit(0)
 }
@@ -47,12 +50,12 @@ async function main() {
 
   if (mode === "stdio") {
     if (noMcp) {
-      console.error("Error: --no-mcp cannot be used with stdio mode (MCP is required for stdio)")
+      logger.error("Error: --no-mcp cannot be used with stdio mode (MCP is required for stdio)")
       process.exit(1)
     }
     const transport = new StdioServerTransport()
     await mcp!.connect(transport)
-    console.error("Knowledge Base MCP running on stdio")
+    logger.error("Knowledge Base MCP running on stdio")
   } else {
     const portIdx = process.argv.indexOf("--port")
     const port = portIdx !== -1 ? parseInt(process.argv[portIdx + 1]) : 19877

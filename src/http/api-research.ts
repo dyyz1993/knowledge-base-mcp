@@ -4,6 +4,10 @@ import { getMcpWebSearch } from "../search/mcp-web-search.js"
 import { getConfiguredModels } from "../chat/api-models.js"
 import { loadConfig } from "../config.js"
 import { json, parseBody, validateUrl, extractHtmlContent, getApiUserAgent, setupSSE } from "./helpers.js"
+import { createLogger } from "../utils/logger.js"
+
+const logger = createLogger("http:api-research")
+
 export async function handleResearchRoutes(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
   if (url.pathname === "/api/ask-deep-read" && req.method === "POST") {
     const body = (await parseBody(req, res)) as Record<string, any>
@@ -53,7 +57,7 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
         json(res, { success: true, title, content, url: targetUrl })
         return true
       }
-    } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)) }
+    } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
     json(res, { error: "No deep read source available" }, 503)
     return true
   }
@@ -145,7 +149,7 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
           if (llmContent) {
             content = `# ${query}\n\n${llmContent}\n\n## 来源\n${sources.map((s: { title: string; url: string; source: string; qualityScore: number }) => `- [${s.title}](${s.url}) (${s.source}, 评分: ${s.qualityScore})`).join("\n")}`
           }
-        } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)) }
+        } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
       }
     }
 
@@ -270,7 +274,7 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
     const concurrency = Math.min(Math.max(parseInt(body.concurrency) || 2, 1), 10)
     if (!siteUrl) { json(res, { error: "url is required" }, 400); return true }
 
-    const { send, cleanup } = setupSSE(res)
+     const { send, cleanup } = setupSSE(res)
 
     import("../ingest/site-ingester.js").then(({ ingestSite }) => {
       return ingestSite(

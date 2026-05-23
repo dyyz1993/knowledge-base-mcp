@@ -6,7 +6,10 @@ import { writeDoc, readDoc, searchDocs, listDocs, deleteDoc, getOutline, updateO
 import { kbAskPipeline } from "../search/kb-ask-pipeline.js"
 import { mcpStats } from "../statistics/index.js"
 import { loadConfig } from "../config.js"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("mcp:register-tools")
 function scanDir(base: string, prefix: string, depth: number): string {
   if (depth <= 0) return `${prefix}/...`
   const dir = prefix ? `${base}/${prefix}` : base
@@ -28,10 +31,10 @@ function scanDir(base: string, prefix: string, depth: number): string {
         } else {
           lines.push(fullPath)
         }
-      } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)) }
+      } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
     }
     return lines.join("\n")
-  } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)); return "" }
+  } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)); return "" }
 }
 
 async function readKeyFiles(base: string, maxFiles: number): Promise<string> {
@@ -53,7 +56,7 @@ async function readKeyFiles(base: string, maxFiles: number): Promise<string> {
         sections.push(`## ${pf}\n\n\`\`\`\n${content.slice(0, 2000)}${content.length > 2000 ? "\n... truncated" : ""}\n\`\`\``)
         count++
       }
-    } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)) }
+    } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
   }
   return sections.join("\n\n")
 }
@@ -780,7 +783,7 @@ ${keyFiles}
                 file_modified: stat.mtime.getTime(),
               })
             }
-          } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)) }
+          } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
         }
       }
 
@@ -831,7 +834,7 @@ ${keyFiles}
               })
             }
           }
-        } catch (e) { console.warn("[index]", e instanceof Error ? e.message : String(e)) }
+        } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
       }
 
       return {

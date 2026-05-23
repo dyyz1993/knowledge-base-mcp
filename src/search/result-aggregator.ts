@@ -1,9 +1,12 @@
 import type { SearchResult, SourceType } from "./types"
 import { normalizeUrl } from "./utils"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("search:result-aggregator")
 function log(level: string, msg: string) {
-  const ts = new Date().toISOString().substring(11, 19)
-  console.debug(`[${ts}] [aggregator] [${level}] ${msg}`)
+  const _map: Record<string, "debug" | "info" | "warn" | "error"> = { DEBUG: "debug", INFO: "info", WARN: "warn", ERROR: "error" }
+  logger[_map[level] ?? "debug"](msg)
 }
 
 const OFFICIAL_DOMAINS: Record<string, string[]> = {

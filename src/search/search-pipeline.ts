@@ -1,10 +1,13 @@
 import type { SearchSource, AggregatedResult, SourceTiming, SearchResult } from "./types"
 import { aggregateResults } from "./result-aggregator"
 import { searchStats } from "../statistics"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("search:search-pipeline")
 function log(level: string, msg: string) {
-  const ts = new Date().toISOString().substring(11, 19)
-  console.debug(`[${ts}] [search] [${level}] ${msg}`)
+  const _map: Record<string, "debug" | "info" | "warn" | "error"> = { DEBUG: "debug", INFO: "info", WARN: "warn", ERROR: "error" }
+  logger[_map[level] ?? "debug"](msg)
 }
 
 export class SearchPipeline {

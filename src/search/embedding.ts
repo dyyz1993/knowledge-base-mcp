@@ -5,7 +5,10 @@ import { parseFrontmatter } from "../storage/markdown"
 import type { DocMeta } from "../storage/index"
 import { loadConfig } from "../config"
 import { embeddingStats } from "../statistics"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("search:embedding")
 let transformersAvailable = true
 let pipelineFn: any = null
 let envConfigured = false
@@ -77,7 +80,7 @@ export async function embed(text: string): Promise<number[]> {
     try {
       result = await embedExternal(text)
     } catch (e) {
-      console.error("External embedding failed, falling back to local:", e)
+      logger.error("External embedding failed, falling back to local:", e)
       result = await embedLocal(text)
     }
   } else {
@@ -158,7 +161,7 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
     try {
       return await embedBatchExternal(texts)
     } catch (e) {
-      console.error("External batch embedding failed, falling back to local:", e)
+      logger.error("External batch embedding failed, falling back to local:", e)
     }
   }
 

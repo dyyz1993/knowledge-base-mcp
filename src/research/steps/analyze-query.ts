@@ -1,6 +1,9 @@
 import type { AnalyzeQueryResult } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
+import { createLogger } from "../../utils/logger.js"
 
+
+const logger = createLogger("research:steps:analyze-query")
 const SYSTEM_PROMPT =
   "You are a search query optimizer. You analyze user queries and generate diverse search keywords. You MUST respond with ONLY valid JSON. No markdown. No explanation. No code fences. Just the JSON object."
 
@@ -102,7 +105,7 @@ function parseResponse(raw: string, query: string): AnalyzeQueryResult {
       language: validLangs.includes(language || "") ? language as AnalyzeQueryResult["language"] : (/[\u4e00-\u9fff]/.test(query) ? "zh" : "en"),
     }
   } catch (e) {
-    console.warn("[analyze-query]", e instanceof Error ? e.message : String(e))
+    logger.warn(e instanceof Error ? e.message : String(e))
   }
   return buildFallback(query)
 }

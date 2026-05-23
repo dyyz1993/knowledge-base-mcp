@@ -4,8 +4,11 @@ import { tfidfSearch, buildIDF } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
 import { loadVectors, indexDoc, rebuildAllVectors, initDb } from "../search/vector-store"
 import { loadConfig } from "../config"
+import { createLogger } from "../utils/logger.js"
 
 /** Dynamic paths — always read KB_DIR from env at call time for test isolation */
+
+const logger = createLogger("storage:index")
 function getKbDir(): string { return process.env.KB_DIR || `${process.env.HOME}/.knowledge` }
 function getIndexPath(): string { return `${getKbDir()}/index.json` }
 function getMissLogPath(): string { return `${getKbDir()}/miss-log.json` }
@@ -85,7 +88,7 @@ function readIndex(): IndexFile {
     cacheTimestamp = now
     return idx
   } catch (e) {
-    console.warn("[storage] readIndex: index file missing or corrupted, attempting recovery:", e instanceof Error ? e.message : String(e))
+    logger.warn("readIndex: index file missing or corrupted, attempting recovery:", e instanceof Error ? e.message : String(e))
     const recovered = recoverIndexFromDisk()
     if (recovered && Object.keys(recovered.documents).length > 0) {
       cachedIndex = recovered
@@ -138,12 +141,12 @@ function recoverIndexFromDisk(): IndexFile | null {
           idx.documents[frontmatter.id as string] = frontmatter as unknown as DocMeta
         }
       } catch (e) {
-        console.warn("[storage] recoverIndexFromDisk: skipping unreadable file:", e instanceof Error ? e.message : String(e))
+        logger.warn("recoverIndexFromDisk: skipping unreadable file:", e instanceof Error ? e.message : String(e))
       }
     }
     return idx
   } catch (e) {
-    console.warn("[storage] recoverIndexFromDisk: failed to read knowledge dir:", e instanceof Error ? e.message : String(e))
+    logger.warn("recoverIndexFromDisk: failed to read knowledge dir:", e instanceof Error ? e.message : String(e))
     return null
   }
 }
@@ -239,7 +242,7 @@ export function writeDoc(
   updateOutline(doc.source_project || "", idx)
 
   indexDoc(id, docToSearchableText(doc)).catch(e => {
-    console.warn("[storage] writeDoc: async vector indexing failed:", e instanceof Error ? e.message : String(e))
+    logger.warn("writeDoc: async vector indexing failed:", e instanceof Error ? e.message : String(e))
   })
 
   return doc
@@ -285,7 +288,7 @@ function readDocContent(filePath: string): string {
     const { content } = parseFrontmatter(raw)
     return content
   } catch (e) {
-    console.warn("[storage] readDocContent: failed to read file:", filePath, e instanceof Error ? e.message : String(e))
+    logger.warn("readDocContent: failed to read file: " + filePath, e instanceof Error ? e.message : String(e))
     return ""
   }
 }
@@ -315,7 +318,7 @@ function contentQualityBoost(filePath: string): number {
     else if (len >= 2000) boost += 4
     else if (len >= 500) boost += 2
   } catch (e) {
-    console.warn("[storage] contentQualityBoost: failed to read file for boost:", e instanceof Error ? e.message : String(e))
+    logger.warn("contentQualityBoost: failed to read file for boost:", e instanceof Error ? e.message : String(e))
   }
   return boost
 }
@@ -445,7 +448,7 @@ export async function searchDocsCombined(
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("semantic search timeout")), 8000)),
     ])
   } catch (e) {
-    console.warn("[storage] searchDocsCombined: semantic search failed, skipping:", e instanceof Error ? e.message : String(e))
+    logger.warn("searchDocsCombined: semantic search failed, skipping:", e instanceof Error ? e.message : String(e))
   }
 
   const combined = new Map<string, DocMeta & { score: number }>()
@@ -566,7 +569,7 @@ export function listAllOutlines(): { project: string; name: string; doc_count: n
           updated_at: data.updated_at || 0,
         }
       } catch (e) {
-        console.warn("[storage] listAllOutlines: skipping unreadable outline file:", e instanceof Error ? e.message : String(e))
+        logger.warn("listAllOutlines: skipping unreadable outline file:", e instanceof Error ? e.message : String(e))
         return null
       }
     })
@@ -597,7 +600,7 @@ function readMissLog(): MissEntry[] {
     if (!existsSync(getMissLogPath())) return []
     return JSON.parse(readFileSync(getMissLogPath(), "utf-8"))
   } catch (e) {
-    console.warn("[storage] readMissLog: failed to read miss log:", e instanceof Error ? e.message : String(e))
+    logger.warn("readMissLog: failed to read miss log:", e instanceof Error ? e.message : String(e))
     return []
   }
 }

@@ -3,7 +3,10 @@ import { join } from "node:path"
 import { networkInterfaces } from "node:os"
 import type { ChatMessage } from "./store-sessions"
 import { readMessages, readSession } from "./store-sessions"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("chat:session-export")
 function getLocalIP(): string {
   const nets = networkInterfaces()
   for (const name of Object.keys(nets)) {
@@ -132,7 +135,7 @@ export function exportSession(sessionId: string): string | null {
       const args = JSON.parse(tc.args || "{}")
       if (args.path) allProjects.add(String(args.path))
     } catch (e) {
-      console.warn("[session-export]", e instanceof Error ? e.message : String(e))
+      logger.warn(e instanceof Error ? e.message : String(e))
     }
   }
 

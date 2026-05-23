@@ -6,6 +6,9 @@ import { execSync } from "node:child_process"
 import { expandQuery } from "./query-expander.js"
 import { launchBrowserForScrape, cleanupBrowser } from "./browser-launcher.js"
 import { loadConfig } from "../config.js"
+import { createLogger } from "../utils/logger.js"
+
+const logger = createLogger("chat:tools")
 
 export interface OpenAITool {
   type: "function"
@@ -495,7 +498,7 @@ export async function executeTool(
         const tree = buildTree(lines)
         results.push(`${projectName}/\n${tree}`)
       } catch (e) {
-        console.warn("[tools]", e instanceof Error ? e.message : String(e))
+        logger.warn(e instanceof Error ? e.message : String(e))
         results.push("(无法获取目录结构)")
       }
 
@@ -517,7 +520,7 @@ export async function executeTool(
           results.push(`\n## src/ 文件结构`)
           results.push(srcOutput)
         } catch (e) {
-          console.warn("[tools]", e instanceof Error ? e.message : String(e))
+          logger.warn(e instanceof Error ? e.message : String(e))
         }
       }
 
@@ -609,7 +612,7 @@ export async function executeTool(
         try {
           baseHost = new URL(url).hostname
         } catch (e) {
-          console.warn("[tools]", e instanceof Error ? e.message : String(e))
+          logger.warn(e instanceof Error ? e.message : String(e))
         }
 
         const filtered = [...new Set(links)]
@@ -618,7 +621,7 @@ export async function executeTool(
               const u = new URL(link, url)
               return u.hostname === baseHost || u.hostname.endsWith(`.${baseHost}`)
             } catch (e) {
-              console.warn("[tools]", e instanceof Error ? e.message : String(e))
+              logger.warn(e instanceof Error ? e.message : String(e))
               return false
             }
           })
@@ -645,7 +648,7 @@ export async function executeTool(
       try {
         baseHost = new URL(url).hostname
       } catch (e) {
-        console.warn("[tools]", e instanceof Error ? e.message : String(e))
+        logger.warn(e instanceof Error ? e.message : String(e))
       }
 
       const visited = new Set<string>()
@@ -704,7 +707,7 @@ export async function executeTool(
                 queue.push({ url: u.href, depth: item.depth + 1 })
               }
         } catch (e) {
-          console.warn("[tools]", e instanceof Error ? e.message : String(e))
+          logger.warn(e instanceof Error ? e.message : String(e))
         }
           }
         }
@@ -780,7 +783,7 @@ export async function executeTool(
           structure: structure.trim(),
         })
       } catch (e: unknown) {
-        try { rmSync(targetDir, { recursive: true }) } catch (e) { console.warn("[tools]", e instanceof Error ? e.message : String(e)) }
+        try { rmSync(targetDir, { recursive: true }) } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
         return `克隆失败: ${e instanceof Error ? e.message : String(e)}`
       }
     }
@@ -911,7 +914,7 @@ export async function executeTool(
             )
             saveNote = "\n\n✅ 已自动存入知识库"
           } catch (e) {
-            console.error("[kb_research] Auto-save failed:", e instanceof Error ? e.message : e)
+            logger.error("Auto-save failed:", e instanceof Error ? e.message : e)
             saveNote = "\n\n⚠️ 自动存入知识库失败"
           }
         }

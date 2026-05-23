@@ -36,6 +36,48 @@ function CodeBlockWrapper({ language, children }: { language?: string; children:
   )
 }
 
+const SVG_ALLOWED_TAGS = new Set([
+  "svg", "g", "path", "circle", "rect", "line", "polyline", "polygon",
+  "text", "tspan", "defs", "clipPath", "use", "title", "desc", "marker",
+])
+
+const SVG_ALLOWED_ATTRS = new Set([
+  "d", "cx", "cy", "r", "x", "y", "width", "height", "fill", "stroke",
+  "transform", "viewBox", "xmlns", "id", "href", "class", "style",
+  "points", "offset", "stop-color", "stop-opacity", "font-size",
+  "text-anchor", "dominant-baseline",
+])
+
+function sanitizeSvg(raw: string): string {
+  const doc = new DOMParser().parseFromString(raw, "image/svg+xml")
+  const errors = doc.querySelectorAll("parsererror")
+  if (errors.length) throw new Error("Invalid SVG")
+
+  const walk = (node: Element): void => {
+    const children = Array.from(node.children)
+    for (let i = children.length - 1; i >= 0; i--) {
+      const child = children[i]
+      if (!SVG_ALLOWED_TAGS.has(child.tagName.toLowerCase())) {
+        child.remove()
+        continue
+      }
+      for (const attr of Array.from(child.attributes)) {
+        const name = attr.name.toLowerCase()
+        if (name.startsWith("on") || name === "src" || name === "href" && attr.value.startsWith("javascript:")) {
+          child.removeAttributeNode(attr)
+        } else if (!SVG_ALLOWED_ATTRS.has(name)) {
+          child.removeAttributeNode(attr)
+        }
+      }
+      walk(child)
+    }
+  }
+  walk(doc.documentElement)
+  const svg = doc.documentElement
+  const ser = new XMLSerializer()
+  return ser.serializeToString(svg)
+}
+
 function MermaidBlock({ code }: { code: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
@@ -48,9 +90,15 @@ function MermaidBlock({ code }: { code: string }) {
       m.default.initialize({ startOnLoad: false, theme: "dark", themeVariables: { background: "#18181b", primaryColor: "#3b82f6" } })
       const id = "mermaid-" + Math.random().toString(36).slice(2, 8)
       m.default.render(id, code).then(({ svg }) => {
-        if (!cancelled && ref.current) ref.current.innerHTML = svg
-      }).catch((e: any) => {
-        if (!cancelled) setError(String(e.message || e))
+        if (!cancelled && ref.current) {
+          try {
+            ref.current.innerHTML = sanitizeSvg(svg)
+          } catch {
+            ref.current.textContent = svg
+          }
+        }
+      }).catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
       })
     })
     return () => { cancelled = true }

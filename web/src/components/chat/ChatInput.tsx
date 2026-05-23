@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react"
 import { Send, Square } from "lucide-react"
-import ModelSelector from "../ModelSelector"
+import { lazy, Suspense } from "react"
+const ModelSelector = lazy(() => import("../ModelSelector"))
 
 interface ChatInputProps {
   isStreaming: boolean
@@ -33,7 +34,9 @@ export default function ChatInput({ isStreaming, onSend, onAbort }: ChatInputPro
   return (
     <div className="border-t border-zinc-800 p-3 md:p-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:gap-3">
-        <ModelSelector className="w-full md:w-auto md:min-w-[180px]" />
+        <Suspense fallback={<div className="h-8 w-full md:min-w-[180px] animate-pulse bg-zinc-800 rounded" />}>
+          <ModelSelector className="w-full md:w-auto md:min-w-[180px]" />
+        </Suspense>
         <div className="flex-1 flex items-end gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 focus-within:border-zinc-500 transition-colors">
           <textarea
             ref={inputRef}

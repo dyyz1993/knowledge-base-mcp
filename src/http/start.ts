@@ -13,7 +13,10 @@ import { getAllKeywords } from "../storage/index.js"
 import { readBody, json, parseBody, createRateLimiter } from "./helpers.js"
 import { handleStreamableHttp, handleSSE, handleSSEMessage } from "./handle-mcp.js"
 import { handleRestAPI } from "./handle-api.js"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("http:start")
 const VERSION = (() => {
   try {
     return JSON.parse(readFileSync(join(import.meta.dir, "..", "..", "package.json"), "utf-8")).version
@@ -174,23 +177,23 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
       }
       json(res, { error: "Not Found" }, 404)
     } catch (e: unknown) {
-      console.error("Request error:", e)
+      logger.error("Request error:", e)
       if (!res.headersSent) json(res, { error: e instanceof Error ? e.message : String(e) }, 500)
     }
   })
 
   server.listen(port, () => {
-    console.log(`Knowledge Base MCP running on http://localhost:${port}`)
+    logger.info(`Knowledge Base MCP running on http://localhost:${port}`)
     if (!noMcp) {
-      console.log(`  StreamableHTTP: http://localhost:${port}/mcp`)
-      console.log(`  SSE (legacy):   http://localhost:${port}/sse`)
+      logger.info(`  StreamableHTTP: http://localhost:${port}/mcp`)
+      logger.info(`  SSE (legacy):   http://localhost:${port}/sse`)
     }
-    console.log(`  API:            http://localhost:${port}/api/docs`)
+    logger.info(`  API:            http://localhost:${port}/api/docs`)
     if (noMcp) {
-      console.log(`  MCP endpoints:  disabled (--no-mcp)`)
+      logger.info(`  MCP endpoints:  disabled (--no-mcp)`)
     }
     if (serveWeb) {
-      console.log(`  Web UI:         http://localhost:${port}`)
+      logger.info(`  Web UI:         http://localhost:${port}`)
     }
   })
 

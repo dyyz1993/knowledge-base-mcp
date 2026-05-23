@@ -3,7 +3,10 @@ import { join } from "node:path"
 import { existsSync, readFileSync, mkdirSync, statSync } from "node:fs"
 import { embed, embedBatch, docToSearchableText } from "./embedding"
 import type { DocMeta } from "../storage/index"
+import { createLogger } from "../utils/logger.js"
 
+
+const logger = createLogger("search:vector-store")
 function getDir() {
   return process.env.KB_DIR || `${process.env.HOME}/.knowledge`
 }
@@ -64,9 +67,9 @@ function migrateFromJson(): void {
       }
     })
     insertMany(entries)
-    console.debug(`Migrated ${entries.length} vectors from vectors.json to SQLite`)
+    logger.debug(`Migrated ${entries.length} vectors from vectors.json to SQLite`)
   } catch (e) {
-    console.error("Migration failed:", e)
+    logger.error("Migration failed:", e)
   }
 }
 
@@ -193,7 +196,7 @@ export function getStorageStats(): { count: number; dbSize: number; model: strin
   try {
     dbSize = statSync(dbPath()).size
   } catch (e) {
-    console.warn("[vector-store]", e instanceof Error ? e.message : String(e))
+    logger.warn(e instanceof Error ? e.message : String(e))
   }
   return {
     count: row?.c ?? 0,

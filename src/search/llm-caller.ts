@@ -1,4 +1,7 @@
 import { circuitBreakers } from "./circuit-breaker.js"
+import { createLogger } from "../utils/logger.js"
+
+const logger = createLogger("search:llm-caller")
 
 export interface LlmConfig {
   baseUrl: string
@@ -58,7 +61,7 @@ export async function callLlm(
       } catch (fetchErr) {
         if (attempt < maxRetries) {
           const backoff = Math.pow(2, attempt) * 1000
-          console.warn(`LLM network error on attempt ${attempt + 1}/${maxRetries + 1}: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}, retrying in ${backoff}ms…`)
+          logger.warn(`LLM network error on attempt ${attempt + 1}/${maxRetries + 1}: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}, retrying in ${backoff}ms…`)
           await new Promise<void>((resolve) => setTimeout(resolve, backoff))
           continue
         }
@@ -69,10 +72,10 @@ export async function callLlm(
         const backoff = Math.pow(2, attempt) * 1000
         const afterBackoff = Date.now() - start + backoff
         if (afterBackoff >= timeoutMs) {
-          console.error(`LLM ${resp.status} on attempt ${attempt + 1}/${maxRetries + 1} but no time left for retry`)
+          logger.error(`LLM ${resp.status} on attempt ${attempt + 1}/${maxRetries + 1} but no time left for retry`)
           break
         }
-        console.warn(`LLM ${resp.status} on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${backoff}ms…`)
+        logger.warn(`LLM ${resp.status} on attempt ${attempt + 1}/${maxRetries + 1}, retrying in ${backoff}ms…`)
         await new Promise<void>((resolve) => setTimeout(resolve, backoff))
         continue
       }
@@ -87,7 +90,7 @@ export async function callLlm(
     if (!resp.ok) {
       const text = await resp.text()
       const excerpt = text.slice(0, 500)
-      console.error(`LLM request failed with status ${resp.status}: ${excerpt}`)
+      logger.error(`LLM request failed with status ${resp.status}: ${excerpt}`)
       throw new Error(`LLM request failed (${resp.status}): ${excerpt}`)
     }
 
