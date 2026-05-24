@@ -2,8 +2,9 @@ import { readFile, writeFile, mkdir, access, constants } from "node:fs/promises"
 import { join } from "node:path"
 import { getDataDir } from "../config"
 
-const BASE_DIR = getDataDir()
-const FAVORITES_PATH = `${BASE_DIR}/favorites.json`
+function getFavoritesPath() {
+  return join(getDataDir(), "favorites.json")
+}
 
 export interface Favorite {
   id: string
@@ -15,17 +16,17 @@ export interface Favorite {
 
 async function ensureBase() {
   try {
-    await access(BASE_DIR, constants.F_OK)
+    await access(getDataDir(), constants.F_OK)
   } catch {
-    await mkdir(BASE_DIR, { recursive: true })
+    await mkdir(getDataDir(), { recursive: true })
   }
 }
 
 async function readAll(): Promise<Favorite[]> {
   await ensureBase()
   try {
-    await access(FAVORITES_PATH, constants.F_OK)
-    return JSON.parse(await readFile(FAVORITES_PATH, "utf-8"))
+    await access(getFavoritesPath(), constants.F_OK)
+    return JSON.parse(await readFile(getFavoritesPath(), "utf-8"))
   } catch {
     return []
   }
@@ -33,7 +34,7 @@ async function readAll(): Promise<Favorite[]> {
 
 async function writeAll(favs: Favorite[]) {
   await ensureBase()
-  await writeFile(FAVORITES_PATH, JSON.stringify(favs, null, 2))
+  await writeFile(getFavoritesPath(), JSON.stringify(favs, null, 2))
 }
 
 export async function listFavorites(): Promise<Favorite[]> {

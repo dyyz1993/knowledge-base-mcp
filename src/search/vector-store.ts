@@ -261,6 +261,8 @@ export function resetDb(): void {
     db.close()
     db = null
   }
+  vectorsCache = null
+  vectorsCacheTime = 0
 }
 
 export function closeDb(): void {
