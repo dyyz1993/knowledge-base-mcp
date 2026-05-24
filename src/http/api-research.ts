@@ -3,7 +3,7 @@ import { writeDoc, resolveMiss } from "../storage/index.js"
 import { getMcpWebSearch } from "../search/mcp-web-search.js"
 import { getConfiguredModels } from "../chat/api-models.js"
 import { loadConfig } from "../config.js"
-import { json, parseBody, validateUrl, extractHtmlContent, getApiUserAgent, setupSSE } from "./helpers.js"
+import { json, apiError, parseBody, validateUrl, extractHtmlContent, getApiUserAgent, setupSSE } from "./helpers.js"
 import { createLogger } from "../utils/logger.js"
 
 const logger = createLogger("http:api-research")
@@ -13,10 +13,10 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
     const body = (await parseBody(req, res)) as Record<string, any>
     if (body === null) return true
     const targetUrl = body.url
-    if (!targetUrl) { json(res, { error: "Missing 'url'" }, 400); return true }
+    if (!targetUrl) { apiError(res, 400, "MISSING_FIELD", "Missing 'url'"); return true }
 
     const { safe, reason } = validateUrl(targetUrl)
-    if (!safe) { json(res, { error: `URL blocked: ${reason}` }, 400); return true }
+    if (!safe) { apiError(res, 400, "INVALID_INPUT", `URL blocked: ${reason}`); return true }
 
     const config = loadConfig()
     const xbrowserEnabled = config.searchPipeline?.sources?.xbrowser?.enabled
@@ -58,7 +58,7 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
         return true
       }
     } catch (e) { logger.warn(e instanceof Error ? e.message : String(e)) }
-    json(res, { error: "No deep read source available" }, 503)
+    apiError(res, 503, "INTERNAL_ERROR", "No deep read source available")
     return true
   }
 
@@ -66,7 +66,7 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
     const body = (await parseBody(req, res)) as Record<string, any>
     if (body === null) return true
     const { query, content, title, url: sourceUrl, tags, keywords } = body
-    if (!content || !title) { json(res, { error: "Missing 'content' or 'title'" }, 400); return true }
+    if (!content || !title) { apiError(res, 400, "MISSING_FIELD", "Missing 'content' or 'title'"); return true }
 
     const autoKeywords = keywords?.length
       ? keywords
@@ -99,7 +99,7 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
     if (body === null) return true
     const { query, results } = body
     if (!query || !results || !Array.isArray(results)) {
-      json(res, { error: "Missing 'query' or 'results'" }, 400)
+      apiError(res, 400, "MISSING_FIELD", "Missing 'query' or 'results'")
       return true
     }
     const topResults = results.slice(0, 5)
@@ -188,15 +188,15 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
     const body = (await parseBody(req, res)) as Record<string, any>
     if (body === null) return true
     const query = body.query as string | undefined
-    if (!query) { json(res, { error: "Missing 'query'" }, 400); return true }
+    if (!query) { apiError(res, 400, "MISSING_FIELD", "Missing 'query'"); return true }
 
     const config = loadConfig()
     if (!config.searchPipeline?.enabled) {
-      json(res, { error: "Search pipeline not enabled" }, 503)
+      apiError(res, 503, "INTERNAL_ERROR", "Search pipeline not enabled")
       return true
     }
 
-    const { send, cleanup } = setupSSE(res)
+    const { send, cleanup } = setupSSE(res, req.headers.origin)
 
     try {
       const { ResearchAgent } = await import("../research/research-agent.js")
@@ -230,11 +230,11 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
     if (body === null) return true
     const config = loadConfig()
     if (!config.searchPipeline?.enabled) {
-      json(res, { error: "Search pipeline not enabled" }, 503)
+      apiError(res, 503, "INTERNAL_ERROR", "Search pipeline not enabled")
       return true
     }
 
-    const { send, cleanup } = setupSSE(res)
+    const { send, cleanup } = setupSSE(res, req.headers.origin)
 
     try {
       const { ResearchEvolutionAgent } = await import("../research/evolution/orchestrator.js")
@@ -272,9 +272,9 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
     const { url: siteUrl, tags, projectName } = body
     const maxPages = Math.min(Math.max(parseInt(body.maxPages) || 10, 1), 100)
     const concurrency = Math.min(Math.max(parseInt(body.concurrency) || 2, 1), 10)
-    if (!siteUrl) { json(res, { error: "url is required" }, 400); return true }
+    if (!siteUrl) { apiError(res, 400, "MISSING_FIELD", "url is required"); return true }
 
-     const { send, cleanup } = setupSSE(res)
+     const { send, cleanup } = setupSSE(res, req.headers.origin)
 
     import("../ingest/site-ingester.js").then(({ ingestSite }) => {
       return ingestSite(

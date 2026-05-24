@@ -3,9 +3,9 @@ import { loadConfig, saveConfig } from "../config.js"
 import type { AppConfig } from "../config.js"
 import { getStorageStats } from "../search/vector-store.js"
 import { searchStats, llmStats, embeddingStats, mcpStats } from "../statistics/index.js"
-import { json, parseBody } from "./helpers.js"
-import { configUpdateSchema } from "./schemas.js"
-import { validateBody, handleValidationError } from "./validate.js"
+import { json } from "./helpers.js"
+import { configUpdateSchema, statsResetSchema } from "./schemas.js"
+import { parseBodyTyped } from "./validate.js"
 
 export async function handleConfigRoutes(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
   if (url.pathname === "/api/config" && req.method === "GET") {
@@ -32,14 +32,8 @@ export async function handleConfigRoutes(req: IncomingMessage, res: ServerRespon
     return true
   }
   if (url.pathname === "/api/config" && req.method === "PUT") {
-    const body = (await parseBody(req, res)) as Record<string, any>
-    if (body === null) return true
-    try {
-      validateBody(configUpdateSchema, body)
-    } catch (e) {
-      if (handleValidationError(e, res)) return true
-      throw e
-    }
+    const body = await parseBodyTyped(req, res, configUpdateSchema)
+    if (!body) return true
     const current = loadConfig()
     const update = body
 
@@ -73,6 +67,9 @@ export async function handleConfigRoutes(req: IncomingMessage, res: ServerRespon
           xbrowser: { ...current.searchPipeline?.sources?.xbrowser, ...update.searchPipeline?.sources?.xbrowser },
           llmDirect: { ...current.searchPipeline?.sources?.llmDirect, ...update.searchPipeline?.sources?.llmDirect },
           plugin: { ...current.searchPipeline?.sources?.plugin, ...update.searchPipeline?.sources?.plugin },
+          tavily: { ...current.searchPipeline?.sources?.tavily, ...update.searchPipeline?.sources?.tavily },
+          serper: { ...current.searchPipeline?.sources?.serper, ...update.searchPipeline?.sources?.serper },
+          aiSearch: { ...current.searchPipeline?.sources?.aiSearch, ...update.searchPipeline?.sources?.aiSearch },
         },
       },
       storage: { ...current.storage, ...update.storage },
@@ -132,9 +129,9 @@ export async function handleConfigRoutes(req: IncomingMessage, res: ServerRespon
     return true
   }
   if (url.pathname === "/api/stats/reset" && req.method === "POST") {
-    const body = (await parseBody(req, res)) as Record<string, any>
-    if (body === null) return true
-    const type = body.type || "all"
+    const body = await parseBodyTyped(req, res, statsResetSchema)
+    if (!body) return true
+    const type = body.type
     if (type === "search" || type === "all") searchStats.reset()
     if (type === "llm" || type === "all") llmStats.reset()
     if (type === "embedding" || type === "all") embeddingStats.reset()

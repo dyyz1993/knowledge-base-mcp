@@ -37,10 +37,12 @@
     "lint:web": "bunx tsc -p web/tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@dyyz1993/pi-agent-core": "latest",
-    "@dyyz1993/pi-ai": "latest",
+    "@dyyz1993/pi-agent-core": "^0.70.4",
+    "@dyyz1993/pi-ai": "^0.70.4",
     "@dyyz1993/xbrowser": "^0.13.2",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/dompurify": "^3.2.0",
+    "dompurify": "^3.4.5",
     "zod": "^4.4.3"
   },
   "optionalDependencies": {

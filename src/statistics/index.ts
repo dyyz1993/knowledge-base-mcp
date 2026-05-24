@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs"
-import { readFile, writeFile, rename } from "node:fs/promises"
+import { readFile, writeFile, rename, mkdir } from "node:fs/promises"
+import { access, constants } from "node:fs/promises"
 import { join } from "node:path"
 import { createLogger } from "../utils/logger.js"
 import { getDataDir } from "../config"
@@ -26,10 +26,12 @@ function debouncedWrite(path: string, data: string) {
   }, 10_000))
 }
 
-function ensureStatsDir() {
-  if (!existsSync(STATS_DIR)) {
-    mkdirSync(STATS_DIR, { recursive: true })
-   }
+async function ensureStatsDir() {
+  try {
+    await access(STATS_DIR, constants.F_OK)
+  } catch {
+    await mkdir(STATS_DIR, { recursive: true })
+  }
 }
 
 interface SearchSourceCall {
@@ -97,16 +99,21 @@ export class SearchStatistics {
   }
 
   constructor() {
-    ensureStatsDir()
-    void this.load()
+    void this.init()
+  }
+
+  private async init() {
+    await ensureStatsDir()
+    await this.load()
   }
 
   private async load() {
-    if (existsSync(SEARCH_STATS_PATH)) {
-      try {
-        this.stats = JSON.parse(await readFile(SEARCH_STATS_PATH, "utf-8"))
-      } catch (e) {
-        logger.warn("Failed to load search stats, using defaults:", e instanceof Error ? e.message : String(e))
+    try {
+      await access(SEARCH_STATS_PATH, constants.F_OK)
+      this.stats = JSON.parse(await readFile(SEARCH_STATS_PATH, "utf-8"))
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        logger.warn("Failed to load search stats, using defaults:", e.message)
       }
     }
   }
@@ -116,11 +123,11 @@ export class SearchStatistics {
     debouncedWrite(SEARCH_STATS_PATH, JSON.stringify(this.stats, null, 2))
   }
 
-  public saveNow() {
+  public async saveNow() {
     this.stats.updatedAt = Date.now()
     const tmp = SEARCH_STATS_PATH + ".tmp"
-    writeFileSync(tmp, JSON.stringify(this.stats, null, 2))
-    renameSync(tmp, SEARCH_STATS_PATH)
+    await writeFile(tmp, JSON.stringify(this.stats, null, 2))
+    await rename(tmp, SEARCH_STATS_PATH)
   }
 
   recordSourceCall(name: string, count: number, timeMs: number, error = false) {
@@ -183,16 +190,21 @@ export class LLMStatistics {
   }
 
   constructor() {
-    ensureStatsDir()
-    void this.load()
+    void this.init()
+  }
+
+  private async init() {
+    await ensureStatsDir()
+    await this.load()
   }
 
   private async load() {
-    if (existsSync(LLM_STATS_PATH)) {
-      try {
-        this.stats = JSON.parse(await readFile(LLM_STATS_PATH, "utf-8"))
-      } catch (e) {
-        logger.warn("Failed to load LLM stats, using defaults:", e instanceof Error ? e.message : String(e))
+    try {
+      await access(LLM_STATS_PATH, constants.F_OK)
+      this.stats = JSON.parse(await readFile(LLM_STATS_PATH, "utf-8"))
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        logger.warn("Failed to load LLM stats, using defaults:", e.message)
       }
     }
   }
@@ -202,11 +214,11 @@ export class LLMStatistics {
     debouncedWrite(LLM_STATS_PATH, JSON.stringify(this.stats, null, 2))
   }
 
-  public saveNow() {
+  public async saveNow() {
     this.stats.updatedAt = Date.now()
     const tmp = LLM_STATS_PATH + ".tmp"
-    writeFileSync(tmp, JSON.stringify(this.stats, null, 2))
-    renameSync(tmp, LLM_STATS_PATH)
+    await writeFile(tmp, JSON.stringify(this.stats, null, 2))
+    await rename(tmp, LLM_STATS_PATH)
   }
 
   recordCall(model: string, tokens: number, timeMs: number, cost: number = 0) {
@@ -260,16 +272,21 @@ export class EmbeddingStatistics {
   }
 
   constructor() {
-    ensureStatsDir()
-    void this.load()
+    void this.init()
+  }
+
+  private async init() {
+    await ensureStatsDir()
+    await this.load()
   }
 
   private async load() {
-    if (existsSync(EMBEDDING_STATS_PATH)) {
-      try {
-        this.stats = JSON.parse(await readFile(EMBEDDING_STATS_PATH, "utf-8"))
-      } catch (e) {
-        logger.warn("Failed to load embedding stats, using defaults:", e instanceof Error ? e.message : String(e))
+    try {
+      await access(EMBEDDING_STATS_PATH, constants.F_OK)
+      this.stats = JSON.parse(await readFile(EMBEDDING_STATS_PATH, "utf-8"))
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        logger.warn("Failed to load embedding stats, using defaults:", e.message)
       }
     }
   }
@@ -279,11 +296,11 @@ export class EmbeddingStatistics {
     debouncedWrite(EMBEDDING_STATS_PATH, JSON.stringify(this.stats, null, 2))
   }
 
-  public saveNow() {
+  public async saveNow() {
     this.stats.updatedAt = Date.now()
     const tmp = EMBEDDING_STATS_PATH + ".tmp"
-    writeFileSync(tmp, JSON.stringify(this.stats, null, 2))
-    renameSync(tmp, EMBEDDING_STATS_PATH)
+    await writeFile(tmp, JSON.stringify(this.stats, null, 2))
+    await rename(tmp, EMBEDDING_STATS_PATH)
   }
 
   recordCall(tokens: number, timeMs: number) {
@@ -322,16 +339,21 @@ export class MCPStatistics {
   }
 
   constructor() {
-    ensureStatsDir()
-    void this.load()
+    void this.init()
+  }
+
+  private async init() {
+    await ensureStatsDir()
+    await this.load()
   }
 
   private async load() {
-    if (existsSync(MCP_STATS_PATH)) {
-      try {
-        this.stats = JSON.parse(await readFile(MCP_STATS_PATH, "utf-8"))
-      } catch (e) {
-        logger.warn("Failed to load MCP stats, using defaults:", e instanceof Error ? e.message : String(e))
+    try {
+      await access(MCP_STATS_PATH, constants.F_OK)
+      this.stats = JSON.parse(await readFile(MCP_STATS_PATH, "utf-8"))
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        logger.warn("Failed to load MCP stats, using defaults:", e.message)
       }
     }
   }
@@ -341,11 +363,11 @@ export class MCPStatistics {
     debouncedWrite(MCP_STATS_PATH, JSON.stringify(this.stats, null, 2))
   }
 
-  public saveNow() {
+  public async saveNow() {
     this.stats.updatedAt = Date.now()
     const tmp = MCP_STATS_PATH + ".tmp"
-    writeFileSync(tmp, JSON.stringify(this.stats, null, 2))
-    renameSync(tmp, MCP_STATS_PATH)
+    await writeFile(tmp, JSON.stringify(this.stats, null, 2))
+    await rename(tmp, MCP_STATS_PATH)
   }
 
   recordToolCall(name: string, args: Record<string, unknown> = {}, timeMs: number, error = false) {
@@ -395,7 +417,6 @@ export class MCPStatistics {
 // Global singletons - initialized once per process
 const _g = globalThis as Record<string, unknown>
 if (!_g.__kb_searchStats__) {
-  ensureStatsDir()
   _g.__kb_searchStats__ = new SearchStatistics()
 }
 if (!_g.__kb_llmStats__) {
@@ -413,10 +434,9 @@ export const llmStats = _g.__kb_llmStats__ as LLMStatistics
 export const embeddingStats = _g.__kb_embeddingStats__ as EmbeddingStatistics
 export const mcpStats = _g.__kb_mcpStats__ as MCPStatistics
 
-/** Flush all stats to disk on shutdown (immediate write, no debounce) */
-export function flushStats(): void {
-  try { searchStats.saveNow() } catch { /* ignore */ }
-  try { llmStats.saveNow() } catch { /* ignore */ }
-  try { embeddingStats.saveNow() } catch { /* ignore */ }
-  try { mcpStats.saveNow() } catch { /* ignore */ }
+export async function flushStats(): Promise<void> {
+  try { await searchStats.saveNow() } catch { /* ignore */ }
+  try { await llmStats.saveNow() } catch { /* ignore */ }
+  try { await embeddingStats.saveNow() } catch { /* ignore */ }
+  try { await mcpStats.saveNow() } catch { /* ignore */ }
 }

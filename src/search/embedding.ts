@@ -10,12 +10,16 @@ import { createLogger } from "../utils/logger.js"
 
 const logger = createLogger("search:embedding")
 let transformersAvailable = true
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamically loaded @huggingface/transformers pipeline; types are not available at compile time
-type PipelineFn = (...args: any[]) => Promise<any>
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- embedder returned by pipeline(); opaque runtime object
-type EmbedderType = (input: string | string[], options: Record<string, unknown>) => Promise<{ data: Float32Array; [key: string]: unknown }>
 
-let pipelineFn: PipelineFn | null = null
+interface PipelineOutput {
+  data: Float32Array
+  dims: number[]
+  [key: string]: unknown
+}
+
+type EmbedderType = (input: string | string[], options: Record<string, unknown>) => Promise<PipelineOutput>
+
+let pipelineFn: typeof import("@huggingface/transformers").pipeline | null = null
 let envConfigured = false
 
 const embeddingCache = new Map<string, number[]>()

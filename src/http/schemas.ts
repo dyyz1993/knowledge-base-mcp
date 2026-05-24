@@ -156,6 +156,43 @@ export const askResearchSchema = z.object({
   }).optional(),
 })
 
+export const deepReadBodySchema = z.object({
+  url: stringLimit(1, 2048),
+})
+
+export const summarizeBodySchema = z.object({
+  query: stringLimit(0, 2000).optional(),
+  content: stringLimit(1, 500000),
+  title: stringLimit(1, 500),
+  url: stringLimit(0, 2048).optional(),
+  tags: z.array(stringLimit(1, 100)).max(20).optional(),
+  keywords: z.array(stringLimit(1, 100)).max(30).optional(),
+})
+
+export const ingestSiteBodySchema = z.object({
+  url: stringLimit(1, 2048),
+  maxPages: z.union([z.string(), z.number()]).optional().transform(v => {
+    const n = typeof v === "string" ? parseInt(v, 10) : v
+    return Math.min(Math.max(n || 10, 1), 100)
+  }),
+  concurrency: z.union([z.string(), z.number()]).optional().transform(v => {
+    const n = typeof v === "string" ? parseInt(v, 10) : v
+    return Math.min(Math.max(n || 2, 1), 10)
+  }),
+  tags: z.array(stringLimit(1, 100)).max(20).optional().default([]),
+  projectName: stringLimit(0, 200).optional(),
+})
+
+export const codegraphIngestSchema = z.object({
+  project_path: stringLimit(1, 500),
+  scope: z.enum(["overview", "module", "symbol"]).optional().default("overview"),
+  query: stringLimit(0, 2000).optional(),
+  force_reindex: z.preprocess(
+    v => v === "true",
+    z.boolean().optional().default(false),
+  ),
+})
+
 export const statsResetSchema = z.object({
   type: z.enum(["search", "llm", "embedding", "mcp", "all"]).optional().default("all"),
 })

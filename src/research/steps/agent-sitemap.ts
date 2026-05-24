@@ -3,6 +3,9 @@ import type { SitemapCheck } from "../types"
 import { tierToLlmConfig } from "../model-tier"
 import { checkSitemap } from "./check-sitemap"
 import { deepReadUrls } from "./deep-read"
+import { createLogger } from "../../utils/logger.js"
+
+const logger = createLogger("research:steps:agent-sitemap")
 
 export interface SitemapState {
   query: string
@@ -28,7 +31,7 @@ export function extractDocSiteUrls(results: SearchResult[]): string[] {
       ) {
         if (!urls.includes(base)) urls.push(base)
       }
-    } catch { continue }
+    } catch { logger.warn("URL parse failed in extractDocSiteUrls"); continue }
   }
   return urls.slice(0, 5)
 }
@@ -97,8 +100,8 @@ ${domainList}`
             base = picked
           }
         }
-      } catch {
-        // LLM failed, keep sitemapBase
+      } catch (err) {
+        logger.warn("LLM domain picking failed in agent-sitemap", { error: String(err) })
       }
     }
   }

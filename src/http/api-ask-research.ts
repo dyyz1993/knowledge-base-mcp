@@ -5,7 +5,7 @@ import { LlmDirectSource } from "../search/source-llm-direct.js"
 import { SearchPipeline } from "../search/search-pipeline.js"
 import { getConfiguredModels } from "../chat/api-models.js"
 import { loadConfig } from "../config.js"
-import { json, parseBody, extractHtmlContent, getApiUserAgent } from "./helpers.js"
+import { json, apiError, parseBody, extractHtmlContent, getApiUserAgent } from "./helpers.js"
 
 export async function handleAskResearchRoute(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
   if (url.pathname !== "/api/ask-research" || req.method !== "POST") return false
@@ -13,11 +13,11 @@ export async function handleAskResearchRoute(req: IncomingMessage, res: ServerRe
   const body = (await parseBody(req, res)) as Record<string, any>
   if (body === null) return true
   const query = body.query as string | undefined
-  if (!query) { json(res, { error: "Missing 'query'" }, 400); return true }
+  if (!query) { apiError(res, 400, "MISSING_FIELD", "Missing 'query'"); return true }
 
   const config = loadConfig()
   if (!config.searchPipeline?.enabled) {
-    json(res, { error: "Search pipeline not enabled" }, 503)
+    apiError(res, 503, "INTERNAL_ERROR", "Search pipeline not enabled")
     return true
   }
 

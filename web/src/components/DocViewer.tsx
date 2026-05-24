@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import DOMPurify from "dompurify"
 import { Copy, Check, ExternalLink, Clock, Tag, FileText, ClipboardCopy } from "lucide-react"
 import type { DocMeta } from "../services/api"
 import TagBadge from "./TagBadge"
@@ -36,46 +37,17 @@ function CodeBlockWrapper({ language, children }: { language?: string; children:
   )
 }
 
-const SVG_ALLOWED_TAGS = new Set([
-  "svg", "g", "path", "circle", "rect", "line", "polyline", "polygon",
-  "text", "tspan", "defs", "clipPath", "use", "title", "desc", "marker",
-])
+const svgPurify = DOMPurify()
+svgPurify.addHook("uponSanitizeElement", (node) => {
+  if (node.nodeName === "script") node.remove()
+})
 
-const SVG_ALLOWED_ATTRS = new Set([
-  "d", "cx", "cy", "r", "x", "y", "width", "height", "fill", "stroke",
-  "transform", "viewBox", "xmlns", "id", "href", "class", "style",
-  "points", "offset", "stop-color", "stop-opacity", "font-size",
-  "text-anchor", "dominant-baseline",
-])
-
-function sanitizeSvg(raw: string): string {
-  const doc = new DOMParser().parseFromString(raw, "image/svg+xml")
-  const errors = doc.querySelectorAll("parsererror")
-  if (errors.length) throw new Error("Invalid SVG")
-
-  const walk = (node: Element): void => {
-    const children = Array.from(node.children)
-    for (let i = children.length - 1; i >= 0; i--) {
-      const child = children[i]
-      if (!SVG_ALLOWED_TAGS.has(child.tagName.toLowerCase())) {
-        child.remove()
-        continue
-      }
-      for (const attr of Array.from(child.attributes)) {
-        const name = attr.name.toLowerCase()
-        if (name.startsWith("on") || name === "src" || name === "href" && attr.value.startsWith("javascript:")) {
-          child.removeAttributeNode(attr)
-        } else if (!SVG_ALLOWED_ATTRS.has(name)) {
-          child.removeAttributeNode(attr)
-        }
-      }
-      walk(child)
-    }
-  }
-  walk(doc.documentElement)
-  const svg = doc.documentElement
-  const ser = new XMLSerializer()
-  return ser.serializeToString(svg)
+function sanitizeSvg(svg: string): string {
+  return svgPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    ADD_TAGS: ["use"],
+    ADD_ATTR: ["xlink:href"],
+  })
 }
 
 function MermaidBlock({ code }: { code: string }) {

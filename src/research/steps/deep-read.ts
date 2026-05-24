@@ -35,7 +35,8 @@ function normalizeUrl(url: string): string {
       normalized = normalized.slice(0, -1)
     }
     return normalized
-  } catch {
+  } catch (err) {
+    logger.debug("URL normalization failed", { url, error: String(err) })
     return url.toLowerCase().replace(/\/+$/, "")
   }
 }
@@ -133,7 +134,8 @@ async function resolveRedirect(url: string): Promise<string> {
       signal: AbortSignal.timeout(5000),
     })
     return resp.url || url
-  } catch {
+  } catch (err) {
+    logger.debug("Redirect resolution failed", { url, error: String(err) })
     return url
   }
 }
@@ -283,7 +285,8 @@ export async function deepReadUrls(
       }
 
       return base
-    } catch {
+    } catch (err) {
+      logger.debug("Deep read fetch failed", { url: fetchItem.url, error: String(err) })
       return base
     }
   })
@@ -361,7 +364,8 @@ async function tryCacheFallback(url: string, fallbackTitle: string): Promise<Dee
           source: "cache",
         }
       }
-    } catch {
+    } catch (err) {
+      logger.debug("Cache fallback fetch failed", { cacheUrl, error: String(err) })
       continue
     }
   }

@@ -137,13 +137,15 @@ Return ONLY valid JSON matching this structure:
   try {
     const cleaned = raw.replace(/```json\s*|```/g, "").trim()
     parsed = JSON.parse(cleaned) as EvaluateResult
-  } catch {
+  } catch (err) {
+    logger.warn("JSON parse failed in evaluate, retrying with simplified prompt", { error: String(err) })
     // Secondary attempt: extract JSON object from surrounding text
     const extracted = extractJsonObject(raw)
     if (extracted) {
       try {
         parsed = JSON.parse(extracted) as EvaluateResult
-      } catch {
+      } catch (err) {
+        logger.warn("Secondary JSON parse failed in evaluate", { error: String(err) })
         // Tertiary attempt: retry with simplified prompt
         parsed = await retryEvaluateSimple(query, capped, largeModel)
       }

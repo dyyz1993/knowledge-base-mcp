@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { readFile, writeFile, mkdir, access, constants } from "node:fs/promises"
 import { join } from "node:path"
 import { getDataDir } from "../config"
 
@@ -13,38 +13,46 @@ export interface Favorite {
   createdAt: number
 }
 
-function ensureBase() {
-  if (!existsSync(BASE_DIR)) mkdirSync(BASE_DIR, { recursive: true })
+async function ensureBase() {
+  try {
+    await access(BASE_DIR, constants.F_OK)
+  } catch {
+    await mkdir(BASE_DIR, { recursive: true })
+  }
 }
 
-function readAll(): Favorite[] {
-  ensureBase()
-  if (!existsSync(FAVORITES_PATH)) return []
-  try { return JSON.parse(readFileSync(FAVORITES_PATH, "utf-8")) } catch { return [] }
+async function readAll(): Promise<Favorite[]> {
+  await ensureBase()
+  try {
+    await access(FAVORITES_PATH, constants.F_OK)
+    return JSON.parse(await readFile(FAVORITES_PATH, "utf-8"))
+  } catch {
+    return []
+  }
 }
 
-function writeAll(favs: Favorite[]) {
-  ensureBase()
-  writeFileSync(FAVORITES_PATH, JSON.stringify(favs, null, 2))
+async function writeAll(favs: Favorite[]) {
+  await ensureBase()
+  await writeFile(FAVORITES_PATH, JSON.stringify(favs, null, 2))
 }
 
-export function listFavorites(): Favorite[] {
-  return readAll().sort((a, b) => b.createdAt - a.createdAt)
+export async function listFavorites(): Promise<Favorite[]> {
+  return (await readAll()).sort((a, b) => b.createdAt - a.createdAt)
 }
 
-export function addFavorite(fav: Omit<Favorite, "id" | "createdAt">): Favorite {
-  const all = readAll()
+export async function addFavorite(fav: Omit<Favorite, "id" | "createdAt">): Promise<Favorite> {
+  const all = await readAll()
   const entry: Favorite = { ...fav, id: crypto.randomUUID().slice(0, 8), createdAt: Date.now() }
   all.push(entry)
-  writeAll(all)
+  await writeAll(all)
   return entry
 }
 
-export function deleteFavorite(id: string): boolean {
-  const all = readAll()
+export async function deleteFavorite(id: string): Promise<boolean> {
+  const all = await readAll()
   const idx = all.findIndex(f => f.id === id)
   if (idx === -1) return false
   all.splice(idx, 1)
-  writeAll(all)
+  await writeAll(all)
   return true
 }

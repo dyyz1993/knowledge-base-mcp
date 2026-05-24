@@ -95,19 +95,28 @@ export function readBody(req: IncomingMessage): Promise<string> {
   })
 }
 
-export function getCorsHeaders(): Record<string, string> {
+const DEFAULT_CORS_ORIGINS = [
+  "http://localhost:19877",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:19877",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+]
+
+export function getCorsHeaders(requestOrigin?: string): Record<string, string> {
   const origins = process.env.CORS_ORIGINS
-  if (origins) {
-    const allowed = origins.split(",").map(o => o.trim())
-    return {
-      "Access-Control-Allow-Origin": allowed[0] || "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Max-Age": "86400",
-    }
-  }
+  const allowed = origins
+    ? origins.split(",").map(o => o.trim())
+    : DEFAULT_CORS_ORIGINS
+
+  const origin = requestOrigin && allowed.includes(requestOrigin)
+    ? requestOrigin
+    : allowed[0] || "http://localhost:19877"
+
   return {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": origin,
+    "Vary": "Origin",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400",
@@ -124,12 +133,28 @@ export function json(res: ServerResponse, data: unknown, status = 200): void {
   res.end(body)
 }
 
-export function setupSSE(res: ServerResponse): { send: (event: string, data: unknown) => void; cleanup: () => void } {
+export function apiError(
+  res: ServerResponse,
+  statusCode: number,
+  code: string,
+  message: string,
+  details?: unknown,
+): void {
+  json(res, {
+    error: {
+      code,
+      message,
+      ...(details !== undefined ? { details } : {}),
+    },
+  }, statusCode)
+}
+
+export function setupSSE(res: ServerResponse, requestOrigin?: string): { send: (event: string, data: unknown) => void; cleanup: () => void } {
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
     Connection: "keep-alive",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": requestOrigin || "http://localhost:19877",
   })
   const heartbeat = setInterval(() => {
     res.write(": heartbeat\n\n")

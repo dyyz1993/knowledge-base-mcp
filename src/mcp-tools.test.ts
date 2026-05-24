@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test"
 import { spawn } from "node:child_process"
 import { existsSync, mkdirSync, rmSync } from "node:fs"
+import { buildSpawnEnv } from "./utils/spawn-env.js"
 
 // Skip MCP integration tests in CI (server startup is flaky in GitHub Actions)
 const skipCI = process.env.CI === "true"
@@ -60,7 +61,7 @@ beforeAll(async () => {
   // 启动测试服务器 (with KB_NO_LLM to force fallbackSearch path)
   serverProcess = spawn("bun", ["run", "dist/index.js", "--http", "--port", String(PORT)], {
     stdio: "pipe",
-    env: { ...process.env, KB_NO_LLM: "1" },
+    env: { ...buildSpawnEnv(), KB_NO_LLM: "1" },
   })
 
   // 等待服务器启动

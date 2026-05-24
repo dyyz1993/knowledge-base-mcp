@@ -86,7 +86,7 @@ describe("Auth middleware", () => {
   test("/api/docs returns 401 without auth", async () => {
     const { status, body } = await httpRequest(AUTH_PORT, "/api/docs")
     expect(status).toBe(401)
-    expect(body.error).toBe("Unauthorized")
+    expect(body.error.message).toBe("Unauthorized")
   })
 
   test("/api/docs returns 401 with wrong Bearer token", async () => {
@@ -94,7 +94,7 @@ describe("Auth middleware", () => {
       headers: { Authorization: "Bearer wrong-token" },
     })
     expect(status).toBe(401)
-    expect(body.error).toBe("Unauthorized")
+    expect(body.error.message).toBe("Unauthorized")
   })
 
   test("/api/docs returns 200 with correct Bearer token", async () => {

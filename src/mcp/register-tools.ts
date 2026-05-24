@@ -8,6 +8,7 @@ import { kbAskPipeline } from "../search/kb-ask-pipeline.js"
 import { mcpStats } from "../statistics/index.js"
 import { loadConfig, getKbDir } from "../config.js"
 import { createLogger } from "../utils/logger.js"
+import { buildSpawnEnv, curlEnv, gitEnv } from "../utils/spawn-env.js"
 
 
 const logger = createLogger("mcp:register-tools")
@@ -642,18 +643,18 @@ export function registerTools(server: McpServer) {
             "-o", zipPath, zipUrl,
           ], {
             stdout: "pipe", stderr: "pipe",
-            env: { ...process.env },
-          })
-          const curlExit = await Promise.race([
-            curlProc.exited,
-            new Promise<number>((_, reject) => setTimeout(() => { curlProc.kill(); reject(new Error("curl timeout")) }, 35000)),
-          ])
-          if (curlExit === 0) {
-            // Extract zip into tmpDir
-            await Bun.spawn(["unzip", "-q", zipPath, "-d", tmpDir], {
-              stdout: "pipe", stderr: "pipe",
-              env: { ...process.env },
-            }).exited
+             env: curlEnv(),
+           })
+           const curlExit = await Promise.race([
+             curlProc.exited,
+             new Promise<number>((_, reject) => setTimeout(() => { curlProc.kill(); reject(new Error("curl timeout")) }, 35000)),
+           ])
+           if (curlExit === 0) {
+             // Extract zip into tmpDir
+             await Bun.spawn(["unzip", "-q", zipPath, "-d", tmpDir], {
+               stdout: "pipe", stderr: "pipe",
+               env: buildSpawnEnv(),
+             }).exited
             // unzip creates a subdirectory like zod-main/, use that as repo root
             const entries = readdirSync(tmpDir).sort()
             if (entries.length === 1) {
@@ -675,7 +676,7 @@ export function registerTools(server: McpServer) {
             const proc = Bun.spawn(["git", "clone", "--depth=1", `https://github.com/${args.repo}.git`, tmpDir], {
               stdout: "pipe",
               stderr: "pipe",
-              env: { ...process.env },
+              env: gitEnv(),
             })
             const exitCode = await Promise.race([
               proc.exited,

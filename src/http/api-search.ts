@@ -6,17 +6,19 @@ import { LlmDirectSource } from "../search/source-llm-direct.js"
 import { SearchPipeline } from "../search/search-pipeline.js"
 import { getConfiguredModels } from "../chat/api-models.js"
 import { loadConfig } from "../config.js"
-import { json, parseBody, validateUrl, extractHtmlContent, getApiUserAgent } from "./helpers.js"
+import { json, apiError, validateUrl, extractHtmlContent, getApiUserAgent } from "./helpers.js"
+import { semanticSearchSchema, searchSchema, kbAskSchema, askSearchSchema, webReadSchema, kbIngestSchema } from "./schemas.js"
+import { parseBodyTyped } from "./validate.js"
 import { createLogger } from "../utils/logger.js"
 
 export async function handleSearchRoutes(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
 
 const logger = createLogger("http:api-search")
   if (url.pathname === "/api/search/semantic" && req.method === "POST") {
-    const body = (await parseBody(req, res)) as Record<string, any>
-    if (body === null) return true
+    const body = await parseBodyTyped(req, res, semanticSearchSchema)
+    if (!body) return true
     try {
-      const results = await searchDocsSemantic(body.query, body.limit || 10)
+      const results = await searchDocsSemantic(body.query, body.limit)
       json(res, results.map(d => ({
         id: d.id,
         title: d.title,
@@ -27,13 +29,13 @@ const logger = createLogger("http:api-search")
         created_at: d.created_at,
       })))
     } catch (e: unknown) {
-      json(res, { error: e instanceof Error ? e.message : String(e) }, 500)
+      json(res, { error: { code: "INTERNAL_ERROR", message: e instanceof Error ? e.message : String(e) } }, 500)
     }
     return true
   }
   if (url.pathname === "/api/search" && req.method === "POST") {
-    const body = (await parseBody(req, res)) as Record<string, any>
-    if (body === null) return true
+    const body = await parseBodyTyped(req, res, searchSchema)
+    if (!body) return true
     if (body.query) {
       try {
         json(res, await searchDocsCombined(body.query, body.keywords, body.tags, body.limit))
@@ -47,14 +49,10 @@ const logger = createLogger("http:api-search")
     return true
   }
   if (url.pathname === "/api/kb-ask" && req.method === "POST") {
-    const body = (await parseBody(req, res)) as Record<string, any>
-    if (body === null) return true
+    const body = await parseBodyTyped(req, res, kbAskSchema)
+    if (!body) return true
     const query = body.query
-    if (!query || typeof query !== "string") {
-      json(res, { error: "Missing or invalid 'query' field" }, 400)
-      return true
-    }
-    const maxWebResults = typeof body.max_web_results === "number" ? body.max_web_results : 3
+    const maxWebResults = body.max_web_results
     try {
       const result = await kbAskPipeline(query, maxWebResults)
       json(res, result)
@@ -65,17 +63,16 @@ const logger = createLogger("http:api-search")
     return true
   }
   if (url.pathname === "/api/ask-search" && req.method === "POST") {
-    const body = (await parseBody(req, res)) as Record<string, any>
-    if (body === null) return true
+    const body = await parseBodyTyped(req, res, askSearchSchema)
+    if (!body) return true
     const query = body.query
-    if (!query) { json(res, { error: "Missing 'query'" }, 400); return true }
 
     const config = loadConfig()
     if (!config.searchPipeline?.enabled) {
       json(res, { error: "Search pipeline not enabled" }, 503); return true
     }
 
-    const modelSpec = body.model as { provider: string; id: string } | undefined
+    const modelSpec = body.model
     let resolvedModel: { baseUrl: string; apiKey: string; id: string } | null = null
     if (modelSpec) {
       const configured = getConfiguredModels()
@@ -97,15 +94,11 @@ const logger = createLogger("http:api-search")
     return true
   }
   if (url.pathname === "/api/web-read" && req.method === "POST") {
-    const body = (await parseBody(req, res)) as Record<string, any>
-    if (body === null) return true
+    const body = await parseBodyTyped(req, res, webReadSchema)
+    if (!body) return true
     const targetUrl = body.url
-    if (!targetUrl) {
-      json(res, { error: "Missing 'url' field" }, 400)
-      return true
-    }
     const { safe, reason } = validateUrl(targetUrl)
-    if (!safe) { json(res, { error: `URL blocked: ${reason}` }, 400); return true }
+    if (!safe) { apiError(res, 400, "INVALID_INPUT", `URL blocked: ${reason}`); return true }
     const webSearch = getMcpWebSearch()
     if (webSearch) {
       const result = await webSearch.readUrl(targetUrl)
@@ -126,9 +119,9 @@ const logger = createLogger("http:api-search")
         json(res, { success: true, title, content, url: targetUrl })
         return true
       }
-      json(res, { error: "Failed to extract content" }, 500)
+      apiError(res, 500, "INTERNAL_ERROR", "Failed to extract content")
     } catch (e: unknown) {
-      json(res, { error: `Failed to read URL: ${e instanceof Error ? e.message : "unknown"}` }, 500)
+      apiError(res, 500, "INTERNAL_ERROR", `Failed to read URL: ${e instanceof Error ? e.message : "unknown"}`)
     }
     return true
   }
@@ -166,11 +159,11 @@ const logger = createLogger("http:api-search")
     return true
   }
   if (url.pathname === "/api/kb-ingest" && req.method === "POST") {
-    const body = (await parseBody(req, res)) as Record<string, any>
-    if (body === null) return true
+    const body = await parseBodyTyped(req, res, kbIngestSchema)
+    if (!body) return true
     const { url: docUrl, title, content, tags, keywords } = body
-    if (!title || !content) {
-      json(res, { error: "Missing required fields: title, content" }, 400)
+      if (!title || !content) {
+        apiError(res, 400, "MISSING_FIELD", "Missing required fields: title, content")
       return true
     }
     const autoKeywords = keywords?.length

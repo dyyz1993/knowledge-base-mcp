@@ -10,7 +10,7 @@ import { handleShareSession } from "../chat/api-share.js"
 import { handleScanSkills, handleGetSkillPaths, handleUpdateSkillPaths } from "../chat/api-skills.js"
 import { handleBrowserDetect } from "../chat/api-browser.js"
 import { getAllKeywords } from "../storage/index.js"
-import { readBody, json, parseBody, createTieredRateLimiter, getCorsHeaders } from "./helpers.js"
+import { readBody, json, apiError, parseBody, createTieredRateLimiter, getCorsHeaders } from "./helpers.js"
 import { handleStreamableHttp, handleSSE, handleSSEMessage } from "./handle-mcp.js"
 import { handleRestAPI } from "./handle-api.js"
 import { createLogger } from "../utils/logger.js"
@@ -58,7 +58,7 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
       res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
       res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https:; font-src 'self' data:; worker-src 'self' blob:")
 
-      const corsHeaders = getCorsHeaders()
+      const corsHeaders = getCorsHeaders(req.headers.origin)
       for (const [k, v] of Object.entries(corsHeaders)) {
         res.setHeader(k, v)
       }
@@ -76,7 +76,7 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
       }
       // Auth gate: all endpoints except /health require authentication when KB_API_KEY is set
       if (requireAuth && !checkAuth(req)) {
-        json(res, { error: "Unauthorized" }, 401)
+        apiError(res, 401, "UNAUTHORIZED", "Unauthorized")
         return
       }
       // Rate limit: tiered by endpoint category
@@ -89,7 +89,7 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
             "Content-Type": "application/json",
             "Retry-After": String(Math.ceil(retryAfterMs / 1000)),
           })
-          res.end(JSON.stringify({ error: "Too many requests", retryAfterSeconds: Math.ceil(retryAfterMs / 1000) }))
+          res.end(JSON.stringify({ error: { code: "RATE_LIMITED", message: "Too many requests" }, retryAfterSeconds: Math.ceil(retryAfterMs / 1000) }))
           return
         }
       }
@@ -135,7 +135,7 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
       }
       if (serveWeb) {
         if (noMcp && (url.pathname === "/mcp" || url.pathname === "/sse" || url.pathname === "/messages")) {
-          json(res, { error: "MCP endpoints disabled (--no-mcp)" }, 404)
+          apiError(res, 404, "NOT_FOUND", "MCP endpoints disabled (--no-mcp)")
           return
         }
         const fp = join(webDist, url.pathname === "/" ? "index.html" : url.pathname)
@@ -183,10 +183,10 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
           return
         }
       }
-      json(res, { error: "Not Found" }, 404)
+      apiError(res, 404, "NOT_FOUND", "Not Found")
     } catch (e: unknown) {
       logger.error("Request error:", e)
-      if (!res.headersSent) json(res, { error: e instanceof Error ? e.message : String(e) }, 500)
+      if (!res.headersSent) apiError(res, 500, "INTERNAL_ERROR", e instanceof Error ? e.message : String(e))
     }
   })
 

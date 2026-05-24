@@ -2,6 +2,9 @@ import type { FilterResult } from "../types"
 import { callLlm, type LlmConfig } from "../../search/llm-caller"
 import type { SearchResult } from "../../search/types"
 import { extractJsonArray } from "../utils/json-parser.js"
+import { createLogger } from "../../utils/logger.js"
+
+const logger = createLogger("research:steps:filter-results")
 
 const SYSTEM_PROMPT =
   "You are a search result relevance evaluator. You assess how relevant each search result is to a given query. Always respond with valid JSON only."
@@ -50,7 +53,8 @@ function parseResponse(raw: string): FilterResult[] {
         typeof (item as FilterResult).relevanceScore === "number" &&
         typeof (item as FilterResult).reason === "string",
     )
-  } catch {
+  } catch (err) {
+    logger.warn("JSON parse failed in filterResults parseResponse", { error: String(err) })
     return []
   }
 }
@@ -120,7 +124,8 @@ export async function filterResults(
       .filter((r): r is SearchResult => r !== undefined)
 
     return scored.length > 0 ? scored : fallbackTopResults(results)
-  } catch {
+  } catch (err) {
+    logger.warn("filterResults batch scoring failed, using fallback", { error: String(err) })
     return fallbackTopResults(results)
   }
 }

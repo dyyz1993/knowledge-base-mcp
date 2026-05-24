@@ -55,9 +55,8 @@ export async function checkSitemap(
             if (resp.ok && (resp.headers.get("content-type")?.includes("xml") || resp.url.endsWith(".xml"))) {
               return { base: cleanBase, sitemapUrl }
             }
-          } catch { continue }
+          } catch { logger.debug("Sitemap HEAD probe failed", { site, sitemapPath }); continue }
         }
-        return null
       }),
     )
     for (const r of probeResults) {
@@ -74,15 +73,14 @@ export async function checkSitemap(
   const allPaths: string[] = []
   const allSitePaths: Array<{ base: string; paths: string[] }> = []
 
-  // Try up to 3 valid sitemap sites, collect paths from all
-  for (const site of validSites.slice(0, 3)) {
-    try {
+  // Try up to 3 valid sitemap sites in parallel, collect paths from all
+  const sitemapResults = await Promise.allSettled(
+    validSites.slice(0, 3).map(async (site) => {
       const resp = await fetch(site.sitemapUrl, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; KB-MCP/1.0)" },
         signal: AbortSignal.timeout(10000),
       })
       const xml = await resp.text()
-
       const urlMatches = xml.matchAll(/<loc>\s*(.*?)\s*<\/loc>/gi)
       const sitePaths: string[] = []
       for (const m of urlMatches) {
@@ -92,13 +90,16 @@ export async function checkSitemap(
           if (u.hostname === new URL(site.base).hostname) {
             sitePaths.push(u.pathname)
           }
-        } catch { continue }
+        } catch { logger.debug("URL parse failed for sitemap loc"); continue }
       }
-      if (sitePaths.length > 0) {
-        allSitePaths.push({ base: site.base, paths: sitePaths })
-      }
-    } catch {
-      continue // Try next valid site
+      return sitePaths.length > 0 ? { base: site.base, paths: sitePaths } : null
+    })
+  )
+  for (const r of sitemapResults) {
+    if (r.status === "fulfilled" && r.value) {
+      allSitePaths.push(r.value)
+    } else if (r.status === "rejected") {
+      logger.warn("Sitemap fetch/parse failed", { error: String(r.reason) })
     }
   }
 

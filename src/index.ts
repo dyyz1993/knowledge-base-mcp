@@ -28,7 +28,7 @@ let httpServer: ReturnType<typeof startHttp> | null = null
 async function shutdown(signal: string) {
   logger.info(`\n[shutdown] Received ${signal}, shutting down gracefully...`)
   try {
-    flushStats()
+    await flushStats()
     closeDb()
     if (httpServer) {
       httpServer.close()

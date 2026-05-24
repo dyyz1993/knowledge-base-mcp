@@ -594,23 +594,27 @@ ${domainList}`
     this.phaseLog.push(`github: found ${this.githubResult.repoUrl}, reading ${paths.length} files: ${paths.join(", ")}`)
 
     const results: DeepReadItem[] = []
-    for (const p of paths) {
-      try {
-        const content = await fetchGitHubFile(this.githubResult.repoUrl, p)
+    const contents = await Promise.allSettled(
+      paths.map(p => fetchGitHubFile(this.githubResult!.repoUrl!, p).then(content => {
         if (content && content.length > 50) {
-          // Use raw.githubusercontent.com to avoid branch name issues (main vs master)
-          const rawUrl = this.githubResult.repoUrl
+          const rawUrl = this.githubResult!.repoUrl!
             .replace("github.com", "raw.githubusercontent.com")
-          results.push({
-            title: `${this.githubResult.repoUrl}/${p}`,
+          return {
+            title: `${this.githubResult!.repoUrl}/${p}`,
             url: `${rawUrl}/HEAD/${p}`,
             content: content.slice(0, 15000),
             success: true,
-            source: "github",
-          })
+            source: "github" as const,
+          }
         }
-      } catch (e) {
-        this.phaseLog.push(`github: failed to fetch ${p}: ${e instanceof Error ? e.message : String(e)}`)
+        return null
+      }).catch(() => null))
+    )
+    for (const r of contents) {
+      if (r.status === "fulfilled" && r.value) {
+        results.push(r.value)
+      } else if (r.status === "rejected") {
+        this.phaseLog.push(`github: failed to fetch: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`)
       }
     }
 

@@ -40,26 +40,32 @@ export async function executeCheckGithub(state: GithubState): Promise<GitHubChec
     return githubResult
   }
 
+  const repoUrl = githubResult.repoUrl!
   const paths = githubResult.targetPaths.slice(0, 10)
-  state.phaseLog.push(`github: found ${githubResult.repoUrl}, reading ${paths.length} files: ${paths.join(", ")}`)
+  state.phaseLog.push(`github: found ${repoUrl}, reading ${paths.length} files: ${paths.join(", ")}`)
 
   const results: DeepReadItem[] = []
-  for (const p of paths) {
-    try {
-      const content = await fetchGitHubFile(githubResult.repoUrl, p)
+  const contents = await Promise.allSettled(
+    paths.map(p => fetchGitHubFile(repoUrl, p).then(content => {
       if (content && content.length > 50) {
-        const rawUrl = githubResult.repoUrl
+        const rawUrl = repoUrl
           .replace("github.com", "raw.githubusercontent.com")
-        results.push({
-          title: `${githubResult.repoUrl}/${p}`,
+        return {
+          title: `${repoUrl}/${p}`,
           url: `${rawUrl}/HEAD/${p}`,
           content: content.slice(0, 15000),
           success: true,
-          source: "github",
-        })
+          source: "github" as const,
+        }
       }
-    } catch (e) {
-      state.phaseLog.push(`github: failed to fetch ${p}: ${e instanceof Error ? e.message : String(e)}`)
+      return null
+    }).catch(() => null))
+  )
+  for (const r of contents) {
+    if (r.status === "fulfilled" && r.value) {
+      results.push(r.value)
+    } else if (r.status === "rejected") {
+      state.phaseLog.push(`github: failed to fetch: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`)
     }
   }
 

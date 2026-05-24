@@ -1,8 +1,9 @@
 import { IncomingMessage, ServerResponse } from "node:http"
 import { writeDoc, readDoc, listDocs, getOutline, listAllOutlines, listRecentDocs, deleteDoc } from "../storage/index.js"
-import { json, parseBody } from "./helpers.js"
+import { json, apiError } from "./helpers.js"
 import { renderRecentHtml } from "./render.js"
-import { writeDocSchema } from "./schemas.js"
+import { writeDocSchema, readDocByIdSchema } from "./schemas.js"
+import { parseBodyTyped } from "./validate.js"
 
 export async function handleDocsRoutes(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
   if (url.pathname === "/api/docs" && req.method === "GET") {
@@ -36,20 +37,15 @@ export async function handleDocsRoutes(req: IncomingMessage, res: ServerResponse
     return true
   }
   if (url.pathname === "/api/docs" && req.method === "POST") {
-    const body = (await parseBody(req, res)) as Record<string, any>
-    if (body === null) return true
+    const body = await parseBodyTyped(req, res, readDocByIdSchema)
+    if (!body) return true
     json(res, readDoc(body.id, true))
     return true
   }
   if (url.pathname === "/api/docs/write" && req.method === "POST") {
-    const body = (await parseBody(req, res)) as Record<string, any>
-    if (body === null) return true
-    const parsed = writeDocSchema.safeParse(body)
-    if (!parsed.success) {
-      json(res, { error: parsed.error.issues.map(i => i.message).join("; ") }, 400)
-      return true
-    }
-    const { title, content, intent, project_description, source_project, source_worktree, project_path, related_projects, related_files, tags, keywords } = parsed.data
+    const body = await parseBodyTyped(req, res, writeDocSchema)
+    if (!body) return true
+    const { title, content, intent, project_description, source_project, source_worktree, project_path, related_projects, related_files, tags, keywords } = body
     const doc = writeDoc(
       {
         title,
@@ -74,7 +70,7 @@ export async function handleDocsRoutes(req: IncomingMessage, res: ServerResponse
   }
   if (url.pathname === "/api/outline" && req.method === "GET") {
     const project = url.searchParams.get("project")
-    if (!project) { json(res, { error: "project required" }, 400); return true }
+    if (!project) { apiError(res, 400, "MISSING_FIELD", "project required"); return true }
     json(res, getOutline(project))
     return true
   }
