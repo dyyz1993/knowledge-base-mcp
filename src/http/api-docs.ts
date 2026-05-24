@@ -27,13 +27,22 @@ export async function handleDocsRoutes(req: IncomingMessage, res: ServerResponse
   }
   if (url.pathname.startsWith("/api/doc/") && req.method === "GET") {
     const id = url.pathname.slice("/api/doc/".length)
-    json(res, readDoc(id, true))
+    const doc = readDoc(id, true)
+    if (!doc) {
+      apiError(res, 404, "NOT_FOUND", "Document not found")
+      return true
+    }
+    json(res, doc)
     return true
   }
   if (url.pathname.startsWith("/api/doc/") && req.method === "DELETE") {
     const id = url.pathname.slice("/api/doc/".length)
     const ok = deleteDoc(id)
-    json(res, { deleted: ok, id })
+    if (!ok) {
+      apiError(res, 404, "NOT_FOUND", "Document not found")
+      return true
+    }
+    json(res, { deleted: true, id })
     return true
   }
   if (url.pathname === "/api/docs" && req.method === "POST") {

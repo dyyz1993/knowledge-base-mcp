@@ -13,8 +13,7 @@ const streamableSessions = new Map<string, StreamableSession>()
 type SSESession = { server: McpServer, transport: SSEServerTransport, createdAt: number }
 const sseSessions = new Map<string, SSESession>()
 
-// Periodic cleanup: remove stale sessions older than 1 hour
-const SESSION_TTL = 3_600_000 // 1 hour
+const SESSION_TTL = 1_800_000 // 30 minutes
 setInterval(() => {
   const now = Date.now()
   for (const [sid, session] of streamableSessions) {
@@ -29,7 +28,7 @@ setInterval(() => {
       sseSessions.delete(sid)
     }
   }
-}, 60_000).unref() // check every minute, don't prevent process exit
+}, 30_000).unref()
 
 export async function handleStreamableHttp(req: IncomingMessage, res: ServerResponse, body: unknown) {
   const sessionId = req.headers["mcp-session-id"] as string | undefined

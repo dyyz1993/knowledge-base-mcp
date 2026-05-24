@@ -340,7 +340,7 @@ export function searchDocs(
     const body = readDocContent(doc.file_path).toLowerCase()
 
     if (q) {
-      const tokens = tokenize(q, { lowercase: false, splitChars: "-_" })
+      const tokens = tokenize(q, { lowercase: true, splitChars: "-_" })
       let matchedTokenCount = 0
       for (const token of tokens) {
         let tokenHit = false
@@ -404,8 +404,7 @@ export async function searchDocsSemantic(query: string, limit = 10): Promise<(Do
   const currentDims = config.embedding.dimensions
 
   if (checkAndUpdateModel(currentModel, currentDims)) {
-    logger.warn("searchDocsSemantic: auto-rebuilding all vectors due to model/dimension mismatch")
-    await rebuildAllVectors(docs)
+    logger.warn("searchDocsSemantic: embedding model/dimension mismatch detected. Use POST /api/embedding/reindex to rebuild.")
   }
 
   const vectors = loadVectors()
@@ -421,8 +420,8 @@ export async function searchDocsSemantic(query: string, limit = 10): Promise<(Do
   if (currentDims > 0) {
     const mismatched = docs.filter(d => allVectors[d.id] && allVectors[d.id].length !== currentDims)
     if (mismatched.length > 0) {
-      logger.warn(`searchDocsSemantic: ${mismatched.length} docs have mismatched dimensions, triggering rebuild`)
-      await rebuildAllVectors(docs)
+      logger.warn(`searchDocsSemantic: ${mismatched.length} docs have mismatched dimensions, skipping semantic. Use POST /api/embedding/reindex to rebuild.`)
+      return []
     }
   }
 

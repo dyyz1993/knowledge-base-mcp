@@ -33,19 +33,38 @@ const logger = createLogger("http:api-search")
     }
     return true
   }
-  if (url.pathname === "/api/search" && req.method === "POST") {
-    const body = await parseBodyTyped(req, res, searchSchema)
-    if (!body) return true
-    if (body.query) {
+  if (url.pathname === "/api/search" && (req.method === "POST" || req.method === "GET")) {
+    let query: string | undefined
+    let keywords: string[] | undefined
+    let tags: string[] | undefined
+    let limit = 10
+
+    if (req.method === "GET") {
+      query = url.searchParams.get("q") || url.searchParams.get("query") || undefined
+      const kwParam = url.searchParams.get("keywords")
+      keywords = kwParam ? kwParam.split(",").filter(Boolean) : undefined
+      const tagParam = url.searchParams.get("tags")
+      tags = tagParam ? tagParam.split(",").filter(Boolean) : undefined
+      limit = parseInt(url.searchParams.get("limit") || "10", 10) || 10
+    } else {
+      const body = await parseBodyTyped(req, res, searchSchema)
+      if (!body) return true
+      query = body.query
+      keywords = body.keywords
+      tags = body.tags
+      limit = body.limit ?? 10
+    }
+
+    if (query) {
       try {
-        json(res, await searchDocsCombined(body.query, body.keywords, body.tags, body.limit))
+        json(res, await searchDocsCombined(query, keywords, tags, limit))
       } catch (e) {
         logger.error("Combined search failed, falling back:", e instanceof Error ? e.message : String(e))
-        json(res, searchDocs(body.query, body.keywords, body.tags, body.limit))
+        json(res, searchDocs(query, keywords, tags, limit))
       }
       return true
     }
-    json(res, searchDocs(body.query, body.keywords, body.tags, body.limit))
+    json(res, searchDocs(query, keywords, tags, limit))
     return true
   }
   if (url.pathname === "/api/kb-ask" && req.method === "POST") {

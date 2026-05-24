@@ -214,6 +214,8 @@ export function getStorageStats(): { count: number; dbSize: number; model: strin
   }
 }
 
+let lastMismatchLog = 0
+
 export function checkAndUpdateModel(currentModel: string, currentDims: number): boolean {
   const d = getDb()
   const row = d.query("SELECT model, dimensions FROM embeddings LIMIT 1").get() as { model: string; dimensions: number } | null
@@ -223,10 +225,13 @@ export function checkAndUpdateModel(currentModel: string, currentDims: number): 
   const dimsChanged = row.dimensions > 0 && row.dimensions !== currentDims
 
   if (modelChanged || dimsChanged) {
-    logger.warn(
-      `Embedding model mismatch detected: stored(model=${row.model}, dims=${row.dimensions}) vs current(model=${currentModel}, dims=${currentDims}). Rebuild required.`,
-    )
-    return true
+    const now = Date.now()
+    if (now - lastMismatchLog > 60000) {
+      logger.warn(
+        `Embedding model mismatch: stored(model=${row.model}, dims=${row.dimensions}) vs config(model=${currentModel}, dims=${currentDims}). Use POST /api/embedding/reindex to rebuild.`,
+      )
+      lastMismatchLog = now
+    }
   }
   return false
 }
