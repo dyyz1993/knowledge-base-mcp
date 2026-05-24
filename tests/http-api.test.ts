@@ -209,4 +209,47 @@ describe("HTTP API endpoints", () => {
     expect(status).toBe(400)
     expect(data.error).toBeDefined()
   })
+
+  describe("PUT /api/config validation", () => {
+    async function putConfig(body: Record<string, unknown>) {
+      const res = await fetch(`${base()}/api/config`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      return { status: res.status, data: await res.json() }
+    }
+
+    test("rejects dimensions: -1 with 400", async () => {
+      const { status, data } = await putConfig({ embedding: { dimensions: -1 } })
+      expect(status).toBe(400)
+      expect(data.error).toBeDefined()
+      expect(data.error).toContain("dimensions")
+    })
+
+    test("rejects enabled: 'yes' with 400", async () => {
+      const { status, data } = await putConfig({ embedding: { enabled: "yes" as any } })
+      expect(status).toBe(400)
+      expect(data.error).toBeDefined()
+      expect(data.error).toContain("enabled")
+    })
+
+    test("rejects unknown provider with 400", async () => {
+      const { status, data } = await putConfig({ embedding: { provider: "invalid_provider" as any } })
+      expect(status).toBe(400)
+      expect(data.error).toBeDefined()
+    })
+
+    test("accepts valid partial update", async () => {
+      const { status, data } = await putConfig({ embedding: { dimensions: 2048 } })
+      expect(status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+
+    test("rejects unknown top-level fields with 400", async () => {
+      const { status, data } = await putConfig({ unknownField: "bad" } as any)
+      expect(status).toBe(400)
+      expect(data.error).toBeDefined()
+    })
+  })
 })

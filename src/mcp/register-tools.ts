@@ -1,4 +1,5 @@
 import { readFileSync, existsSync } from "node:fs"
+import { registerCodegraphTools } from "./tools/codegraph-tools.js"
 import { readdirSync, statSync } from "node:fs"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
@@ -920,4 +921,6 @@ ${keyFiles}
       }
     },
   )
+
+  registerCodegraphTools(server)
 }

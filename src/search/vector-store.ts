@@ -91,7 +91,7 @@ export function loadVectors(): Record<string, number[]> {
 export function saveVectors(vectors: Record<string, number[]>): void {
   const d = getDb()
   const stmt = d.prepare(
-    "INSERT OR REPLACE INTO embeddings (doc_id, embedding, model, dimensions, updated_at) VALUES (?, ?, '', ?, ?)",
+    "INSERT OR REPLACE INTO embeddings (doc_id, embedding, model, dimensions, updated_at) VALUES (?, ?, 'saveVectors', ?, ?)",
   )
   const entries = Object.entries(vectors)
   const insertMany = d.transaction((items: [string, number[]][]) => {
@@ -105,9 +105,12 @@ export function saveVectors(vectors: Record<string, number[]>): void {
 export async function indexDoc(id: string, text: string): Promise<number[]> {
   const vec = await embed(text)
   const d = getDb()
+  const { loadConfig } = await import("../config")
+  const config = loadConfig()
+  const model = config.embedding.model || "local"
   d.prepare(
-    "INSERT OR REPLACE INTO embeddings (doc_id, embedding, model, dimensions, updated_at) VALUES (?, ?, '', ?, ?)",
-  ).run(id, encodeVector(vec), vec.length, Date.now())
+    "INSERT OR REPLACE INTO embeddings (doc_id, embedding, model, dimensions, updated_at) VALUES (?, ?, ?, ?, ?)",
+  ).run(id, encodeVector(vec), model, vec.length, Date.now())
   return vec
 }
 
@@ -205,6 +208,23 @@ export function getStorageStats(): { count: number; dbSize: number; model: strin
     model: modelRow?.model || "",
     dimensions: modelRow?.dimensions || 0,
   }
+}
+
+export function checkAndUpdateModel(currentModel: string, currentDims: number): boolean {
+  const d = getDb()
+  const row = d.query("SELECT model, dimensions FROM embeddings LIMIT 1").get() as { model: string; dimensions: number } | null
+  if (!row) return false
+
+  const modelChanged = row.model && row.model !== currentModel && row.model !== "migrated" && row.model !== "saveVectors"
+  const dimsChanged = row.dimensions > 0 && row.dimensions !== currentDims
+
+  if (modelChanged || dimsChanged) {
+    logger.warn(
+      `Embedding model mismatch detected: stored(model=${row.model}, dims=${row.dimensions}) vs current(model=${currentModel}, dims=${currentDims}). Rebuild required.`,
+    )
+    return true
+  }
+  return false
 }
 
 export function resetDb(): void {

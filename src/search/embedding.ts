@@ -76,7 +76,16 @@ async function embedLocal(text: string): Promise<number[]> {
     })) as unknown as EmbedderType
   }
   const output = await embedder(text, { pooling: "mean", normalize: true })
-  return Array.from(output.data) as number[]
+  const vec = Array.from(output.data) as number[]
+  logger.debug(`embedLocal: generated embedding with ${vec.length} dimensions`)
+  return vec
+}
+
+const MAX_EMBEDDING_CHARS = 8000
+
+function truncateForEmbedding(text: string): string {
+  if (text.length <= MAX_EMBEDDING_CHARS) return text
+  return text.slice(0, MAX_EMBEDDING_CHARS)
 }
 
 async function embedExternal(text: string): Promise<number[]> {
@@ -91,7 +100,7 @@ async function embedExternal(text: string): Promise<number[]> {
     },
     body: JSON.stringify({
       model: config.embedding.model,
-      input: text,
+      input: truncateForEmbedding(text),
     }),
     signal: AbortSignal.timeout(15000),
   })
@@ -117,7 +126,8 @@ export async function embed(text: string): Promise<number[]> {
     try {
       result = await embedExternal(text)
     } catch (e) {
-      logger.error("External embedding failed, falling back to local:", e)
+      const errMsg = e instanceof Error ? e.message : (typeof e === "string" ? e : JSON.stringify(e))
+      logger.error("External embedding failed, falling back to local:", errMsg)
       result = await embedLocal(text)
     }
   } else {
@@ -144,7 +154,7 @@ async function embedBatchExternal(texts: string[]): Promise<number[][]> {
     },
     body: JSON.stringify({
       model: config.embedding.model,
-      input: texts,
+      input: texts.map(truncateForEmbedding),
     }),
     signal: AbortSignal.timeout(30000),
   })
@@ -215,7 +225,8 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
     try {
       computed = await embedBatchExternal(computeTexts)
     } catch (e) {
-      logger.error("External batch embedding failed, falling back to local:", e)
+      const errMsg = e instanceof Error ? e.message : (typeof e === "string" ? e : JSON.stringify(e))
+      logger.error("External batch embedding failed, falling back to local:", errMsg)
       computed = await embedBatchLocal(computeTexts)
     }
   } else {
@@ -232,6 +243,10 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
 }
 
 export function cosineSimilarityVec(a: number[], b: number[]): number {
+  if (a.length !== b.length) {
+    logger.warn(`cosineSimilarityVec: dimension mismatch (${a.length} vs ${b.length}), returning 0`)
+    return 0
+  }
   let dot = 0, normA = 0, normB = 0
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i]

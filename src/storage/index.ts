@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { parseFrontmatter, buildFrontmatter } from "./markdown"
 import { tfidfSearch, buildIDF, invalidateIDFCache } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
-import { loadVectors, indexDoc, rebuildAllVectors, initDb } from "../search/vector-store"
+import { loadVectors, indexDoc, rebuildAllVectors, initDb, checkAndUpdateModel } from "../search/vector-store"
 import { loadConfig, getKbDir } from "../config"
 import { createLogger } from "../utils/logger.js"
 import { tokenize } from "../utils/tokenizer"
@@ -414,6 +414,15 @@ export async function searchDocsSemantic(query: string, limit = 10): Promise<(Do
   const docs = Object.values(idx.documents)
   if (!query || docs.length === 0) return []
 
+  const config = loadConfig()
+  const currentModel = config.embedding.model || "local"
+  const currentDims = config.embedding.dimensions
+
+  if (checkAndUpdateModel(currentModel, currentDims)) {
+    logger.warn("searchDocsSemantic: auto-rebuilding all vectors due to model/dimension mismatch")
+    await rebuildAllVectors(docs)
+  }
+
   const vectors = loadVectors()
   const missing = docs.filter(d => !vectors[d.id])
   if (missing.length > 0) {
@@ -423,9 +432,19 @@ export async function searchDocsSemantic(query: string, limit = 10): Promise<(Do
   }
 
   const allVectors = loadVectors()
+
+  if (currentDims > 0) {
+    const mismatched = docs.filter(d => allVectors[d.id] && allVectors[d.id].length !== currentDims)
+    if (mismatched.length > 0) {
+      logger.warn(`searchDocsSemantic: ${mismatched.length} docs have mismatched dimensions, triggering rebuild`)
+      await rebuildAllVectors(docs)
+    }
+  }
+
+  const finalVectors = loadVectors()
   const docsVecs = docs
-    .filter(d => allVectors[d.id])
-    .map(d => ({ meta: d, embedding: allVectors[d.id] }))
+    .filter(d => finalVectors[d.id])
+    .map(d => ({ meta: d, embedding: finalVectors[d.id] }))
 
   return semanticSearch(query, docsVecs, limit)
 }

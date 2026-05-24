@@ -4,6 +4,8 @@ import type { AppConfig } from "../config.js"
 import { getStorageStats } from "../search/vector-store.js"
 import { searchStats, llmStats, embeddingStats, mcpStats } from "../statistics/index.js"
 import { json, parseBody } from "./helpers.js"
+import { configUpdateSchema } from "./schemas.js"
+import { validateBody, handleValidationError } from "./validate.js"
 
 export async function handleConfigRoutes(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
   if (url.pathname === "/api/config" && req.method === "GET") {
@@ -32,6 +34,12 @@ export async function handleConfigRoutes(req: IncomingMessage, res: ServerRespon
   if (url.pathname === "/api/config" && req.method === "PUT") {
     const body = (await parseBody(req, res)) as Record<string, any>
     if (body === null) return true
+    try {
+      validateBody(configUpdateSchema, body)
+    } catch (e) {
+      if (handleValidationError(e, res)) return true
+      throw e
+    }
     const current = loadConfig()
     const update = body
 

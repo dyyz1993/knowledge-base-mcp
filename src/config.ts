@@ -7,7 +7,7 @@ import { createLogger } from "./utils/logger.js"
 const logger = createLogger("config")
 
 export function getDataDir(): string {
-  return process.env.KB_DIR || join(homedir(), ".kb-chat")
+  return process.env.KB_DATA_DIR || join(homedir(), ".kb-chat")
 }
 
 export function getKbDir(): string {

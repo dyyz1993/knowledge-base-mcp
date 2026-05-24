@@ -159,3 +159,84 @@ export const askResearchSchema = z.object({
 export const statsResetSchema = z.object({
   type: z.enum(["search", "llm", "embedding", "mcp", "all"]).optional().default("all"),
 })
+
+export const configUpdateSchema = z.object({
+  embedding: z.object({
+    provider: z.enum(["siliconflow", "local", "openai", "custom"]).optional(),
+    baseUrl: z.string().url().optional(),
+    apiKey: z.string().optional(),
+    model: z.string().min(1).optional(),
+    dimensions: z.number().int().min(1).max(8192).optional(),
+    enabled: z.boolean().optional(),
+  }).optional(),
+  search: z.object({
+    mode: z.enum(["combined", "tfidf", "semantic"]).optional(),
+    minScore: z.number().min(0).optional(),
+    combinedMinScore: z.number().min(0).max(1).optional(),
+    weights: z.object({
+      token: z.number().min(0).max(1).optional(),
+      tfidf: z.number().min(0).max(1).optional(),
+      semantic: z.number().min(0).max(1).optional(),
+    }).optional(),
+  }).optional(),
+  skills: z.object({
+    paths: z.array(z.string()).optional(),
+    autoScan: z.boolean().optional(),
+  }).optional(),
+  browser: z.object({
+    cdpEndpoint: z.string().optional(),
+    executablePath: z.string().optional(),
+    headless: z.boolean().optional(),
+    defaultTimeout: z.number().int().min(1000).max(120000).optional(),
+  }).optional(),
+  webSearch: z.object({
+    apiKey: z.string().optional(),
+    enabled: z.boolean().optional(),
+    tavilyApiKey: z.string().optional(),
+    serperApiKey: z.string().optional(),
+  }).optional(),
+  searchPipeline: z.object({
+    enabled: z.boolean().optional(),
+    sources: z.object({
+      webSearchPrime: z.object({ enabled: z.boolean().optional() }).optional(),
+      xbrowser: z.object({
+        enabled: z.boolean().optional(),
+        engine: z.enum(["google", "bing", "baidu", "duckduckgo"]).optional(),
+        engines: z.array(z.enum(["google", "bing", "baidu", "duckduckgo"])).optional(),
+        cdpEndpoint: z.string().optional(),
+        headless: z.boolean().optional(),
+        timeout: z.number().int().min(1000).optional(),
+      }).optional(),
+      llmDirect: z.object({
+        enabled: z.boolean().optional(),
+        baseUrl: z.string().optional(),
+        apiKey: z.string().optional(),
+        model: z.string().optional(),
+      }).optional(),
+      plugin: z.object({
+        enabled: z.boolean().optional(),
+        prompt: z.string().optional(),
+      }).optional(),
+      tavily: z.object({ enabled: z.boolean().optional() }).optional(),
+      serper: z.object({ enabled: z.boolean().optional() }).optional(),
+      aiSearch: z.object({
+        enabled: z.boolean().optional(),
+        engines: z.array(z.string()).optional(),
+        timeout: z.number().int().min(1000).optional(),
+      }).optional(),
+    }).optional(),
+    maxResults: z.number().int().min(1).max(200).optional(),
+  }).optional(),
+  storage: z.object({
+    cacheTtlMs: z.number().int().min(0).optional(),
+  }).optional(),
+  timeouts: z.object({
+    webReadMs: z.number().int().min(1000).optional(),
+    deepReadMs: z.number().int().min(1000).optional(),
+  }).optional(),
+  askPipeline: z.object({
+    maxLoops: z.number().int().min(1).max(10).optional(),
+    highScoreThreshold: z.number().min(0).max(100).optional(),
+    lowScoreThreshold: z.number().min(0).max(100).optional(),
+  }).optional(),
+}).strict()
