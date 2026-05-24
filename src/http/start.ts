@@ -10,7 +10,7 @@ import { handleShareSession } from "../chat/api-share.js"
 import { handleScanSkills, handleGetSkillPaths, handleUpdateSkillPaths } from "../chat/api-skills.js"
 import { handleBrowserDetect } from "../chat/api-browser.js"
 import { getAllKeywords } from "../storage/index.js"
-import { readBody, json, parseBody, createTieredRateLimiter } from "./helpers.js"
+import { readBody, json, parseBody, createTieredRateLimiter, getCorsHeaders } from "./helpers.js"
 import { handleStreamableHttp, handleSSE, handleSSEMessage } from "./handle-mcp.js"
 import { handleRestAPI } from "./handle-api.js"
 import { createLogger } from "../utils/logger.js"
@@ -57,6 +57,17 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
       res.setHeader("X-Frame-Options", "DENY")
       res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
       res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https:; font-src 'self' data:; worker-src 'self' blob:")
+
+      const corsHeaders = getCorsHeaders()
+      for (const [k, v] of Object.entries(corsHeaders)) {
+        res.setHeader(k, v)
+      }
+
+      if (req.method === "OPTIONS") {
+        res.writeHead(204)
+        res.end()
+        return
+      }
 
       // Health check: always accessible, no auth required
       if (url.pathname === "/health") {
@@ -118,11 +129,6 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
       if (url.pathname === "/api/skills/paths" && req.method === "PUT") return handleUpdateSkillPaths(req, res)
       if (url.pathname === "/api/browser/detect" && req.method === "GET") return handleBrowserDetect(req, res)
       if (url.pathname === "/api/docs/keywords" && req.method === "GET") { json(res, getAllKeywords()); return }
-      if (url.pathname === "/api/share" && req.method === "OPTIONS") {
-        res.writeHead(204, { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" })
-        res.end()
-        return
-      }
       if (url.pathname.startsWith("/api/")) {
         await handleRestAPI(req, res, url)
         return

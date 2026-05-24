@@ -95,9 +95,32 @@ export function readBody(req: IncomingMessage): Promise<string> {
   })
 }
 
+export function getCorsHeaders(): Record<string, string> {
+  const origins = process.env.CORS_ORIGINS
+  if (origins) {
+    const allowed = origins.split(",").map(o => o.trim())
+    return {
+      "Access-Control-Allow-Origin": allowed[0] || "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+    }
+  }
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+  }
+}
+
 export function json(res: ServerResponse, data: unknown, status = 200): void {
   const body = JSON.stringify(data)
-  res.writeHead(status, { "Content-Type": "application/json" })
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...getCorsHeaders(),
+  }
+  res.writeHead(status, headers)
   res.end(body)
 }
 

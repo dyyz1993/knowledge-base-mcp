@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from "node:http"
 import { writeDoc, readDoc, listDocs, getOutline, listAllOutlines, listRecentDocs, deleteDoc } from "../storage/index.js"
 import { json, parseBody } from "./helpers.js"
 import { renderRecentHtml } from "./render.js"
+import { writeDocSchema } from "./schemas.js"
 
 export async function handleDocsRoutes(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
   if (url.pathname === "/api/docs" && req.method === "GET") {
@@ -43,13 +44,12 @@ export async function handleDocsRoutes(req: IncomingMessage, res: ServerResponse
   if (url.pathname === "/api/docs/write" && req.method === "POST") {
     const body = (await parseBody(req, res)) as Record<string, any>
     if (body === null) return true
-    const { title, content, intent, project_description } = body
-    if (!title || !content || typeof title !== "string" || typeof content !== "string") {
-      json(res, { error: "title and content are required strings" }, 400)
+    const parsed = writeDocSchema.safeParse(body)
+    if (!parsed.success) {
+      json(res, { error: parsed.error.issues.map(i => i.message).join("; ") }, 400)
       return true
     }
-    const tags = Array.isArray(body.tags) ? body.tags : []
-    const keywords = Array.isArray(body.keywords) ? body.keywords : []
+    const { title, content, intent, project_description, source_project, source_worktree, project_path, related_projects, related_files, tags, keywords } = parsed.data
     const doc = writeDoc(
       {
         title,
@@ -57,8 +57,11 @@ export async function handleDocsRoutes(req: IncomingMessage, res: ServerResponse
         keywords,
         intent: intent || "",
         project_description: project_description || "",
-        source_project: "",
-        source_worktree: "",
+        source_project: source_project || "",
+        source_worktree: source_worktree || "",
+        project_path: project_path || "",
+        related_projects: Array.isArray(related_projects) ? related_projects : [],
+        related_files: Array.isArray(related_files) ? related_files : [],
       },
       content,
     )
