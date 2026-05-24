@@ -1,6 +1,16 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { startHttp } from "../src/http/start.js"
 import { createServer } from "node:http"
+import { mkdirSync, rmSync, existsSync } from "node:fs"
+import { join } from "node:path"
+import os from "node:os"
+
+const httpTestDir = join(os.tmpdir(), `kb-http-test-${Date.now()}`)
+const origKBDir = process.env.KB_DIR
+const origKBDataDir = process.env.KB_DATA_DIR
+process.env.KB_DIR = httpTestDir
+process.env.KB_DATA_DIR = join(httpTestDir, ".kb-chat")
+mkdirSync(join(httpTestDir, ".kb-chat", "sessions"), { recursive: true })
 
 /** Get a random available port */
 function getAvailablePort(): Promise<number> {
@@ -23,7 +33,6 @@ const createdDocIds: string[] = []
 beforeAll(async () => {
   PORT = await getAvailablePort()
   server = startHttp(PORT, true)
-  // Wait for server ready
   for (let i = 0; i < 30; i++) {
     try {
       const res = await fetch(`http://localhost:${PORT}/health`)
@@ -31,7 +40,7 @@ beforeAll(async () => {
     } catch {}
     await new Promise(r => setTimeout(r, 100))
   }
-})
+}, 30000)
 
 afterAll(async () => {
   for (const id of createdDocIds) {
@@ -40,6 +49,9 @@ afterAll(async () => {
     } catch {}
   }
   server.close()
+  if (existsSync(httpTestDir)) rmSync(httpTestDir, { recursive: true })
+  process.env.KB_DIR = origKBDir
+  process.env.KB_DATA_DIR = origKBDataDir
 })
 
 function base() { return `http://localhost:${PORT}` }

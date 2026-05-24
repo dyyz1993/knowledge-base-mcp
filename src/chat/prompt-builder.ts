@@ -1,4 +1,5 @@
 import { getAllKeywords } from "../storage/index.js"
+import { getKbDir } from "../config.js"
 
 let cachedKeywords: string[] = []
 let keywordsCacheTime = 0
@@ -19,7 +20,7 @@ export function buildSystemPrompt(): string {
     ? `\n## 知识库关键词索引（${kw.length} 个）\n搜索时优先使用这些关键词扩展查询，用户输入可能用别名/缩写，你应该映射到以下标准关键词：\n${kw.slice(0, 200).join("、")}${kw.length > 200 ? `...等${kw.length}个` : ""}\n`
     : ""
 
-  return `你是知识库助手。知识库位于 ~/.knowledge/，包含 140+ 篇技术文档，涵盖前端、后端、AI、DevOps、架构设计等领域。${kwSection}
+  return `你是知识库助手。知识库位于 ${getKbDir()}/，包含 140+ 篇技术文档，涵盖前端、后端、AI、DevOps、架构设计等领域。${kwSection}
 
 ## 重要认知
 

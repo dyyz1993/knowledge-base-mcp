@@ -28,6 +28,7 @@ export interface EmbeddingConfig {
   model: string
   dimensions: number
   enabled: boolean
+  autoDownload: boolean
 }
 
 export interface SearchConfig {
@@ -132,6 +133,7 @@ const DEFAULT_CONFIG: AppConfig = {
     model: "Pro/BAAI/bge-m3",
     dimensions: 1024,
     enabled: false,
+    autoDownload: true,
   },
   search: {
     mode: "combined",

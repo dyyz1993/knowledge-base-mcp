@@ -1,6 +1,6 @@
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { readFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { parseFrontmatter } from "../storage/markdown"
 import type { DocMeta } from "../storage/index"
 import { loadConfig } from "../config"
@@ -64,13 +64,58 @@ async function loadTransformers() {
   }
 }
 
+const MODEL_ID = "Xenova/paraphrase-multilingual-MiniLM-L12-v2"
+const MODEL_DIR = join(homedir(), ".cache/huggingface/local-models", MODEL_ID)
+const MIRROR_BASE = `https://hf-mirror.com/${MODEL_ID}/resolve/main`
+
+const MODEL_FILES = [
+  "config.json",
+  "tokenizer.json",
+  "tokenizer_config.json",
+  "special_tokens_map.json",
+]
+
+async function ensureLocalModel(): Promise<void> {
+  const onnxPath = join(MODEL_DIR, "onnx", "model_quantized.onnx")
+  if (existsSync(onnxPath)) return
+
+  const autoDownload = loadConfig().embedding.autoDownload !== false
+  if (!autoDownload) {
+    throw new Error(
+      `Local embedding model not found at ${onnxPath}. ` +
+      `Set embedding.autoDownload to true or download manually from hf-mirror.com.`,
+    )
+  }
+
+  logger.info("Local embedding model not found, downloading from hf-mirror.com...")
+  mkdirSync(join(MODEL_DIR, "onnx"), { recursive: true })
+
+  for (const file of MODEL_FILES) {
+    const url = `${MIRROR_BASE}/${file}`
+    const dest = join(MODEL_DIR, file)
+    const resp = await fetch(url)
+    if (!resp.ok) throw new Error(`Failed to download ${file}: ${resp.status}`)
+    writeFileSync(dest, await resp.text())
+    logger.debug(`Downloaded ${file}`)
+  }
+
+  const modelUrl = `${MIRROR_BASE}/onnx/model_quantized.onnx`
+  logger.info("Downloading model_quantized.onnx (~113MB)...")
+  const modelResp = await fetch(modelUrl)
+  if (!modelResp.ok) throw new Error(`Failed to download model: ${modelResp.status}`)
+  const buffer = Buffer.from(await modelResp.arrayBuffer())
+  writeFileSync(onnxPath, buffer)
+  logger.info(`Model downloaded: ${(buffer.length / 1024 / 1024).toFixed(1)} MB`)
+}
+
 let embedder: EmbedderType | null = null
 
 async function embedLocal(text: string): Promise<number[]> {
   const pipe = await loadTransformers()
   if (!pipe) throw new Error("Semantic search unavailable: @huggingface/transformers not installed")
   if (!embedder) {
-    embedder = (await pipe("feature-extraction", "Xenova/paraphrase-multilingual-MiniLM-L12-v2", {
+    await ensureLocalModel()
+    embedder = (await pipe("feature-extraction", MODEL_ID, {
       dtype: "fp32",
       local_files_only: true,
     })) as unknown as EmbedderType
@@ -179,7 +224,8 @@ async function embedBatchLocal(texts: string[]): Promise<number[][]> {
   if (!pipe) throw new Error("Semantic search unavailable: @huggingface/transformers not installed")
 
   if (!embedder) {
-    embedder = (await pipe("feature-extraction", "Xenova/paraphrase-multilingual-MiniLM-L12-v2", {
+    await ensureLocalModel()
+    embedder = (await pipe("feature-extraction", MODEL_ID, {
       dtype: "fp32",
       local_files_only: true,
     })) as unknown as EmbedderType

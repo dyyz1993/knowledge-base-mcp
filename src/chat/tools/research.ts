@@ -1,5 +1,6 @@
+import { join } from "node:path"
 import type { OpenAITool, ToolProgressCallback } from "./types.js"
-import { loadConfig } from "../../config.js"
+import { loadConfig, getDataDir } from "../../config.js"
 import { createLogger } from "../../utils/logger.js"
 
 const logger = createLogger("chat:research")
@@ -29,7 +30,7 @@ export async function executeKbResearch(
 
   const config = loadConfig()
   if (!config.searchPipeline?.enabled) {
-    return "Error: Search pipeline not enabled. Enable searchPipeline in ~/.kb-chat/config.json to use kb_research."
+    return `Error: Search pipeline not enabled. Enable searchPipeline in ${join(getDataDir(), "config.json")} to use kb_research.`
   }
 
   try {

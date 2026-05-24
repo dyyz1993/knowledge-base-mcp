@@ -4,8 +4,8 @@ import { join } from "node:path"
 import os from "node:os"
 
 const tmpDir = join(os.tmpdir(), `kb-session-test-${Date.now()}`)
-const origKBDir = process.env.KB_DIR
-process.env.KB_DIR = join(tmpDir, ".kb-chat")
+const origKBDataDir = process.env.KB_DATA_DIR
+process.env.KB_DATA_DIR = join(tmpDir, ".kb-chat")
 mkdirSync(join(tmpDir, ".kb-chat", "sessions"), { recursive: true })
 
 const store = await import("../src/chat/store-sessions")
@@ -21,7 +21,7 @@ afterAll(() => {
     try { deleteSession(id) } catch {}
   }
   if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true })
-  process.env.KB_DIR = origKBDir
+  process.env.KB_DATA_DIR = origKBDataDir
 })
 
 function track(id: string) {

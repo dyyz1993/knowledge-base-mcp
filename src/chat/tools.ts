@@ -3,7 +3,7 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { expandQuery } from "./query-expander.js"
 import { launchBrowserForScrape, cleanupBrowser } from "./browser-launcher.js"
-import { loadConfig } from "../config.js"
+import { loadConfig, getDataDir } from "../config.js"
 import { createLogger } from "../utils/logger.js"
 import { executeUrlFetch } from "./tools/url-fetch.js"
 import { executeGitClone } from "./tools/git-clone.js"
@@ -628,7 +628,7 @@ export async function executeTool(
 
       const config = loadConfig()
       if (!config.searchPipeline?.enabled) {
-        return "Error: Search pipeline not enabled. Enable searchPipeline in ~/.kb-chat/config.json to use kb_research."
+        return `Error: Search pipeline not enabled. Enable searchPipeline in ${join(getDataDir(), "config.json")} to use kb_research.`
       }
 
       try {
