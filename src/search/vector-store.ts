@@ -108,9 +108,13 @@ export async function indexDoc(id: string, text: string): Promise<number[]> {
   const { loadConfig } = await import("../config")
   const config = loadConfig()
   const model = config.embedding.model || "local"
-  d.prepare(
+  const stmt = d.prepare(
     "INSERT OR REPLACE INTO embeddings (doc_id, embedding, model, dimensions, updated_at) VALUES (?, ?, ?, ?, ?)",
-  ).run(id, encodeVector(vec), model, vec.length, Date.now())
+  )
+  const tx = d.transaction(() => {
+    stmt.run(id, encodeVector(vec), model, vec.length, Date.now())
+  })
+  tx()
   return vec
 }
 

@@ -51,10 +51,31 @@ export function tokenize(text: string, options?: TokenizeOptions): string[] {
   const tokens: string[] = []
 
   if (bigram) {
-    const cjkSegments = input.match(/[\u4e00-\u9fff]+/g) || []
-    for (const seg of cjkSegments) {
-      for (let i = 0; i < seg.length - 1; i++) {
-        tokens.push(seg[i] + seg[i + 1])
+    try {
+      const zhSegmenter = new Intl.Segmenter("zh", { granularity: "word" })
+      const jaSegmenter = new Intl.Segmenter("ja", { granularity: "word" })
+
+      const cjkSegments = input.match(/[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]+/g) || []
+      for (const seg of cjkSegments) {
+        const isJapanese = /[\u3040-\u309f\u30a0-\u30ff]/.test(seg)
+        const segmenter = isJapanese ? jaSegmenter : zhSegmenter
+
+        const words = [...segmenter.segment(seg)]
+          .filter(s => s.isWordLike)
+          .map(s => s.segment.toLowerCase())
+
+        tokens.push(...words)
+
+        for (let i = 0; i < seg.length - 1; i++) {
+          tokens.push(seg[i].toLowerCase() + seg[i + 1].toLowerCase())
+        }
+      }
+    } catch {
+      const cjkSegments = input.match(/[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]+/g) || []
+      for (const seg of cjkSegments) {
+        for (let i = 0; i < seg.length - 1; i++) {
+          tokens.push(seg[i].toLowerCase() + seg[i + 1].toLowerCase())
+        }
       }
     }
     const words = input.match(/[a-z0-9]+/g) || []

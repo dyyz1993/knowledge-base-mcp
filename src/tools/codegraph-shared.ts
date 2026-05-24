@@ -160,15 +160,16 @@ export async function runCodegraph(args: string[], cwd: string, timeoutMs: numbe
     env: codegraphEnv(),
   })
 
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
   const exitCode = await Promise.race([
     proc.exited,
-    new Promise<number>((_, reject) =>
-      setTimeout(() => {
+    new Promise<number>((_, reject) => {
+      timeoutId = setTimeout(() => {
         proc.kill()
         reject(new Error(`codegraph timed out after ${timeoutMs}ms`))
-      }, timeoutMs),
-    ),
-  ])
+      }, timeoutMs)
+    }),
+  ]).finally(() => { if (timeoutId !== undefined) clearTimeout(timeoutId) })
 
   const stdout = await new Response(proc.stdout).text()
   const stderr = await new Response(proc.stderr).text()

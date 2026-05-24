@@ -44,10 +44,11 @@ export class SearchPipeline {
     const mediumPromise = this.runSources(this.mediumSources, query, allResults, sourceTimings)
 
     // Wait for fast sources with timeout
+    let fastTimeoutId: ReturnType<typeof setTimeout> | undefined
     const fastResults = await Promise.race([
       fastPromise.then(() => allResults.length),
-      new Promise<number>(resolve => setTimeout(() => resolve(-1), this.fastTimeout)),
-    ])
+      new Promise<number>(resolve => { fastTimeoutId = setTimeout(() => resolve(-1), this.fastTimeout) }),
+    ]).finally(() => { if (fastTimeoutId !== undefined) clearTimeout(fastTimeoutId) })
 
     const fastOnly = fastResults >= 0
     if (!fastOnly) {
@@ -61,10 +62,12 @@ export class SearchPipeline {
     if (allResults.length >= EARLY_STOP_THRESHOLD) {
       log("INFO", `Fast results sufficient (${allResults.length} >= ${EARLY_STOP_THRESHOLD}), skipping medium/slow sources`)
       // But still wait for medium if it's already running and nearly done
+      let mediumWaitId: ReturnType<typeof setTimeout> | undefined
       const mediumDone = Promise.race([
         mediumPromise,
-        new Promise<void>(resolve => setTimeout(() => resolve(), 3000)),
+        new Promise<void>(resolve => { mediumWaitId = setTimeout(() => resolve(), 3000) }),
       ])
+      await mediumDone.finally(() => { if (mediumWaitId !== undefined) clearTimeout(mediumWaitId) })
       await mediumDone
       if (allResults.length > EARLY_STOP_THRESHOLD) {
         log("INFO", `After medium: ${allResults.length} total results`)
@@ -72,10 +75,11 @@ export class SearchPipeline {
     } else {
       // Wait for medium sources
       log("INFO", `Waiting for medium sources (timeout ${this.mediumTimeout}ms)...`)
+      let mediumTimeoutId: ReturnType<typeof setTimeout> | undefined
       await Promise.race([
         mediumPromise,
-        new Promise<void>(resolve => setTimeout(() => resolve(), this.mediumTimeout)),
-      ])
+        new Promise<void>(resolve => { mediumTimeoutId = setTimeout(() => resolve(), this.mediumTimeout) }),
+      ]).finally(() => { if (mediumTimeoutId !== undefined) clearTimeout(mediumTimeoutId) })
       log("INFO", `Fast+Medium phase done: ${allResults.length} results`)
 
       // Phase 3: slow sources only if still not enough
@@ -85,10 +89,11 @@ export class SearchPipeline {
         const slowResults: SearchResult[] = []
         const slowTimings: SourceTiming[] = []
 
+        let slowTimeoutId: ReturnType<typeof setTimeout> | undefined
         await Promise.race([
           this.runSources(this.slowSources, query, slowResults, slowTimings),
-          new Promise<void>(resolve => setTimeout(() => resolve(), this.slowTimeout)),
-        ])
+          new Promise<void>(resolve => { slowTimeoutId = setTimeout(() => resolve(), this.slowTimeout) }),
+        ]).finally(() => { if (slowTimeoutId !== undefined) clearTimeout(slowTimeoutId) })
 
         sourceTimings.push(...slowTimings)
         allResults.push(...slowResults)

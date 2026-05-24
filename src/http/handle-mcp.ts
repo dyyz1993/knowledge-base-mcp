@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto"
 import { readBody, json } from "./helpers.js"
 import { registerTools } from "../mcp/register-tools.js"
 
+const MAX_SESSIONS = 500
 type StreamableSession = { server: McpServer, transport: StreamableHTTPServerTransport, createdAt: number }
 const streamableSessions = new Map<string, StreamableSession>()
 type SSESession = { server: McpServer, transport: SSEServerTransport, createdAt: number }
@@ -44,6 +45,10 @@ export async function handleStreamableHttp(req: IncomingMessage, res: ServerResp
   }
 
   if (!sessionId && req.method === "POST" && body && isInitializeRequest(body)) {
+    if (streamableSessions.size + sseSessions.size >= MAX_SESSIONS) {
+      json(res, { jsonrpc: "2.0", error: { code: -32000, message: "Service Unavailable: too many sessions" }, id: null }, 503)
+      return
+    }
     const server = new McpServer({ name: "knowledge-base", version: "1.0.0" })
     registerTools(server)
     const transport = new StreamableHTTPServerTransport({
@@ -64,6 +69,10 @@ export async function handleStreamableHttp(req: IncomingMessage, res: ServerResp
 }
 
 export async function handleSSE(req: IncomingMessage, res: ServerResponse) {
+  if (streamableSessions.size + sseSessions.size >= MAX_SESSIONS) {
+    json(res, { error: "Service Unavailable: too many sessions" }, 503)
+    return
+  }
   const transport = new SSEServerTransport("/messages", res)
   const now = Date.now()
   sseSessions.set(transport.sessionId, { server: null!, transport, createdAt: now })

@@ -207,6 +207,20 @@ function expandPath(p: string): string {
   return p.startsWith("~/") ? join(homedir(), p.slice(2)) : p
 }
 
+function removeUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        result[key] = removeUndefined(value as Record<string, unknown>)
+      } else {
+        result[key] = value
+      }
+    }
+  }
+  return result as T
+}
+
 export function clearConfigCache(): void {
   configCache = null
   configCacheTime = 0
@@ -220,7 +234,7 @@ export function loadConfig(forceReload = false): AppConfig {
 
   try {
     if (existsSync(getConfigPath())) {
-      const raw = JSON.parse(readFileSync(getConfigPath(), "utf-8"))
+      const raw = removeUndefined(JSON.parse(readFileSync(getConfigPath(), "utf-8")))
       const result: AppConfig = {
         ...DEFAULT_CONFIG,
         ...raw,

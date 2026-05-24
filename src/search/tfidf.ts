@@ -67,12 +67,20 @@ export function invalidateIDFCache(): void {
 
 const tfVectorCache = new Map<string, { time: number; vec: Map<string, number> }>()
 const TF_CACHE_TTL = 60000
+const MAX_TF_CACHE = 500
+
+function evictTfCache() {
+  if (tfVectorCache.size < MAX_TF_CACHE) return
+  const keys = [...tfVectorCache.keys()].slice(0, 100)
+  for (const k of keys) tfVectorCache.delete(k)
+}
 
 function getCachedWeightedTF(doc: DocMeta): Map<string, number> {
   const cached = tfVectorCache.get(doc.id)
   if (cached && Date.now() - cached.time < TF_CACHE_TTL) {
     return cached.vec
   }
+  evictTfCache()
   const vec = buildWeightedTF(doc)
   tfVectorCache.set(doc.id, { time: Date.now(), vec })
   return vec

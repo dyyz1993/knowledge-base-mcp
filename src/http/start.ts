@@ -1,6 +1,9 @@
 import { readFileSync, existsSync } from "node:fs"
 import { join, extname, resolve } from "node:path"
+import { randomUUID } from "node:crypto"
 import { createServer, type IncomingMessage } from "node:http"
+import { constants } from "node:fs"
+import { access } from "node:fs/promises"
 import { handleChat } from "../chat/api-chat.js"
 import { handleGetModels, handleSetModel } from "../chat/api-models.js"
 import { handleListSessions, handleCreateSession, handleDeleteSession, handleGetMessages, handleRenameSession } from "../chat/api-sessions.js"
@@ -10,6 +13,7 @@ import { handleShareSession } from "../chat/api-share.js"
 import { handleScanSkills, handleGetSkillPaths, handleUpdateSkillPaths } from "../chat/api-skills.js"
 import { handleBrowserDetect } from "../chat/api-browser.js"
 import { getAllKeywords } from "../storage/index.js"
+import { getKbDir } from "../config.js"
 import { readBody, json, apiError, parseBody, createTieredRateLimiter, getCorsHeaders } from "./helpers.js"
 import { handleStreamableHttp, handleSSE, handleSSEMessage } from "./handle-mcp.js"
 import { handleRestAPI } from "./handle-api.js"
@@ -51,6 +55,9 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, `http://${req.headers.host}`)
+    const startTime = Date.now()
+    const requestId = (req.headers["x-request-id"] as string) || randomUUID().slice(0, 8)
+    res.setHeader("X-Request-Id", requestId)
 
     try {
       res.setHeader("X-Content-Type-Options", "nosniff")
@@ -71,7 +78,30 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
 
       // Health check: always accessible, no auth required
       if (url.pathname === "/health") {
-        json(res, { status: "ok", service: "knowledge-base-mcp", version: VERSION })
+        const health: Record<string, unknown> = {
+          status: "ok",
+          service: "knowledge-base-mcp",
+          version: VERSION,
+          uptime: process.uptime(),
+          memory: {
+            rss: Math.round(process.memoryUsage().rss / 1024 / 1024),
+            heapUsed: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+          },
+        }
+        try {
+          const kbDir = getKbDir()
+          await access(kbDir, constants.W_OK)
+          health.kbDir = { path: kbDir, writable: true }
+        } catch {
+          health.kbDir = { writable: false }
+        }
+        try {
+          const { getVectorCount } = await import("../search/vector-store.js")
+          health.vectors = getVectorCount()
+        } catch {
+          health.vectors = "unavailable"
+        }
+        json(res, health)
         return
       }
       // Auth gate: all endpoints except /health require authentication when KB_API_KEY is set
@@ -187,6 +217,14 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
     } catch (e: unknown) {
       logger.error("Request error:", e)
       if (!res.headersSent) apiError(res, 500, "INTERNAL_ERROR", e instanceof Error ? e.message : String(e))
+    } finally {
+      logger.debug("Request completed", {
+        requestId,
+        method: req.method,
+        url: url.pathname,
+        status: res.statusCode,
+        duration: Date.now() - startTime,
+      })
     }
   })
 

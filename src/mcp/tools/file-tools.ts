@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from "node:fs"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { z } from "zod"
+import { validateRegexPattern } from "../../utils/regex-safety.js"
 
 export function registerFileTools(server: McpServer): void {
   server.tool(
@@ -67,6 +68,13 @@ export function registerFileTools(server: McpServer): void {
       try {
         const raw = readFileSync(args.path, "utf-8")
         const lines = raw.split("\n")
+
+        if (args.regex) {
+          const validation = validateRegexPattern(args.pattern)
+          if (!validation.safe) {
+            return { content: [{ type: "text", text: JSON.stringify({ error: validation.reason }) }] }
+          }
+        }
 
         let regex: RegExp
         try {

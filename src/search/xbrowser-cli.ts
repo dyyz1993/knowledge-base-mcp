@@ -141,14 +141,16 @@ async function runCommand(
     stderr: "pipe",
   })
 
-  const timeoutPromise = new Promise<null>((_, reject) =>
-    setTimeout(() => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  const timeoutPromise = new Promise<null>((_, reject) => {
+    timeoutId = setTimeout(() => {
       proc.kill()
       reject(new Error(`xbrowser timed out after ${timeout}ms`))
-    }, timeout),
-  )
+    }, timeout)
+  })
 
   const exitCode = await Promise.race([proc.exited, timeoutPromise])
+    .finally(() => { if (timeoutId !== undefined) clearTimeout(timeoutId) })
 
   const stdout = await new Response(proc.stdout).text()
   const stderr = await new Response(proc.stderr).text()

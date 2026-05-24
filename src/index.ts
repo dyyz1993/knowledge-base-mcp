@@ -58,7 +58,12 @@ async function main() {
     logger.error("Knowledge Base MCP running on stdio")
   } else {
     const portIdx = process.argv.indexOf("--port")
-    const port = portIdx !== -1 ? parseInt(process.argv[portIdx + 1]) : 19877
+    const portStr = portIdx !== -1 ? process.argv[portIdx + 1] : undefined
+    const port = portStr && /^\d+$/.test(portStr) ? parseInt(portStr, 10) : 19877
+    if (port < 1 || port > 65535) {
+      logger.error(`Invalid port: ${portStr}`)
+      process.exit(1)
+    }
     httpServer = startHttp(port, noMcp)
   }
 }

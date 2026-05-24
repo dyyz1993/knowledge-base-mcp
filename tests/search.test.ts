@@ -64,7 +64,8 @@ describe("tokenize", () => {
   })
 
   test("single Chinese char produces no bigrams", () => {
-    expect(tokenize("你", { bigram: true })).toEqual([])
+    const result = tokenize("你", { bigram: true })
+    expect(result).toEqual(["你"])
   })
 
   test("numbers are tokens", () => {

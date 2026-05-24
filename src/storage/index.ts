@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync, renameSync } from "node:fs"
 import { randomUUID } from "node:crypto"
+import YAML from "yaml"
 import { parseFrontmatter, buildFrontmatter } from "./markdown"
 import { tfidfSearch, buildIDF, invalidateIDFCache } from "../search/tfidf"
 import { semanticSearch, docToSearchableText, embed } from "../search/embedding"
@@ -161,31 +162,11 @@ function recoverIndexFromDisk(): IndexFile | null {
 function parseFrontmatterWithMeta(raw: string): { frontmatter: Record<string, unknown> | null; content: string } {
   const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
   if (!match) return { frontmatter: null, content: raw }
-
-  const fm: Record<string, unknown> = {}
-  const fmText = match[1]
-  let currentKey = ""
-  let currentArr: unknown[] = []
-
-  for (const line of fmText.split("\n")) {
-    const kvMatch = line.match(/^(\w+):\s*["']?(.+?)["']?\s*$/)
-    if (kvMatch) {
-      if (currentKey && currentArr.length > 0) {
-        fm[currentKey] = currentArr
-        currentArr = []
-      }
-      currentKey = kvMatch[1]
-      fm[currentKey] = kvMatch[2]
-    } else if (line.match(/^\s+-\s+(.+)/)) {
-      const val = line.match(/^\s+-\s+(.+)/)![1].replace(/^["']|["']$/g, "")
-      currentArr.push(val)
-    }
+  try {
+    return { frontmatter: YAML.parse(match[1]) as Record<string, unknown>, content: match[2] }
+  } catch {
+    return { frontmatter: null, content: raw }
   }
-  if (currentKey && currentArr.length > 0) {
-    fm[currentKey] = currentArr
-  }
-
-  return { frontmatter: fm, content: match[2] }
 }
 
 export function generateId(): string {
@@ -244,7 +225,6 @@ export function writeDoc(
 
   ensureDir(getKbDir())
   const md = buildFrontmatter(doc) + "\n" + content
-  writeFileSync(file_path, md)
 
   const metrics = computeQualityMetrics(content)
   doc.content_length = metrics.contentLength
@@ -252,7 +232,12 @@ export function writeDoc(
   doc.quality_boost = metrics.qualityBoost
 
   idx.documents[id] = doc
-  writeIndex(idx)
+  serializedWrite(() => {
+    writeFileSync(file_path, md)
+    atomicWriteIndex(idx)
+  })
+  cachedIndex = idx
+  cacheTimestamp = Date.now()
   updateOutline(doc.source_project || "", idx)
 
   indexDoc(id, docToSearchableText(doc)).catch(e => {
@@ -522,8 +507,12 @@ export async function searchDocsCombined(
   const normalize = (results: (DocMeta & { score: number })[]): (DocMeta & { score: number })[] => {
     if (results.length === 0) return results
     const scores = results.map(r => r.score)
-    const min = Math.min(...scores)
-    const max = Math.max(...scores)
+    let min = Infinity
+    let max = -Infinity
+    for (const s of scores) {
+      if (s < min) min = s
+      if (s > max) max = s
+    }
     const range = max - min
     if (range === 0) return results.map(r => ({ ...r, score: 0.5 }))
     return results.map(r => ({ ...r, score: (r.score - min) / range }))
@@ -674,13 +663,16 @@ function writeMissLog(log: MissEntry[]) {
 }
 
 export function recordMiss(query: string): { total_misses: number; recurring: boolean } {
-  const log = readMissLog()
+  let log = readMissLog()
   const existing = log.find(e => e.query.toLowerCase() === query.toLowerCase())
   const recurring = !!existing
   if (existing) {
     existing.timestamp = Date.now()
   } else {
     log.push({ query, timestamp: Date.now(), resolved: false })
+  }
+  if (log.length > 1000) {
+    log = log.slice(-500)
   }
   writeMissLog(log)
   const unresolved = log.filter(e => !e.resolved)

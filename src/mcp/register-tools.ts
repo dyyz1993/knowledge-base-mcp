@@ -8,6 +8,7 @@ import { kbAskPipeline } from "../search/kb-ask-pipeline.js"
 import { mcpStats } from "../statistics/index.js"
 import { loadConfig, getKbDir } from "../config.js"
 import { createLogger } from "../utils/logger.js"
+import { validateRegexPattern } from "../utils/regex-safety.js"
 import { buildSpawnEnv, curlEnv, gitEnv } from "../utils/spawn-env.js"
 
 
@@ -454,6 +455,13 @@ export function registerTools(server: McpServer) {
       try {
         const raw = readFileSync(args.path, "utf-8")
         const lines = raw.split("\n")
+
+        if (args.regex) {
+          const validation = validateRegexPattern(args.pattern)
+          if (!validation.safe) {
+            return { content: [{ type: "text", text: JSON.stringify({ error: validation.reason }) }] }
+          }
+        }
 
         let regex: RegExp
         try {
