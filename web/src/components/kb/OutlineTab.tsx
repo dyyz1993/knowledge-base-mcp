@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
-import { FileText, FolderOpen } from "lucide-react"
+import { FileText, FolderOpen, Loader2 } from "lucide-react"
+import { Spin } from "antd"
 import { fetchOutlines, fetchOutline, readDoc } from "../../services/api"
 import type { OutlineProject, OutlineDoc, Outline } from "../../services/api"
 import { MarkdownRenderer } from "../MarkdownRenderer"
@@ -11,10 +12,14 @@ export function OutlineTab() {
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null)
   const [expandedContent, setExpandedContent] = useState<string>("")
   const [expandedLoading, setExpandedLoading] = useState(false)
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [outlineLoading, setOutlineLoading] = useState(false)
 
   useEffect(() => {
     ;(async () => {
+      setProjectsLoading(true)
       try { const data = await fetchOutlines(); setProjects(data) } catch (e) { if (import.meta.env.DEV) console.warn('[KBPanel] fetchOutlines failed:', e) }
+      finally { setProjectsLoading(false) }
     })()
   }, [])
 
@@ -25,7 +30,7 @@ export function OutlineTab() {
       }
       return
     }
-    ;(async () => { try { const data = await fetchOutline(selectedProject); setOutline(data) } catch { setOutline(null) } })()
+    ;(async () => { setOutlineLoading(true); try { const data = await fetchOutline(selectedProject); setOutline(data) } catch { setOutline(null) } finally { setOutlineLoading(false) } })()
   }, [selectedProject, projects])
 
   const toggleDoc = useCallback(async (doc: OutlineDoc) => {
@@ -66,7 +71,13 @@ export function OutlineTab() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-        {outline?.docs.map((doc) => (
+        {(projectsLoading || outlineLoading) && (
+          <div className="flex items-center justify-center gap-2 py-6 text-xs text-zinc-500">
+            <Spin size="small" />
+            <span>{projectsLoading ? "Loading projects..." : "Loading outline..."}</span>
+          </div>
+        )}
+        {!projectsLoading && !outlineLoading && outline?.docs.map((doc) => (
           <div key={doc.id}>
             <div
               onClick={() => toggleDoc(doc)}
@@ -107,7 +118,10 @@ export function OutlineTab() {
             {expandedDocId === doc.id && (
               <div className="mt-1 rounded-b-lg border border-t-0 border-zinc-800 bg-zinc-950 p-3">
                 {expandedLoading ? (
-                  <div className="text-xs text-zinc-500">Loading...</div>
+                  <div className="flex items-center justify-center py-4">
+                    <Spin size="small" />
+                    <span className="ml-2 text-xs text-zinc-500">Loading content...</span>
+                  </div>
                 ) : (
                   <div className="markdown-body text-xs text-zinc-300">
                     <MarkdownRenderer content={expandedContent} />
@@ -117,7 +131,7 @@ export function OutlineTab() {
             )}
           </div>
         ))}
-        {!outline?.docs?.length && (
+        {!projectsLoading && !outlineLoading && !outline?.docs?.length && (
           <div className="text-xs text-zinc-600 text-center py-4">
             {projects.length === 0 ? "No outlines found" : "Select a project"}
           </div>

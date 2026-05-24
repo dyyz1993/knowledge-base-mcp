@@ -39,6 +39,7 @@ interface ChatState {
   streamStates: Map<string, SessionStreamState>
   kbResults: KBDoc[]
   kbQuery: string
+  kbSearching: boolean
 
   loadSessions: () => Promise<void>
   createSession: () => Promise<void>
@@ -95,6 +96,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamStates: new Map(),
   kbResults: [],
   kbQuery: "",
+  kbSearching: false,
 
   loadSessions: async () => {
     const sessions = await api.listSessions()
@@ -516,8 +518,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   searchKB: async (query) => {
     if (!query.trim()) { set({ kbResults: [] }); return }
-    const kbResults = await api.searchKB(query)
-    set({ kbResults })
+    set({ kbSearching: true })
+    try {
+      const kbResults = await api.searchKB(query)
+      set({ kbResults })
+    } finally {
+      set({ kbSearching: false })
+    }
   },
 
   setKBQuery: (q) => set({ kbQuery: q }),

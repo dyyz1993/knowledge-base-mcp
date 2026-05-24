@@ -9,7 +9,7 @@ import { OutlineTab } from "./OutlineTab"
 type RightTab = "search" | "outline"
 
 export default function KBPanel() {
-  const { kbQuery, kbResults, searchKB, setKBQuery } = useChatStore()
+  const { kbQuery, kbResults, searchKB, setKBQuery, kbSearching } = useChatStore()
   const [activeTab, setActiveTab] = useState<RightTab>("search")
   const [writeOpen, setWriteOpen] = useState(false)
   const [writeForm, setWriteForm] = useState({ title: "", content: "", tags: "", keywords: "", intent: "" })
@@ -78,6 +78,7 @@ export default function KBPanel() {
         <SearchTab
           kbQuery={kbQuery}
           kbResults={kbResults}
+          kbSearching={kbSearching}
           setKBQuery={setKBQuery}
           onSearch={handleSearch}
           onKey={handleKey}

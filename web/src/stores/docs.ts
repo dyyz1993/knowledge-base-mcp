@@ -7,6 +7,7 @@ interface DocState {
   current: { meta: DocMeta; content: string; truncated: boolean } | null
   searchResults: (DocMeta & { score?: number })[]
   loading: boolean
+  searching: boolean
   searchQuery: string
   load: () => Promise<void>
   select: (id: string) => Promise<void>
@@ -19,6 +20,7 @@ export const useDocStore = create<DocState>((set) => ({
   current: null,
   searchResults: [],
   loading: false,
+  searching: false,
   searchQuery: "",
 
   load: async () => {
@@ -43,14 +45,17 @@ export const useDocStore = create<DocState>((set) => ({
 
   search: async (query) => {
     if (!query.trim()) {
-      set({ searchResults: [], searchQuery: query })
+      set({ searchResults: [], searchQuery: query, searching: false })
       return
     }
+    set({ searching: true })
     try {
       const results = await searchDocs(query)
       set({ searchResults: results, searchQuery: query })
     } catch {
       set({ searchResults: [], searchQuery: query })
+    } finally {
+      set({ searching: false })
     }
   },
 

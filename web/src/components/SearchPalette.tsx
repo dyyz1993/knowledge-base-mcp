@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from "react"
-import { Search, X, FileText } from "lucide-react"
+import { Search, X, FileText, Loader2 } from "lucide-react"
 import { useDocStore } from "../stores/docs"
-import type { DocMeta } from "../services/api"
 import TagBadge from "./TagBadge"
 
 export default function SearchPalette({ open, onClose, onSelect }: { open: boolean; onClose: () => void; onSelect: (id: string) => void }) {
   const [q, setQ] = useState("")
-  const { searchResults, search } = useDocStore()
+  const { searchResults, search, searching } = useDocStore()
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
 
@@ -42,17 +41,23 @@ export default function SearchPalette({ open, onClose, onSelect }: { open: boole
             className="flex-1 bg-transparent text-zinc-100 outline-none placeholder:text-zinc-600"
             autoFocus
           />
+          {searching && <Loader2 size={14} className="animate-spin text-zinc-500" />}
           <button onClick={onClose} className="p-1 rounded hover:bg-zinc-700" aria-label="Close search">
             <X size={16} className="text-zinc-500" />
           </button>
         </div>
         {q && (
           <div className="max-h-80 overflow-y-auto">
-            {searchResults.length === 0 ? (
-              <div className="px-4 py-6 text-center text-zinc-600">No results</div>
+            {searching ? (
+              <div className="flex items-center justify-center gap-2 py-6 text-xs text-zinc-500">
+                <Loader2 size={14} className="animate-spin" />
+                <span>Searching...</span>
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="px-4 py-6 text-center text-zinc-600">No results found. Try different keywords?</div>
             ) : (
               <>
-                <div className="text-xs text-zinc-500 px-3 py-1">找到 {searchResults.length} 个结果</div>
+                <div className="text-xs text-zinc-500 px-3 py-1">{searchResults.length} result{searchResults.length !== 1 ? "s" : ""} found</div>
                 {searchResults.map((doc) => (
                   <button
                     key={doc.id}

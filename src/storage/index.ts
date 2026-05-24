@@ -5,6 +5,7 @@ import { parseFrontmatter, buildFrontmatter } from "./markdown"
 import { invalidateIDFCache } from "../search/tfidf"
 import { docToSearchableText } from "../search/embedding"
 import { invalidateFuzzyIndex } from "../search/fuzzy-search"
+import { invalidateResultCache } from "../search/result-cache.js"
 import { loadVectors, indexDoc, rebuildAllVectors, initDb } from "../search/vector-store"
 import { loadConfig, getKbDir } from "../config"
 import { createLogger } from "../utils/logger.js"
@@ -247,6 +248,7 @@ export function writeDoc(
 
   invalidateIDFCache()
   invalidateFuzzyIndex()
+  invalidateResultCache()
 
   return doc
 }
@@ -317,6 +319,7 @@ export function deleteDoc(id: string): boolean {
   invalidateCache()
   invalidateIDFCache()
   invalidateFuzzyIndex()
+  invalidateResultCache()
   const idx = readIndex()
   const doc = idx.documents[id]
   if (!doc) return false

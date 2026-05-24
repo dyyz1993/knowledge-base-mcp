@@ -11,6 +11,7 @@ import { createLogger } from "../utils/logger.js"
 import { tokenize } from "../utils/tokenizer"
 import { MAX_SEARCH_LIMIT } from "../search/constants"
 import { parseFrontmatter } from "./markdown"
+import { getCachedResults, setCachedResults } from "../search/result-cache.js"
 
 const logger = createLogger("storage:search")
 
@@ -155,28 +156,26 @@ export async function searchDocsSemantic(query: string, limit = 10): Promise<(Do
     logger.warn("searchDocsSemantic: embedding model/dimension mismatch detected. Use POST /api/embedding/reindex to rebuild.")
   }
 
-  const vectors = loadVectors()
+  let vectors = loadVectors()
   const missing = docs.filter(d => !vectors[d.id])
   if (missing.length > 0) {
     for (const doc of missing) {
       await indexDoc(doc.id, docToSearchableText(doc))
     }
+    vectors = loadVectors()
   }
 
-  const allVectors = loadVectors()
-
   if (currentDims > 0) {
-    const mismatched = docs.filter(d => allVectors[d.id] && allVectors[d.id].length !== currentDims)
+    const mismatched = docs.filter(d => vectors[d.id] && vectors[d.id].length !== currentDims)
     if (mismatched.length > 0) {
       logger.warn(`searchDocsSemantic: ${mismatched.length} docs have mismatched dimensions, skipping semantic. Use POST /api/embedding/reindex to rebuild.`)
       return []
     }
   }
 
-  const finalVectors = loadVectors()
   const docsVecs = docs
-    .filter(d => finalVectors[d.id])
-    .map(d => ({ meta: d, embedding: finalVectors[d.id] }))
+    .filter(d => vectors[d.id])
+    .map(d => ({ meta: d, embedding: vectors[d.id] }))
 
   return semanticSearch(query, docsVecs, limit)
 }
@@ -191,33 +190,47 @@ export async function searchDocsCombined(
   const searchMode = config.search.mode
   const weights = config.search.weights
 
+  const cacheKey = `combined:${query}:${searchMode}:${limit}:${JSON.stringify(keywords || [])}:${JSON.stringify(tags || [])}`
+  const cached = getCachedResults<(DocMeta & { score: number })[]>(cacheKey)
+  if (cached) return cached
+
   if (searchMode === "tfidf") {
     const idx = readIndex()
     const allDocs = Object.values(idx.documents)
     const idf = buildIDF(allDocs)
-    return tfidfSearch(query, allDocs, idf, limit)
+    const results = tfidfSearch(query, allDocs, idf, limit)
+    setCachedResults(cacheKey, results)
+    return results
   }
 
   if (searchMode === "semantic") {
     try {
-      return await Promise.race([
+      const results = await Promise.race([
         searchDocsSemantic(query, limit),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("semantic search timeout")), 8000)),
       ])
+      setCachedResults(cacheKey, results)
+      return results
     } catch {
-      return searchDocs(query, keywords, tags, limit)
+      const fallback = searchDocs(query, keywords, tags, limit)
+      setCachedResults(cacheKey, fallback)
+      return fallback
     }
   }
+
+  const idx = readIndex()
+  const allDocs = Object.values(idx.documents)
+  const idf = buildIDF(allDocs)
 
   const t0_token = Date.now()
   const [p0Settled, p1Settled, p2Settled, p3Settled] = await Promise.allSettled([
     Promise.resolve((() => { const r = searchDocs(query, keywords, tags, limit * 2); recordSearchTime("token", Date.now() - t0_token); return r })()),
-    Promise.resolve((() => { const t0 = Date.now(); const idx = readIndex(); const allDocs = Object.values(idx.documents); const idf = buildIDF(allDocs); const r = tfidfSearch(query, allDocs, idf, limit * 2); recordSearchTime("tfidf", Date.now() - t0); return r })()),
+    Promise.resolve((() => { const t0 = Date.now(); const r = tfidfSearch(query, allDocs, idf, limit * 2); recordSearchTime("tfidf", Date.now() - t0); return r })()),
     Promise.race([
       (() => { const t0 = Date.now(); return searchDocsSemantic(query, limit * 2).then(r => { recordSearchTime("semantic", Date.now() - t0); return r }) })(),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("semantic search timeout")), 8000)),
     ]),
-    Promise.resolve((() => { const t0 = Date.now(); const localIdx = readIndex(); const r = fuzzySearch(query, limit * 2).map(fr => localIdx.documents[fr.id] ? { ...localIdx.documents[fr.id], score: fr.score * 0.3 } : null).filter(Boolean) as (DocMeta & { score: number })[]; recordSearchTime("fuzzy", Date.now() - t0); return r })()),
+    Promise.resolve((() => { const t0 = Date.now(); const r = fuzzySearch(query, limit * 2).map(fr => idx.documents[fr.id] ? { ...idx.documents[fr.id], score: fr.score * 0.3 } : null).filter(Boolean) as (DocMeta & { score: number })[]; recordSearchTime("fuzzy", Date.now() - t0); return r })()),
   ])
 
   const p0Results = p0Settled.status === "fulfilled" ? p0Settled.value : []
@@ -277,5 +290,6 @@ export async function searchDocsCombined(
 
   recordSearch(finalResults.length)
 
+  setCachedResults(cacheKey, finalResults)
   return finalResults
 }

@@ -22,6 +22,10 @@ function jsonPath() {
 
 let db: Database | null = null
 
+let vectorsCache: Record<string, number[]> | null = null
+let vectorsCacheTime = 0
+const VECTORS_CACHE_TTL = 30_000
+
 function getDb(): Database {
   if (!db) {
     const dir = getDir()
@@ -79,13 +83,23 @@ export function initDb(): void {
 }
 
 export function loadVectors(): Record<string, number[]> {
+  const now = Date.now()
+  if (vectorsCache && (now - vectorsCacheTime) < VECTORS_CACHE_TTL) return vectorsCache
+
   const d = getDb()
   const rows = d.query("SELECT doc_id, embedding FROM embeddings").all() as { doc_id: string; embedding: Uint8Array }[]
   const result: Record<string, number[]> = {}
   for (const row of rows) {
     result[row.doc_id] = Array.from(decodeVector(row.embedding))
   }
+  vectorsCache = result
+  vectorsCacheTime = now
   return result
+}
+
+export function invalidateVectorsCache(): void {
+  vectorsCache = null
+  vectorsCacheTime = 0
 }
 
 export function saveVectors(vectors: Record<string, number[]>): void {
@@ -100,6 +114,8 @@ export function saveVectors(vectors: Record<string, number[]>): void {
     }
   })
   insertMany(entries)
+  vectorsCache = null
+  vectorsCacheTime = 0
 }
 
 export async function indexDoc(id: string, text: string): Promise<number[]> {
@@ -115,6 +131,8 @@ export async function indexDoc(id: string, text: string): Promise<number[]> {
     stmt.run(id, encodeVector(vec), model, vec.length, Date.now())
   })
   tx()
+  vectorsCache = null
+  vectorsCacheTime = 0
   return vec
 }
 
@@ -187,6 +205,8 @@ export async function rebuildAllVectors(docs: DocMeta[]): Promise<number> {
     insertMany()
   }
 
+  vectorsCache = null
+  vectorsCacheTime = 0
   return count
 }
 

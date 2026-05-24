@@ -39,7 +39,7 @@ function CodeBlockWrapper({ language, children }: { language?: string; children:
 
 const svgPurify = DOMPurify()
 svgPurify.addHook("uponSanitizeElement", (node) => {
-  if (node.nodeName === "script") node.remove()
+  if (node.nodeName === "script") (node as Element).remove()
 })
 
 function sanitizeSvg(svg: string): string {

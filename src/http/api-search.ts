@@ -57,14 +57,23 @@ const logger = createLogger("http:api-search")
 
     if (query) {
       try {
-        json(res, await searchDocsCombined(query, keywords, tags, limit))
+        const start = Date.now()
+        const results = await searchDocsCombined(query, keywords, tags, limit)
+        res.setHeader("X-Response-Time", `${Date.now() - start}ms`)
+        json(res, results)
       } catch (e) {
         logger.error("Combined search failed, falling back:", e instanceof Error ? e.message : String(e))
-        json(res, searchDocs(query, keywords, tags, limit))
+        const start = Date.now()
+        const fallback = searchDocs(query, keywords, tags, limit)
+        res.setHeader("X-Response-Time", `${Date.now() - start}ms`)
+        json(res, fallback)
       }
       return true
     }
-    json(res, searchDocs(query, keywords, tags, limit))
+    const start = Date.now()
+    const results = searchDocs(query, keywords, tags, limit)
+    res.setHeader("X-Response-Time", `${Date.now() - start}ms`)
+    json(res, results)
     return true
   }
   if (url.pathname === "/api/kb-ask" && req.method === "POST") {

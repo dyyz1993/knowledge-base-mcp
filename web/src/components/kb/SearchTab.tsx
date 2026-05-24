@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react"
-import { Search, FileText, Tag, Plus, ChevronDown, ChevronRight } from "lucide-react"
-import { Empty } from "antd"
+import { Search, FileText, Tag, Plus, ChevronDown, ChevronRight, Loader2 } from "lucide-react"
+import { Empty, Spin } from "antd"
 import { readDoc } from "../../services/api"
 import { MarkdownRenderer } from "../MarkdownRenderer"
 
@@ -17,6 +17,7 @@ interface KBDocResult {
 export function SearchTab({
   kbQuery,
   kbResults,
+  kbSearching,
   setKBQuery,
   onSearch,
   onKey,
@@ -24,6 +25,7 @@ export function SearchTab({
 }: {
   kbQuery: string
   kbResults: KBDocResult[]
+  kbSearching: boolean
   setKBQuery: (q: string) => void
   onSearch: () => void
   onKey: (e: React.KeyboardEvent) => void
@@ -67,10 +69,11 @@ export function SearchTab({
           </div>
           <button
             onClick={onSearch}
+            disabled={kbSearching}
             aria-label="搜索"
-            className="shrink-0 rounded-lg bg-zinc-800 px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
+            className="shrink-0 rounded-lg bg-zinc-800 px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors disabled:opacity-50"
           >
-            Go
+            {kbSearching ? <Spin size="small" /> : "Go"}
           </button>
         </div>
         <button
@@ -84,7 +87,13 @@ export function SearchTab({
       </div>
 
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-        {kbResults.map((doc) => (
+        {kbSearching && (
+          <div className="flex items-center justify-center gap-2 py-6 text-xs text-zinc-500">
+            <Loader2 size={14} className="animate-spin" />
+            <span>Searching...</span>
+          </div>
+        )}
+        {!kbSearching && kbResults.map((doc) => (
           <div key={doc.id}>
             <div
               onClick={() => toggleExpand(doc.id)}
@@ -112,6 +121,9 @@ export function SearchTab({
                   )}
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[10px] text-zinc-600 font-mono">#{doc.id.slice(0, 8)}</span>
+                    {doc.score != null && (
+                      <span className="text-[10px] text-zinc-600">{(doc.score * 100).toFixed(0)}%</span>
+                    )}
                     {doc.tags && doc.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {doc.tags.slice(0, 3).map((t) => (
@@ -128,7 +140,10 @@ export function SearchTab({
             {expandedId === doc.id && (
               <div className="mt-1 rounded-b-lg border border-t-0 border-zinc-800 bg-zinc-950 p-3">
                 {expandedLoading ? (
-                  <div className="text-xs text-zinc-500">Loading...</div>
+                  <div className="flex items-center justify-center py-4">
+                    <Spin size="small" />
+                    <span className="ml-2 text-xs text-zinc-500">Loading content...</span>
+                  </div>
                 ) : (
                   <div className="markdown-body text-xs text-zinc-300">
                     <MarkdownRenderer content={expandedContent} />
@@ -138,14 +153,19 @@ export function SearchTab({
             )}
           </div>
         ))}
-        {kbQuery && kbResults.length === 0 && (
+        {!kbSearching && kbQuery && kbResults.length === 0 && (
           <div className="py-8">
-            <Empty description={<span className="text-xs text-zinc-500">未找到匹配的文档</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            <Empty description={<span className="text-xs text-zinc-500">No matching documents found. Try different keywords?</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </div>
         )}
-        {!kbQuery && (
+        {!kbSearching && !kbQuery && (
           <div className="py-8">
-            <Empty description={<span className="text-xs text-zinc-500">输入关键词搜索知识库</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            <Empty description={<span className="text-xs text-zinc-500">Enter keywords to search the knowledge base</span>} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          </div>
+        )}
+        {!kbSearching && kbResults.length > 0 && kbQuery && (
+          <div className="text-center text-[10px] text-zinc-600 pb-2">
+            {kbResults.length} result{kbResults.length !== 1 ? "s" : ""} found
           </div>
         )}
       </div>

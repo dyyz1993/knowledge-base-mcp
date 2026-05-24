@@ -32,23 +32,23 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="h-screen flex flex-col items-center justify-center bg-zinc-950 text-zinc-100 p-6">
           <div className="max-w-md w-full text-center space-y-4">
-            <div className="text-4xl">⚠️</div>
-            <h1 className="text-lg font-semibold">页面出错了</h1>
+            <div className="text-4xl">&#x26A0;&#xFE0F;</div>
+            <h1 className="text-lg font-semibold">Something went wrong</h1>
             <p className="text-sm text-zinc-400 break-words">
-              {this.state.error?.message || "未知错误"}
+              {this.state.error?.message || "Unknown error"}
             </p>
             <div className="flex gap-3 justify-center pt-2">
               <button
                 onClick={this.handleReload}
                 className="px-4 py-2 rounded-md bg-zinc-800 text-zinc-200 text-sm hover:bg-zinc-700 transition-colors"
               >
-                重试
+                Retry
               </button>
               <button
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 rounded-md border border-zinc-700 text-zinc-400 text-sm hover:text-zinc-200 transition-colors"
               >
-                刷新页面
+                Refresh Page
               </button>
             </div>
           </div>

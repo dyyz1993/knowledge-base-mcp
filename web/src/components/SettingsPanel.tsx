@@ -1,4 +1,4 @@
-import { ConfigProvider, theme, Drawer, Button } from "antd"
+import { Drawer, Button } from "antd"
 import { Settings, RefreshCw, Save, Wifi, WifiOff, Loader2 } from "lucide-react"
 import { SkillPathsSection } from "./settings/SkillPathsSection"
 import { BrowserConfigSection } from "./settings/BrowserConfigSection"
@@ -21,29 +21,6 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   } = useSettings(open)
 
   return (
-    <ConfigProvider
-      theme={{
-        algorithm: theme.darkAlgorithm,
-        token: {
-          colorBgContainer: "#27272a",
-          colorBgElevated: "#18181b",
-          colorBorder: "#3f3f46",
-          colorText: "#d4d4d8",
-          colorTextPlaceholder: "#71717a",
-          colorPrimary: "#3b82f6",
-          borderRadius: 6,
-        },
-        components: {
-          Input: { colorBgContainer: "#27272a" },
-          Select: { colorBgContainer: "#27272a", colorBgElevated: "#18181b" },
-          InputNumber: { colorBgContainer: "#27272a" },
-          Switch: { colorPrimary: "#3b82f6", colorPrimaryHover: "#60a5fa" },
-          Button: { colorBgContainer: "#27272a", colorBorder: "#3f3f46" },
-          Tag: { colorBgContainer: "#27272a" },
-          Slider: { trackBg: "#3f3f46" },
-        },
-      }}
-    >
     <Drawer
       title={
         <div className="flex items-center gap-2 text-sm">
@@ -146,6 +123,5 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
         </div>
       )}
     </Drawer>
-    </ConfigProvider>
   )
 }
