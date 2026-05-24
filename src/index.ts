@@ -44,6 +44,13 @@ process.on("SIGTERM", () => shutdown("SIGTERM"))
 process.on("SIGINT", () => shutdown("SIGINT"))
 
 async function main() {
+  const cliCommands = new Set(["search", "search-token", "search-tfidf", "search-semantic", "list", "recent", "read", "write", "delete", "ingest-url", "ingest-repo", "research", "ask", "outline", "stale", "suggest", "keywords", "stats", "version"])
+  const firstArg = process.argv[2]
+  if (firstArg === "--help" || firstArg === "-h" || cliCommands.has(firstArg)) {
+    await import("./cli/index.js")
+    return
+  }
+
   initDb()
 
   const mode = process.argv.includes("--http") || process.argv.includes("--web") ? "http" : "stdio"
