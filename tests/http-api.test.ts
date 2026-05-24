@@ -1,18 +1,15 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { startHttp } from "../src/http/start.js"
-import { createServer } from "node:http"
+import { createServer, request as nodeRequest, type IncomingMessage } from "node:http"
 import { mkdirSync, rmSync, existsSync } from "node:fs"
 import { join } from "node:path"
 import os from "node:os"
+import { clearConfigCache } from "../src/config.js"
+import { clearStorageCache } from "../src/storage/index.js"
 
-const httpTestDir = join(os.tmpdir(), `kb-http-test-${Date.now()}`)
-const origKBDir = process.env.KB_DIR
-const origKBDataDir = process.env.KB_DATA_DIR
-process.env.KB_DIR = httpTestDir
-process.env.KB_DATA_DIR = join(httpTestDir, ".kb-chat")
-mkdirSync(join(httpTestDir, ".kb-chat", "sessions"), { recursive: true })
+const httpTestDir = join(os.tmpdir(), `kb-http-test-${process.pid}-${Date.now()}`)
+const dataDir = join(httpTestDir, ".kb-chat")
 
-/** Get a random available port */
 function getAvailablePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const srv = createServer()
@@ -26,17 +23,39 @@ function getAvailablePort(): Promise<number> {
   })
 }
 
+function nodeFetch(port: number, path: string, opts?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; data: any; rawText?: string }> {
+  return new Promise((resolve, reject) => {
+    const { method = "GET", headers = {}, body } = opts ?? {}
+    const req = nodeRequest({ hostname: "localhost", port, path, method, headers }, (res: IncomingMessage) => {
+      let data = ""
+      res.on("data", (chunk: Buffer) => { data += chunk.toString() })
+      res.on("end", () => {
+        let parsed: any
+        try { parsed = JSON.parse(data) } catch { parsed = data }
+        resolve({ status: res.statusCode ?? 0, data: parsed, rawText: data })
+      })
+    })
+    req.on("error", reject)
+    if (body) req.write(body)
+    req.end()
+  })
+}
+
 let PORT: number
 let server: ReturnType<typeof createServer>
 const createdDocIds: string[] = []
 
 beforeAll(async () => {
+  clearConfigCache()
+  clearStorageCache(httpTestDir)
+  mkdirSync(join(httpTestDir, ".kb-chat", "sessions"), { recursive: true })
+
   PORT = await getAvailablePort()
-  server = startHttp(PORT, true)
+  server = startHttp(PORT, true, { dataDir, kbDir: httpTestDir })
   for (let i = 0; i < 30; i++) {
     try {
-      const res = await fetch(`http://localhost:${PORT}/health`)
-      if (res.ok) break
+      const { status } = await nodeFetch(PORT, "/health")
+      if (status === 200) break
     } catch {}
     await new Promise(r => setTimeout(r, 100))
   }
@@ -45,34 +64,29 @@ beforeAll(async () => {
 afterAll(async () => {
   for (const id of createdDocIds) {
     try {
-      await fetch(`http://localhost:${PORT}/api/doc/${id}`, { method: "DELETE" })
+      await nodeFetch(PORT, `/api/doc/${id}`, { method: "DELETE" })
     } catch {}
   }
   server.close()
   if (existsSync(httpTestDir)) rmSync(httpTestDir, { recursive: true })
-  process.env.KB_DIR = origKBDir
-  process.env.KB_DATA_DIR = origKBDataDir
+  clearConfigCache()
+  clearStorageCache(httpTestDir)
 })
 
-function base() { return `http://localhost:${PORT}` }
-
 async function post(path: string, body: Record<string, unknown>) {
-  const res = await fetch(`${base()}${path}`, {
+  return nodeFetch(PORT, path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  return { status: res.status, data: await res.json() }
 }
 
 async function get(path: string) {
-  const res = await fetch(`${base()}${path}`)
-  return { status: res.status, data: await res.json() }
+  return nodeFetch(PORT, path)
 }
 
 async function del(path: string) {
-  const res = await fetch(`${base()}${path}`, { method: "DELETE" })
-  return { status: res.status, data: await res.json() }
+  return nodeFetch(PORT, path, { method: "DELETE" })
 }
 
 const PREFIX = `httpapi-test-${Date.now()}`
@@ -125,14 +139,8 @@ describe("HTTP API endpoints", () => {
   })
 
   test("POST /api/search — keyword search", async () => {
-    const res = await fetch(`${base()}/api/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: `${PREFIX}-nonexistent`, limit: 5 }),
-      signal: AbortSignal.timeout(30000),
-    })
-    const data = await res.json()
-    expect([200, 500]).toContain(res.status)
+    const { status, data } = await post("/api/search", { query: `${PREFIX}-nonexistent`, limit: 5 })
+    expect([200, 500]).toContain(status)
     expect(data).toBeDefined()
   }, 30000)
 
@@ -188,20 +196,14 @@ describe("HTTP API endpoints", () => {
   })
 
   test("POST /api/web-read — read from httpbin.org/html", async () => {
-    const res = await fetch(`${base()}/api/web-read`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: "https://httpbin.org/html" }),
-      signal: AbortSignal.timeout(20000),
-    })
-    const text = await res.text()
+    const { status, rawText } = await post("/api/web-read", { url: "https://httpbin.org/html" })
     let data: any
-    try { data = JSON.parse(text) } catch { data = {} }
-    if (res.status === 200 && data?.success) {
+    try { data = JSON.parse(rawText ?? "{}") } catch { data = {} }
+    if (status === 200 && data?.success) {
       expect(typeof data.content).toBe("string")
       expect(data.content.length).toBeGreaterThan(50)
     } else {
-      expect([200, 500]).toContain(res.status)
+      expect([200, 500]).toContain(status)
       expect(data).toBeDefined()
     }
   }, 25000)
@@ -225,12 +227,11 @@ describe("HTTP API endpoints", () => {
 
   describe("PUT /api/config validation", () => {
     async function putConfig(body: Record<string, unknown>) {
-      const res = await fetch(`${base()}/api/config`, {
+      return nodeFetch(PORT, "/api/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      return { status: res.status, data: await res.json() }
     }
 
     test("rejects dimensions: -1 with 400", async () => {

@@ -4,6 +4,8 @@ import {
   multiSearch,
   buildMissResponse,
   buildSearchPipelineSources,
+  _setDeps,
+  _resetDeps,
 } from "../src/search/kb-ask-pipeline"
 import type { DocMeta } from "../src/storage/index"
 import { McpWebSearch } from "../src/search/mcp-web-search"
@@ -55,18 +57,18 @@ describe("multiSearch", () => {
 
   beforeEach(() => {
     searchDocsCombinedMock = mock(() => Promise.resolve([]))
-    mock.module("../src/storage/index", () => ({
+    _setDeps({
       searchDocs: mock(() => []),
       searchDocsCombined: searchDocsCombinedMock,
       readDoc: mock(() => null),
       writeDoc: mock(() => ({ id: "x" })),
       resolveMiss: mock(() => {}),
       recordMiss: mock(() => ({ total_misses: 1, recurring: false })),
-    }))
+    })
   })
 
   afterEach(() => {
-    mock.restore()
+    _resetDeps()
   })
 
   it("returns empty when searchDocs returns nothing", async () => {
@@ -120,17 +122,17 @@ describe("buildMissResponse", () => {
 
   beforeEach(() => {
     recordMissMock = mock(() => ({ total_misses: 1, recurring: false }))
-    mock.module("../src/storage/index", () => ({
+    _setDeps({
       searchDocs: mock(() => []),
       readDoc: mock(() => null),
       writeDoc: mock(() => ({ id: "x" })),
       resolveMiss: mock(() => {}),
       recordMiss: recordMissMock,
-    }))
+    })
   })
 
   afterEach(() => {
-    mock.restore()
+    _resetDeps()
   })
 
   it("returns miss response with correct structure", () => {

@@ -1,34 +1,46 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from "node:fs"
 import { join } from "node:path"
 import { homedir } from "node:os"
+import { AsyncLocalStorage } from "node:async_hooks"
 import { createLogger } from "./utils/logger.js"
 
 
 const logger = createLogger("config")
 
+const dirContext = new AsyncLocalStorage<{ dataDir: string; kbDir: string }>()
+
+let _overrideDataDir: string | undefined
+let _overrideKbDir: string | undefined
+
 export function getDataDir(): string {
-  return process.env.KB_DATA_DIR || join(homedir(), ".kb-chat")
+  const ctx = dirContext.getStore()
+  if (ctx) return ctx.dataDir
+  return _overrideDataDir || process.env.KB_DATA_DIR || join(homedir(), ".kb-chat")
 }
 
 export function getKbDir(): string {
-  return process.env.KB_DIR || join(homedir(), ".knowledge")
+  const ctx = dirContext.getStore()
+  if (ctx) return ctx.kbDir
+  return _overrideKbDir || process.env.KB_DIR || join(homedir(), ".knowledge")
+}
+
+export function setOverrideDirs(dataDir?: string, kbDir?: string): void {
+  _overrideDataDir = dataDir
+  _overrideKbDir = kbDir
+}
+
+export function getDirContext(): AsyncLocalStorage<{ dataDir: string; kbDir: string }> {
+  return dirContext
 }
 
 function getConfigDir(): string { return getDataDir() }
 function getConfigPath(): string { return join(getConfigDir(), "config.json") }
 const CONFIG_CACHE_TTL = Number(process.env.KB_CONFIG_CACHE_TTL_MS) || 5000
 
-let configCache: AppConfig | null = null
-let configCacheTime = 0
+let configCacheMap = new Map<string, { config: AppConfig; time: number }>()
 
-export interface EmbeddingConfig {
-  provider: "siliconflow" | "local" | "openai" | "custom"
-  baseUrl: string
-  apiKey: string
-  model: string
-  dimensions: number
-  enabled: boolean
-  autoDownload: boolean
+export function clearConfigCache(): void {
+  configCacheMap.clear()
 }
 
 export interface SearchConfig {
@@ -125,7 +137,11 @@ const DEFAULT_SKILL_PATHS = [
   "~/.config/opencode/skills",
 ]
 
-const DEFAULT_CONFIG: AppConfig = {
+export function getDefaults(): AppConfig {
+  return JSON.parse(JSON.stringify(DEFAULT_CONFIG_TEMPLATE))
+}
+
+const DEFAULT_CONFIG_TEMPLATE: AppConfig = {
   embedding: {
     provider: "siliconflow",
     baseUrl: "https://api.siliconflow.cn/v1",
@@ -221,72 +237,68 @@ function removeUndefined<T extends Record<string, unknown>>(obj: T): T {
   return result as T
 }
 
-export function clearConfigCache(): void {
-  configCache = null
-  configCacheTime = 0
-}
-
 export function loadConfig(forceReload = false): AppConfig {
   const now = Date.now()
-  if (!forceReload && configCache && (now - configCacheTime) < CONFIG_CACHE_TTL) {
-    return configCache
+  const currentDir = getConfigDir()
+  const cached = configCacheMap.get(currentDir)
+  if (!forceReload && cached && (now - cached.time) < CONFIG_CACHE_TTL) {
+    return JSON.parse(JSON.stringify(cached.config))
   }
 
   try {
     if (existsSync(getConfigPath())) {
       const raw = removeUndefined(JSON.parse(readFileSync(getConfigPath(), "utf-8")))
       const result: AppConfig = {
-        ...DEFAULT_CONFIG,
+        ...getDefaults(),
         ...raw,
-        embedding: { ...DEFAULT_CONFIG.embedding, ...raw.embedding },
+        embedding: { ...getDefaults().embedding, ...raw.embedding },
         search: {
-          ...DEFAULT_CONFIG.search,
+          ...getDefaults().search,
           ...raw.search,
-          combinedMinScore: raw.search?.combinedMinScore ?? DEFAULT_CONFIG.search.combinedMinScore,
-          weights: { ...DEFAULT_CONFIG.search.weights, ...raw.search?.weights },
+          combinedMinScore: raw.search?.combinedMinScore ?? getDefaults().search.combinedMinScore,
+          weights: { ...getDefaults().search.weights, ...raw.search?.weights },
         },
         skills: {
-          ...DEFAULT_CONFIG.skills,
+          ...getDefaults().skills,
           ...raw.skills,
-          paths: (raw.skills?.paths || DEFAULT_CONFIG.skills.paths).map(expandPath),
+          paths: (raw.skills?.paths || getDefaults().skills.paths).map(expandPath),
         },
-        browser: { ...DEFAULT_CONFIG.browser, ...raw.browser, cdpEndpoint: raw.browser?.cdpEndpoint || DEFAULT_CONFIG.browser.cdpEndpoint },
-        webSearch: { ...DEFAULT_CONFIG.webSearch, ...raw.webSearch },
+        browser: { ...getDefaults().browser, ...raw.browser, cdpEndpoint: raw.browser?.cdpEndpoint || getDefaults().browser.cdpEndpoint },
+        webSearch: { ...getDefaults().webSearch, ...raw.webSearch },
         searchPipeline: {
-          ...DEFAULT_CONFIG.searchPipeline,
+          ...getDefaults().searchPipeline,
           ...raw.searchPipeline,
           sources: {
-            ...DEFAULT_CONFIG.searchPipeline.sources,
+            ...getDefaults().searchPipeline.sources,
             ...raw.searchPipeline?.sources,
-            webSearchPrime: { ...DEFAULT_CONFIG.searchPipeline.sources.webSearchPrime, ...raw.searchPipeline?.sources?.webSearchPrime },
-            xbrowser: { ...DEFAULT_CONFIG.searchPipeline.sources.xbrowser, ...raw.searchPipeline?.sources?.xbrowser, cdpEndpoint: raw.searchPipeline?.sources?.xbrowser?.cdpEndpoint || DEFAULT_CONFIG.searchPipeline.sources.xbrowser.cdpEndpoint },
-            llmDirect: { ...DEFAULT_CONFIG.searchPipeline.sources.llmDirect, ...raw.searchPipeline?.sources?.llmDirect },
-            plugin: { ...DEFAULT_CONFIG.searchPipeline.sources.plugin, ...raw.searchPipeline?.sources?.plugin },
-            tavily: { ...DEFAULT_CONFIG.searchPipeline.sources.tavily, ...raw.searchPipeline?.sources?.tavily },
-            serper: { ...DEFAULT_CONFIG.searchPipeline.sources.serper, ...raw.searchPipeline?.sources?.serper },
-            aiSearch: { ...DEFAULT_CONFIG.searchPipeline.sources.aiSearch, ...raw.searchPipeline?.sources?.aiSearch },
+            webSearchPrime: { ...getDefaults().searchPipeline.sources.webSearchPrime, ...raw.searchPipeline?.sources?.webSearchPrime },
+            xbrowser: { ...getDefaults().searchPipeline.sources.xbrowser, ...raw.searchPipeline?.sources?.xbrowser, cdpEndpoint: raw.searchPipeline?.sources?.xbrowser?.cdpEndpoint || getDefaults().searchPipeline.sources.xbrowser.cdpEndpoint },
+            llmDirect: { ...getDefaults().searchPipeline.sources.llmDirect, ...raw.searchPipeline?.sources?.llmDirect },
+            plugin: { ...getDefaults().searchPipeline.sources.plugin, ...raw.searchPipeline?.sources?.plugin },
+            tavily: { ...getDefaults().searchPipeline.sources.tavily, ...raw.searchPipeline?.sources?.tavily },
+            serper: { ...getDefaults().searchPipeline.sources.serper, ...raw.searchPipeline?.sources?.serper },
+            aiSearch: { ...getDefaults().searchPipeline.sources.aiSearch, ...raw.searchPipeline?.sources?.aiSearch },
           },
         },
-        storage: { ...DEFAULT_CONFIG.storage, ...raw.storage },
-        timeouts: { ...DEFAULT_CONFIG.timeouts, ...raw.timeouts },
-        askPipeline: { ...DEFAULT_CONFIG.askPipeline, ...raw.askPipeline },
+        storage: { ...getDefaults().storage, ...raw.storage },
+        timeouts: { ...getDefaults().timeouts, ...raw.timeouts },
+        askPipeline: { ...getDefaults().askPipeline, ...raw.askPipeline },
       }
-      configCache = result
-      configCacheTime = now
+      configCacheMap.set(currentDir, { config: result, time: now })
       return result
     }
   } catch (e) {
     logger.warn(e instanceof Error ? e.message : String(e))
   }
-  const fallback = { ...DEFAULT_CONFIG, skills: { ...DEFAULT_CONFIG.skills, paths: DEFAULT_CONFIG.skills.paths.map(expandPath) }, storage: { ...DEFAULT_CONFIG.storage }, timeouts: { ...DEFAULT_CONFIG.timeouts }, askPipeline: { ...DEFAULT_CONFIG.askPipeline } }
-  configCache = fallback
-  configCacheTime = now
+  const fallback = { ...getDefaults(), skills: { ...getDefaults().skills, paths: getDefaults().skills.paths.map(expandPath) }, storage: { ...getDefaults().storage }, timeouts: { ...getDefaults().timeouts }, askPipeline: { ...getDefaults().askPipeline } }
+  configCacheMap.set(currentDir, { config: fallback, time: now })
   return fallback
 }
 
 export function saveConfig(config: AppConfig): void {
-  configCache = null
-  if (!existsSync(getConfigDir())) mkdirSync(getConfigDir(), { recursive: true })
+  const dir = getConfigDir()
+  configCacheMap.delete(dir)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   const tmpPath = getConfigPath() + ".tmp"
   writeFileSync(tmpPath, JSON.stringify(config, null, 2), "utf-8")
   renameSync(tmpPath, getConfigPath())

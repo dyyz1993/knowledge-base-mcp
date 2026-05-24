@@ -7,7 +7,7 @@ import { parseBodyTyped } from "./validate.js"
 
 export async function handleDocsRoutes(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
   if (url.pathname === "/api/docs" && req.method === "GET") {
-    json(res, listDocs())
+    json(res, listDocs() || [])
     return true
   }
   if (url.pathname === "/api/docs/recent" && req.method === "GET") {

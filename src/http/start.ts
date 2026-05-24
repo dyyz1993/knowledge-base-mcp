@@ -13,7 +13,7 @@ import { handleShareSession } from "../chat/api-share.js"
 import { handleScanSkills, handleGetSkillPaths, handleUpdateSkillPaths } from "../chat/api-skills.js"
 import { handleBrowserDetect } from "../chat/api-browser.js"
 import { getAllKeywords } from "../storage/index.js"
-import { getKbDir } from "../config.js"
+import { getKbDir, getDataDir, getDirContext } from "../config.js"
 import { readBody, json, apiError, parseBody, createTieredRateLimiter, getCorsHeaders } from "./helpers.js"
 import { handleStreamableHttp, handleSSE, handleSSEMessage } from "./handle-mcp.js"
 import { handleRestAPI } from "./handle-api.js"
@@ -27,20 +27,13 @@ const VERSION = (() => {
   } catch { return "2.23.0" }
 })()
 
-export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: string }) {
+export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: string; dataDir?: string; kbDir?: string }) {
   const serveWeb = process.argv.includes("--web")
   const webDist = join(import.meta.dir, "..", "..", "web", "dist")
-  const mimeTypes: Record<string, string> = {
-    ".html": "text/html",
-    ".js": "application/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".png": "image/png",
-    ".svg": "image/svg+xml",
-    ".ico": "image/x-icon",
-  }
+  const capturedDataDir = options?.dataDir || getDataDir()
+  const capturedKbDir = options?.kbDir || getKbDir()
+  const als = getDirContext()
 
-  // API key authentication — set KB_API_KEY env to enable, or pass via options
   const apiKey = options?.apiKey ?? process.env.KB_API_KEY
   const requireAuth = !!apiKey
 
@@ -54,6 +47,7 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
   const rateLimit = createTieredRateLimiter()
 
   const server = createServer(async (req, res) => {
+    als.run({ dataDir: capturedDataDir, kbDir: capturedKbDir }, async () => {
     const url = new URL(req.url!, `http://${req.headers.host}`)
     const startTime = Date.now()
     const requestId = (req.headers["x-request-id"] as string) || randomUUID().slice(0, 8)
@@ -215,7 +209,7 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
       }
       apiError(res, 404, "NOT_FOUND", "Not Found")
     } catch (e: unknown) {
-      logger.error("Request error:", e)
+      logger.error("Request error:", e instanceof Error ? `${e.message}\n${e.stack}` : String(e))
       if (!res.headersSent) apiError(res, 500, "INTERNAL_ERROR", e instanceof Error ? e.message : String(e))
     } finally {
       logger.debug("Request completed", {
@@ -226,6 +220,7 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
         duration: Date.now() - startTime,
       })
     }
+    })
   })
 
   server.listen(port, () => {

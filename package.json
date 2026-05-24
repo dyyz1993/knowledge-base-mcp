@@ -31,7 +31,9 @@
     "build:web": "cd web && bun install && bun run build",
     "build": "bun build src/index.ts --outdir dist --target bun --external '@dyyz1993/*' && bun run build:web",
     "prepublishOnly": "bun run build",
-    "test": "bun test",
+    "test": "KB_FULL_SUITE=1 bun test",
+    "test:all": "KB_FULL_SUITE=1 bun test && bun test tests/search-sources-and-evolution.test.ts",
+    "test:isolated": "bun test tests/search-sources-and-evolution.test.ts",
     "prepare": "husky",
     "lint": "bunx tsc --noEmit",
     "lint:web": "bunx tsc -p web/tsconfig.json --noEmit"

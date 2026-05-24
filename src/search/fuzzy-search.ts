@@ -4,6 +4,16 @@ import { createLogger } from "../utils/logger.js"
 
 const logger = createLogger("search:fuzzy")
 
+const _deps = { readIndex }
+
+export function _setDeps(overrides: Partial<typeof _deps>) {
+  Object.assign(_deps, overrides)
+}
+
+export function _resetDeps() {
+  Object.assign(_deps, { readIndex })
+}
+
 interface FuzzyDoc {
   id: string
   title: string
@@ -19,7 +29,7 @@ let fuseIndexTime = 0
 const FUSE_INDEX_TTL = 30_000
 
 function buildFuzzyDocs(): FuzzyDoc[] {
-  const idx = readIndex()
+  const idx = _deps.readIndex()
   if (!idx) return []
   return Object.entries(idx.documents).map(([id, doc]: [string, DocMeta]) => ({
     id,

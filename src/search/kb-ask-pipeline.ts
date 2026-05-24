@@ -19,6 +19,23 @@ import { buildSearchPipelineSources, searchViaPipeline } from "./ask/pipeline-so
 
 export { buildSearchPipelineSources } from "./ask/pipeline-sources.js"
 
+const _deps = {
+  searchDocs,
+  searchDocsCombined,
+  readDoc,
+  writeDoc,
+  resolveMiss,
+  recordMiss,
+}
+
+export function _setDeps(overrides: Partial<typeof _deps>) {
+  Object.assign(_deps, overrides)
+}
+
+export function _resetDeps() {
+  Object.assign(_deps, { searchDocs, searchDocsCombined, readDoc, writeDoc, resolveMiss, recordMiss })
+}
+
 export function getAskPipelineConfig() {
   const config = loadConfig()
   return config.askPipeline
@@ -57,7 +74,7 @@ export async function multiSearch(queries: string[], limit = 5): Promise<(DocMet
   const seen = new Map<string, DocMeta & { score: number; snippet?: string; matched_by: string[] }>()
 
   for (const q of queries) {
-    const results = await searchDocsCombined(q, undefined, undefined, limit)
+    const results = await _deps.searchDocsCombined(q, undefined, undefined, limit)
     for (let rank = 0; rank < results.length; rank++) {
       const r = results[rank]
       const rrfScore = 1 / (RRF_K + rank + 1)
@@ -115,7 +132,7 @@ async function augmentWithWebSearch(
 }
 
 export function buildMissResponse(query: string, allQueriesUsed: string[], loopsUsed: number): AskResult {
-  const miss = recordMiss(query)
+  const miss = _deps.recordMiss(query)
 
   return {
     from_kb: false,
@@ -188,7 +205,7 @@ export async function kbAskPipeline(
     const best = results[0]
 
     if (best.score >= highScoreThreshold) {
-      const full = readDoc(best.id, false)
+      const full = _deps.readDoc(best.id, false)
       const content = full ? full.content : ""
 
       const canAutoComplete = best.score >= AUTO_COMPLETE_THRESHOLD && content.length >= MIN_CONTENT_LENGTH
@@ -290,7 +307,7 @@ export async function kbAskPipeline(
 
     if (best.score >= lowScoreThreshold) {
       if (seenDocIds.has(best.id) && loop > 0) {
-        const full = readDoc(best.id, false)
+        const full = _deps.readDoc(best.id, false)
         const content = full ? full.content : ""
 
         const partialResult: AskResult = {
@@ -315,7 +332,7 @@ export async function kbAskPipeline(
 
       seenDocIds.add(best.id)
 
-      const full = readDoc(best.id, false)
+      const full = _deps.readDoc(best.id, false)
       const content = full ? full.content : ""
 
       try {
@@ -416,7 +433,7 @@ export async function kbAskPipeline(
         const webContent = webResults.map(r => `## ${r.title}\n${r.snippet}\nSource: ${r.url}`).join("\n\n")
         const webResultRefs = webResults.map(r => ({ id: "", title: r.title, url: r.url, source: r.source }))
 
-        resolveMiss(query)
+        _deps.resolveMiss(query)
 
         return {
           from_kb: false,
@@ -469,7 +486,7 @@ async function autoResearch(query: string, allQueriesUsed: string[]): Promise<As
       .slice(0, 12)
       .map(([w]) => w)
 
-    const doc = writeDoc(
+    const doc = _deps.writeDoc(
       {
         title: `研究: ${query}`,
         tags: ["reference", "web-ingested", "auto-research"],
@@ -485,7 +502,7 @@ async function autoResearch(query: string, allQueriesUsed: string[]): Promise<As
       result.summary + (sources ? `\n\n## 参考资料\n${sources}` : ""),
     )
 
-    resolveMiss(query)
+    _deps.resolveMiss(query)
 
     return {
       from_kb: true,
@@ -510,12 +527,12 @@ function fallbackSearch(
   queriesUsed: string[],
 ): AskResult {
   const { highScoreThreshold, lowScoreThreshold } = getAskPipelineConfig()
-  const results = searchDocs(query, undefined, undefined, 3)
+  const results = _deps.searchDocs(query, undefined, undefined, 3)
   const highScoreHits = results.filter(r => r.score >= lowScoreThreshold)
 
   if (highScoreHits.length > 0) {
     const best = highScoreHits[0]
-    const full = readDoc(best.id, false)
+    const full = _deps.readDoc(best.id, false)
     return {
       from_kb: true,
       id: best.id,
@@ -535,7 +552,7 @@ function fallbackSearch(
     }
   }
 
-  recordMiss(query)
+  _deps.recordMiss(query)
 
   return {
     from_kb: false,

@@ -1,9 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test"
+import { describe, test, expect, beforeEach, afterEach, beforeAll } from "bun:test"
 import { existsSync, rmSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 const testDataDir = `/tmp/kb-chat-test-${Math.random().toString(36).slice(2)}`
-process.env.KB_DATA_DIR = testDataDir
 
 import {
   createSession,
@@ -17,6 +16,10 @@ import {
   type ChatSession,
   type ChatMessage,
 } from "../src/chat/store-sessions"
+
+beforeAll(() => {
+  process.env.KB_DATA_DIR = testDataDir
+})
 
 const favoritesPath = join(testDataDir, "favorites.json")
 

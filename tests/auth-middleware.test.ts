@@ -2,6 +2,14 @@ import { describe, test, expect, afterAll, beforeAll } from "bun:test"
 import { createServer, IncomingMessage, ServerResponse, request as nodeRequest } from "node:http"
 import { parseBody } from "../src/http/helpers.js"
 import { startHttp } from "../src/http/start.js"
+import { mkdirSync, rmSync, existsSync } from "node:fs"
+import { join } from "node:path"
+import os from "node:os"
+import { clearConfigCache } from "../src/config.js"
+import { clearStorageCache } from "../src/storage/index.js"
+
+const authTestDir = join(os.tmpdir(), `kb-auth-test-${process.pid}-${Date.now()}`)
+const authDataDir = join(authTestDir, ".kb-chat")
 
 interface HttpResponse { status: number; body: any; headers: Record<string, string> }
 
@@ -66,14 +74,21 @@ describe("Auth middleware", () => {
   let NO_AUTH_PORT: number
 
   beforeAll(async () => {
+    clearConfigCache()
+    clearStorageCache(authTestDir)
+    mkdirSync(join(authTestDir, ".kb-chat", "sessions"), { recursive: true })
+
     AUTH_PORT = await getAvailablePort()
-    authServer = startHttp(AUTH_PORT, true, { apiKey: "test-secret" })
+    authServer = startHttp(AUTH_PORT, true, { apiKey: "test-secret", dataDir: authDataDir, kbDir: authTestDir })
     await waitForServer(AUTH_PORT)
   }, { timeout: 30000 })
 
   afterAll(async () => {
     await closeServer(authServer)
     await closeServer(noAuthServer)
+    if (existsSync(authTestDir)) rmSync(authTestDir, { recursive: true })
+    clearConfigCache()
+    clearStorageCache(authTestDir)
   })
 
   test("/health returns 200 without auth", async () => {
@@ -139,8 +154,10 @@ describe("Auth middleware", () => {
   })
 
   test("start no-auth server and verify /api/docs returns 200", async () => {
+    clearConfigCache()
+    clearStorageCache(authTestDir)
     NO_AUTH_PORT = await getAvailablePort()
-    noAuthServer = startHttp(NO_AUTH_PORT, true, { apiKey: undefined })
+    noAuthServer = startHttp(NO_AUTH_PORT, true, { dataDir: authDataDir, kbDir: authTestDir })
     await waitForServer(NO_AUTH_PORT)
 
     const { status } = await httpRequest(NO_AUTH_PORT, "/api/docs")

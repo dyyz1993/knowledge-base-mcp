@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterAll } from "bun:test"
+import { describe, test, expect, beforeEach, afterAll, beforeAll } from "bun:test"
 import { existsSync, rmSync, mkdirSync } from "node:fs"
 import { cosineSimilarityVec, docToSearchableText, semanticSearch, embed } from "../src/search/embedding"
 import { loadVectors, saveVectors, indexDoc, indexAllDocs, getAllEmbeddings, resetDb } from "../src/search/vector-store"
@@ -15,7 +15,9 @@ const testDir = `/tmp/kb-embed-test-${Math.random().toString(36).slice(2)}`
 if (existsSync(testDir)) rmSync(testDir, { recursive: true })
 mkdirSync(testDir, { recursive: true })
 
-process.env.KB_DIR = testDir
+beforeAll(() => {
+  process.env.KB_DIR = testDir
+})
 
 function makeDoc(overrides: Partial<DocMeta> = {}): DocMeta {
   return {

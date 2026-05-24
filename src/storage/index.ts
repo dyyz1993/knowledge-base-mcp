@@ -46,8 +46,7 @@ function ensureDir(dir: string) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
 }
 
-let cachedIndex: IndexFile | null = null
-let cacheTimestamp = 0
+let indexCacheMap = new Map<string, { index: IndexFile; time: number }>()
 let cachedCacheTtl = 5000
 let cacheTtlConfigTimestamp = 0
 
@@ -81,38 +80,57 @@ function serializedWrite(fn: () => void): void {
   }
 }
 
+function ensureValidIndex(idx: any): IndexFile {
+  if (idx && typeof idx === "object" && idx.documents && typeof idx.documents === "object") return idx as IndexFile
+  return { version: 1, documents: {} }
+}
+
 export function readIndex(): IndexFile {
-  ensureDir(getKbDir())
+  const kbDir = getKbDir()
+  ensureDir(kbDir)
   const now = Date.now()
+  const currentDir = kbDir
+  const cached = indexCacheMap.get(currentDir)
+  if (cached && (now - cached.time) < getCacheTtlMs()) {
+    const result = ensureValidIndex(cached.index)
+    return result
+  }
 
-  if (cachedIndex && (now - cacheTimestamp) < getCacheTtlMs()) return cachedIndex
-
+  let idx: IndexFile
   try {
-    const raw = readFileSync(getIndexPath(), "utf-8")
-    const idx = JSON.parse(raw) as IndexFile
-    cachedIndex = idx
-    cacheTimestamp = now
-    return idx
+    const indexPath = `${currentDir}/index.json`
+    if (existsSync(indexPath)) {
+      const raw = readFileSync(indexPath, "utf-8")
+      idx = ensureValidIndex(JSON.parse(raw))
+      indexCacheMap.set(currentDir, { index: idx, time: now })
+      return idx
+    }
   } catch (e) {
     logger.warn("readIndex: index file missing or corrupted, attempting recovery:", e instanceof Error ? e.message : String(e))
     const recovered = recoverIndexFromDisk()
     if (recovered && Object.keys(recovered.documents).length > 0) {
-      cachedIndex = recovered
-      cacheTimestamp = now
+      indexCacheMap.set(currentDir, { index: recovered, time: now })
       atomicWriteIndex(recovered)
       return recovered
     }
-    const idx: IndexFile = { version: 1, documents: {} }
-    cachedIndex = idx
-    cacheTimestamp = now
-    atomicWriteIndex(idx)
-    return idx
   }
+  idx = { version: 1, documents: {} }
+  indexCacheMap.set(currentDir, { index: idx, time: now })
+  atomicWriteIndex(idx)
+  return idx
 }
 
 function invalidateCache() {
-  cachedIndex = null
-  cacheTimestamp = 0
+  indexCacheMap.delete(getKbDir())
+}
+
+export function clearStorageCache(dir?: string): void {
+  if (dir) {
+    indexCacheMap.delete(dir)
+  } else {
+    indexCacheMap.clear()
+  }
+  cacheTtlConfigTimestamp = 0
 }
 
 function atomicWriteIndex(idx: IndexFile) {
@@ -122,8 +140,8 @@ function atomicWriteIndex(idx: IndexFile) {
 }
 
 function writeIndex(idx: IndexFile) {
-  cachedIndex = idx
-  cacheTimestamp = Date.now()
+  const dir = getKbDir()
+  indexCacheMap.set(dir, { index: idx, time: Date.now() })
   serializedWrite(() => atomicWriteIndex(idx))
 }
 
@@ -202,6 +220,9 @@ export function writeDoc(
 
   invalidateCache()
   const idx = readIndex()
+  if (!idx || !idx.documents) {
+    throw new Error("writeDoc: readIndex returned invalid index")
+  }
   const existing = !meta.id ? findDuplicate({ title: meta.title, source_project: meta.source_project || "" }, idx) : null
   const id = meta.id || existing?.id || generateId()
   const created_at = meta.created_at || existing?.created_at || Date.now()
@@ -238,8 +259,7 @@ export function writeDoc(
     writeFileSync(file_path, md)
     atomicWriteIndex(idx)
   })
-  cachedIndex = idx
-  cacheTimestamp = Date.now()
+  indexCacheMap.set(getKbDir(), { index: idx, time: Date.now() })
   updateOutline(doc.source_project || "", idx)
 
   indexDoc(id, docToSearchableText(doc)).catch(e => {
@@ -255,6 +275,7 @@ export function writeDoc(
 
 export function readDoc(id: string, truncate = true): { meta: DocMeta; content: string; truncated: boolean } | null {
   const idx = readIndex()
+  if (!idx || !idx.documents) return null
   const meta = idx.documents[id]
   if (!meta) return null
 
@@ -272,6 +293,9 @@ export function readDoc(id: string, truncate = true): { meta: DocMeta; content: 
 
 export function listDocs(tag?: string, project?: string): DocMeta[] {
   const idx = readIndex()
+  if (!idx || !idx.documents) {
+    return []
+  }
   return Object.values(idx.documents).filter(d => {
     if (tag && !d.tags.includes(tag)) return false
     if (project && d.source_project !== project) return false
@@ -288,7 +312,7 @@ export function listRecentDocs(options: {
   const { hours = 24, since, limit = 50, include_content = false } = options
   const cutoff = since || (Date.now() - hours * 3600_000)
   const idx = readIndex()
-
+  if (!idx || !idx.documents) return []
   return Object.values(idx.documents)
     .filter(d => d.created_at >= cutoff)
     .sort((a, b) => b.created_at - a.created_at)
@@ -321,6 +345,9 @@ export function deleteDoc(id: string): boolean {
   invalidateFuzzyIndex()
   invalidateResultCache()
   const idx = readIndex()
+  if (!idx || !idx.documents) {
+    return false
+  }
   const doc = idx.documents[id]
   if (!doc) return false
 

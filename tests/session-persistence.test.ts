@@ -1,12 +1,10 @@
-import { describe, test, expect, afterAll } from "bun:test"
+import { describe, test, expect, afterAll, beforeAll } from "bun:test"
 import { existsSync, rmSync, readFileSync, mkdirSync } from "node:fs"
 import { join } from "node:path"
 import os from "node:os"
 
 const tmpDir = join(os.tmpdir(), `kb-session-test-${Date.now()}`)
 const origKBDataDir = process.env.KB_DATA_DIR
-process.env.KB_DATA_DIR = join(tmpDir, ".kb-chat")
-mkdirSync(join(tmpDir, ".kb-chat", "sessions"), { recursive: true })
 
 const store = await import("../src/chat/store-sessions")
 const session = await import("../src/chat/session")
@@ -15,6 +13,11 @@ const { createSession, appendMessage, readMessages, readSession, deleteSession }
 const { getOrCreate, pushMessage, getMessages } = session
 
 const createdSessions: string[] = []
+
+beforeAll(() => {
+  process.env.KB_DATA_DIR = join(tmpDir, ".kb-chat")
+  mkdirSync(join(tmpDir, ".kb-chat", "sessions"), { recursive: true })
+})
 
 afterAll(() => {
   for (const id of createdSessions) {

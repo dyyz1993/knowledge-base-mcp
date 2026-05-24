@@ -1,15 +1,18 @@
-import { test, expect, describe, beforeEach, afterEach } from "bun:test"
+import { test, expect, describe, beforeEach, afterEach, beforeAll } from "bun:test"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs"
 
 const TEST_DIR = join(tmpdir(), `kb-config-test-${Date.now()}`)
-process.env.KB_DATA_DIR = TEST_DIR
-process.env.KB_DIR = TEST_DIR
 
 const { loadConfig, saveConfig, clearConfigCache } = await import("../src/config")
 
 const CONFIG_PATH = join(TEST_DIR, "config.json")
+
+beforeAll(() => {
+  process.env.KB_DATA_DIR = TEST_DIR
+  process.env.KB_DIR = TEST_DIR
+})
 
 describe("config", () => {
   beforeEach(() => {

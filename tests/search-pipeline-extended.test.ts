@@ -57,12 +57,12 @@ describe("llm-caller", () => {
   const originalFetch = globalThis.fetch
 
   beforeEach(() => {
-    globalThis.fetch = mock(() => mockFetchResponse(makeLlmBody("Hello world"))) as never
     try { (circuitBreakers.llm as any).state = "closed"; (circuitBreakers.llm as any).failures = 0 } catch {}
   })
 
   afterEach(() => {
     globalThis.fetch = originalFetch as never
+    try { (circuitBreakers.llm as any).state = "closed"; (circuitBreakers.llm as any).failures = 0 } catch {}
   })
 
   it("should call LLM and return response", async () => {

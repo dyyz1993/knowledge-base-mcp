@@ -1,9 +1,8 @@
-import { describe, test, expect, beforeEach, afterAll } from "bun:test"
+import { describe, test, expect, beforeEach, afterAll, beforeAll } from "bun:test"
 import { existsSync, rmSync, mkdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 const testDir = `/tmp/kb-test-${Math.random().toString(36).slice(2)}`
-process.env.KB_DIR = testDir
 
 const storage = await import("../src/storage/index")
 const markdown = await import("../src/storage/markdown")
@@ -16,7 +15,10 @@ function cleanDir() {
   mkdirSync(testDir, { recursive: true })
 }
 
-// Ensure KB_DIR points to our test dir before each test
+beforeAll(() => {
+  process.env.KB_DIR = testDir
+})
+
 beforeEach(() => {
   process.env.KB_DIR = testDir
   cleanDir()

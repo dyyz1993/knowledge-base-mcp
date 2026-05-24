@@ -1,5 +1,6 @@
 import { IncomingMessage, ServerResponse } from "node:http"
 import { loadConfig, saveConfig } from "../config.js"
+import { getDefaults } from "../config.js"
 import type { AppConfig } from "../config.js"
 import { getStorageStats } from "../search/vector-store.js"
 import { searchStats, llmStats, embeddingStats, mcpStats } from "../statistics/index.js"
@@ -51,9 +52,9 @@ export async function handleConfigRoutes(req: IncomingMessage, res: ServerRespon
     const merged: AppConfig = {
       embedding: { ...current.embedding, ...update.embedding },
       search: {
-        ...current.search,
+        ...(current.search || getDefaults().search),
         ...update.search,
-        weights: { ...current.search.weights, ...update.search?.weights },
+        weights: { ...(current.search?.weights || getDefaults().search.weights), ...update.search?.weights },
       },
       skills: { ...current.skills, ...update.skills },
       browser: { ...current.browser, ...update.browser },

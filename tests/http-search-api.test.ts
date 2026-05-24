@@ -1,16 +1,14 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test"
 import { startHttp } from "../src/http/start.js"
-import { createServer } from "node:http"
+import { createServer, request as nodeRequest, type IncomingMessage } from "node:http"
 import { mkdirSync, rmSync, existsSync } from "node:fs"
 import { join } from "node:path"
 import os from "node:os"
+import { clearConfigCache } from "../src/config.js"
+import { clearStorageCache } from "../src/storage/index.js"
 
-const httpTestDir = join(os.tmpdir(), `kb-http-search-test-${Date.now()}`)
-const origKBDir = process.env.KB_DIR
-const origKBDataDir = process.env.KB_DATA_DIR
-process.env.KB_DIR = httpTestDir
-process.env.KB_DATA_DIR = join(httpTestDir, ".kb-chat")
-mkdirSync(join(httpTestDir, ".kb-chat", "sessions"), { recursive: true })
+const httpTestDir = join(os.tmpdir(), `kb-http-search-test-${process.pid}-${Date.now()}`)
+const dataDir = join(httpTestDir, ".kb-chat")
 
 function getAvailablePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -25,18 +23,40 @@ function getAvailablePort(): Promise<number> {
   })
 }
 
+function nodeFetch(port: number, path: string, opts?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{ status: number; data: any }> {
+  return new Promise((resolve, reject) => {
+    const { method = "GET", headers = {}, body } = opts ?? {}
+    const req = nodeRequest({ hostname: "localhost", port, path, method, headers }, (res: IncomingMessage) => {
+      let data = ""
+      res.on("data", (chunk: Buffer) => { data += chunk.toString() })
+      res.on("end", () => {
+        let parsed: any
+        try { parsed = JSON.parse(data) } catch { parsed = data }
+        resolve({ status: res.statusCode ?? 0, data: parsed })
+      })
+    })
+    req.on("error", reject)
+    if (body) req.write(body)
+    req.end()
+  })
+}
+
 let PORT: number
 let server: ReturnType<typeof createServer>
 const createdDocIds: string[] = []
 const PREFIX = `http-search-test-${Date.now()}`
 
 beforeAll(async () => {
+  clearConfigCache()
+  clearStorageCache(httpTestDir)
+  mkdirSync(join(httpTestDir, ".kb-chat", "sessions"), { recursive: true })
+
   PORT = await getAvailablePort()
-  server = startHttp(PORT, true)
+  server = startHttp(PORT, true, { dataDir, kbDir: httpTestDir })
   for (let i = 0; i < 30; i++) {
     try {
-      const res = await fetch(`http://localhost:${PORT}/health`)
-      if (res.ok) break
+      const { status } = await nodeFetch(PORT, "/health")
+      if (status === 200) break
     } catch {}
     await new Promise(r => setTimeout(r, 100))
   }
@@ -45,29 +65,25 @@ beforeAll(async () => {
 afterAll(async () => {
   for (const id of createdDocIds) {
     try {
-      await fetch(`http://localhost:${PORT}/api/doc/${id}`, { method: "DELETE" })
+      await nodeFetch(PORT, `/api/doc/${id}`, { method: "DELETE" })
     } catch {}
   }
   server.close()
   if (existsSync(httpTestDir)) rmSync(httpTestDir, { recursive: true })
-  process.env.KB_DIR = origKBDir
-  process.env.KB_DATA_DIR = origKBDataDir
+  clearConfigCache()
+  clearStorageCache(httpTestDir)
 })
 
-function base() { return `http://localhost:${PORT}` }
-
 async function post(path: string, body: Record<string, unknown>) {
-  const res = await fetch(`${base()}${path}`, {
+  return nodeFetch(PORT, path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
-  return { status: res.status, data: await res.json() }
 }
 
 async function get(path: string) {
-  const res = await fetch(`${base()}${path}`)
-  return { status: res.status, data: await res.json() }
+  return nodeFetch(PORT, path)
 }
 
 describe("GET /api/search", () => {
@@ -135,14 +151,9 @@ describe("GET /api/search", () => {
   })
 
   test("should return 400 for invalid parameters", async () => {
-    const res = await fetch(`${base()}/api/search`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: "x".repeat(5000), limit: 5 }),
-    })
-    const data = await res.json()
-    expect([200, 400]).toContain(res.status)
-    if (res.status === 400) {
+    const { status, data } = await post("/api/search", { query: "x".repeat(5000), limit: 5 })
+    expect([200, 400]).toContain(status)
+    if (status === 400) {
       expect(data.error).toBeDefined()
     }
   })
@@ -172,21 +183,13 @@ describe("POST /api/search/semantic", () => {
   })
 
   test("should handle missing query gracefully", async () => {
-    const res = await fetch(`${base()}/api/search/semantic`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    })
-    expect(res.status).toBe(400)
+    const { status } = await post("/api/search/semantic", {})
+    expect(status).toBe(400)
   })
 
   test("should reject empty query", async () => {
-    const res = await fetch(`${base()}/api/search/semantic`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: "" }),
-    })
-    expect(res.status).toBe(400)
+    const { status } = await post("/api/search/semantic", { query: "" })
+    expect(status).toBe(400)
   })
 })
 

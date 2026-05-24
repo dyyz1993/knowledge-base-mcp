@@ -1,5 +1,7 @@
 import { describe, it, expect, mock, beforeAll, beforeEach, afterEach, spyOn } from "bun:test"
 
+const RUN_ISOLATED = !process.env.KB_FULL_SUITE
+
 // ─── Shared mutable mock state ────────────────────────────────
 let _execFileResponse: any = { stdout: JSON.stringify({ results: [] }) }
 let _execFileError: Error | null = null
@@ -9,60 +11,11 @@ const configState: Record<string, any> = {
   serperApiKey: "test-serper-key",
 }
 
-mock.module("../src/config", () => ({
-  loadConfig: () => ({
-    webSearch: { tavilyApiKey: configState.tavilyApiKey, serperApiKey: configState.serperApiKey },
-    searchPipeline: {
-      sources: {
-        aiSearch: { enabled: configState.aiSearchEnabled ?? true, engines: configState.aiSearchEngines ?? ["deepseek"], timeout: 10000 },
-        xbrowser: { cdpEndpoint: configState.xbrowserCdp ?? "ws://localhost:9222", headless: true },
-      },
-      maxResults: 10,
-    },
-  }),
-}))
-
-mock.module("node:child_process", () => ({
-  execFile: (_cmd: string, _args: string[], _opts: any, cb: Function) => {
-    if (_execFileError) cb(_execFileError, null)
-    else cb(null, _execFileResponse)
-  },
-}))
-
-mock.module("node:util", () => ({
-  promisify: (fn: Function) => {
-    return (...args: any[]) =>
-      new Promise((resolve, reject) => {
-        fn(...args, (err: any, result: any) => {
-          if (err) reject(err)
-          else resolve(result)
-        })
-      })
-  },
-}))
-
 let _aiSearchResult: any = {
   results: [
     { title: "AI Result", url: "https://ai.com/1", snippet: "AI snippet", aiSummary: "AI summary" },
   ],
 }
-
-mock.module("../src/search/xbrowser-cli", () => {
-  class MockXBrowserCLI {
-    aiSearch() { return Promise.resolve(_aiSearchResult) }
-    search() {
-      return Promise.resolve([
-        { title: "XB test Result", url: "https://xb.com/1", snippet: "xb test snippet" },
-        { title: "XB test Result 2", url: "https://xb.com/2", snippet: "xb test snippet 2" },
-      ])
-    }
-  }
-  return { XBrowserCLI: MockXBrowserCLI }
-})
-
-mock.module("../src/search/utils", () => ({
-  normalizeUrl: (url: string) => url.replace(/\/+$/, "").toLowerCase(),
-}))
 
 let _fuzzyIndex: Record<string, any> | null = {
   documents: {
@@ -72,12 +25,65 @@ let _fuzzyIndex: Record<string, any> | null = {
   },
 }
 
-mock.module("../src/storage/index.js", () => ({
-  readIndex: () => _fuzzyIndex,
-}))
+if (RUN_ISOLATED) {
+  mock.module("../src/config", () => ({
+    loadConfig: () => ({
+      webSearch: { tavilyApiKey: configState.tavilyApiKey, serperApiKey: configState.serperApiKey },
+      searchPipeline: {
+        sources: {
+          aiSearch: { enabled: configState.aiSearchEnabled ?? true, engines: configState.aiSearchEngines ?? ["deepseek"], timeout: 10000 },
+          xbrowser: { cdpEndpoint: configState.xbrowserCdp ?? "ws://localhost:9222", headless: true },
+        },
+        maxResults: 10,
+      },
+    }),
+  }))
+
+  mock.module("node:child_process", () => ({
+    execFile: (_cmd: string, _args: string[], _opts: any, cb: Function) => {
+      if (_execFileError) cb(_execFileError, null)
+      else cb(null, _execFileResponse)
+    },
+  }))
+
+  mock.module("node:util", () => ({
+    promisify: (fn: Function) => {
+      return (...args: any[]) =>
+        new Promise((resolve, reject) => {
+          fn(...args, (err: any, result: any) => {
+            if (err) reject(err)
+            else resolve(result)
+          })
+        })
+    },
+  }))
+
+  mock.module("../src/search/xbrowser-cli", () => {
+    class MockXBrowserCLI {
+      aiSearch() { return Promise.resolve(_aiSearchResult) }
+      search() {
+        return Promise.resolve([
+          { title: "XB test Result", url: "https://xb.com/1", snippet: "xb test snippet" },
+          { title: "XB test Result 2", url: "https://xb.com/2", snippet: "xb test snippet 2" },
+        ])
+      }
+    }
+    return { XBrowserCLI: MockXBrowserCLI }
+  })
+
+  mock.module("../src/search/utils", () => ({
+    normalizeUrl: (url: string) => url.replace(/\/+$/, "").toLowerCase(),
+  }))
+
+  mock.module("../src/storage/index.js", () => ({
+    readIndex: () => _fuzzyIndex,
+  }))
+}
+
+const describeSuite = RUN_ISOLATED ? describe : describe.skip
 
 // ─── source-tavily ────────────────────────────────────────────
-describe("source-tavily", () => {
+describeSuite("source-tavily", () => {
   let TavilySource: any
 
   beforeAll(async () => {
@@ -149,7 +155,7 @@ describe("source-tavily", () => {
 })
 
 // ─── source-serper ────────────────────────────────────────────
-describe("source-serper", () => {
+describeSuite("source-serper", () => {
   let SerperSource: any
 
   beforeAll(async () => {
@@ -208,7 +214,7 @@ describe("source-serper", () => {
 })
 
 // ─── source-ai-search ─────────────────────────────────────────
-describe("source-ai-search", () => {
+describeSuite("source-ai-search", () => {
   let AiSearchSource: any
 
   beforeAll(async () => {
@@ -256,7 +262,7 @@ describe("source-ai-search", () => {
 })
 
 // ─── source-llm-direct ───────────────────────────────────────
-describe("source-llm-direct", () => {
+describeSuite("source-llm-direct", () => {
   let LlmDirectSource: any
   let getModelsMock: any
 
@@ -326,7 +332,7 @@ describe("source-llm-direct", () => {
 })
 
 // ─── source-xbrowser ─────────────────────────────────────────
-describe("source-xbrowser", () => {
+describeSuite("source-xbrowser", () => {
   let XBrowserEngineSource: any
   let XBrowserMultiEngineSource: any
   let createXBrowserSources: any
@@ -394,7 +400,7 @@ describe("source-xbrowser", () => {
 })
 
 // ─── fuzzy-search extended ────────────────────────────────────
-describe("fuzzy-search extended", () => {
+describeSuite("fuzzy-search extended", () => {
   let fuzzySearch: any
   let invalidateFuzzyIndex: any
 
@@ -459,7 +465,7 @@ describe("fuzzy-search extended", () => {
 })
 
 // ─── research evolution: analyzer ─────────────────────────────
-describe("research evolution: analyzer", () => {
+describeSuite("research evolution: analyzer", () => {
   let computeCaseMetrics: any
   let aggregateMetrics: any
   let diffMetrics: any
@@ -606,7 +612,7 @@ describe("research evolution: analyzer", () => {
 })
 
 // ─── research evolution: diagnoser ────────────────────────────
-describe("research evolution: diagnoser", () => {
+describeSuite("research evolution: diagnoser", () => {
   it("should return diagnosis from LLM", async () => {
     mock.module("../src/search/llm-caller", () => ({
       callLlm: mock(() => Promise.resolve(JSON.stringify({
@@ -671,7 +677,7 @@ describe("research evolution: diagnoser", () => {
 })
 
 // ─── research evolution: orchestrator ─────────────────────────
-describe("research evolution: orchestrator", () => {
+describeSuite("research evolution: orchestrator", () => {
   let ResearchEvolutionAgent: any
 
   beforeAll(async () => {

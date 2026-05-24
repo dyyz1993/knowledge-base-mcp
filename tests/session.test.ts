@@ -1,13 +1,19 @@
-import { test, expect, describe, beforeEach, afterEach } from "bun:test"
+import { test, expect, describe, beforeEach, afterEach, beforeAll, afterAll } from "bun:test"
 import { join } from "node:path"
 import { existsSync, mkdirSync, rmSync } from "node:fs"
 
 const ORIGINAL_HOME = process.env.HOME
 const TEST_DIR = join(process.env.HOME || "/tmp", ".kb-chat-test-session")
 
-process.env.HOME = TEST_DIR
-
 const { getOrCreate, pushMessage, getMessages, setName, setModel, list } = await import("../src/chat/session")
+
+beforeAll(() => {
+  process.env.HOME = TEST_DIR
+})
+
+afterAll(() => {
+  process.env.HOME = ORIGINAL_HOME
+})
 
 describe("session management", () => {
   const sessionsDir = join(TEST_DIR, ".kb-chat", "sessions")
