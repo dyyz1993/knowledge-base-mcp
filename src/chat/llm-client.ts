@@ -31,24 +31,10 @@ export async function callOpenAI(
   messages: ChatMessage[],
   tools: OpenAITool[] | undefined,
   stream: boolean,
-  enableWebSearch = false,
 ): Promise<Response> {
   const url = `${baseUrl.replace(/\/+$/, "")}/chat/completions`
   const body: Record<string, unknown> = { model: modelId, messages }
   if (tools) body.tools = tools
-  if (enableWebSearch) {
-    const isZhipuApi = baseUrl.includes("bigmodel.cn") || baseUrl.includes("zhipuai")
-    if (isZhipuApi) {
-      const existingTools = (body.tools as unknown[]) || []
-      body.tools = [
-        ...existingTools,
-        {
-          type: "web_search",
-          web_search: { enable: true, search_result: true },
-        },
-      ]
-    }
-  }
   body.stream = stream
   body.stream_options = { include_usage: true }
 
@@ -84,7 +70,6 @@ export async function* streamResponse(resp: Response): AsyncGenerator<{
   finishReason?: string
   error?: string
   usage?: TokenUsage
-  webSearchResult?: unknown
 }> {
   const reader = resp.body?.getReader()
   if (!reader) {
@@ -123,9 +108,6 @@ export async function* streamResponse(resp: Response): AsyncGenerator<{
         }
         if (delta?.tool_calls) {
           yield { type: "tool_calls_delta", toolCalls: delta.tool_calls }
-        }
-        if (delta?.web_search_result) {
-          yield { type: "web_search_result", webSearchResult: delta.web_search_result }
         }
         if (choice.finish_reason) {
           yield { type: "finish", finishReason: choice.finish_reason }

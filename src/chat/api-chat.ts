@@ -4,7 +4,6 @@ import { toolDefinitions, executeTool } from "./tools.js"
 import * as session from "./session"
 import { generateId } from "../storage/index.js"
 import { buildSystemPrompt } from "./prompt-builder.js"
-import { loadConfig } from "../config.js"
 import {
   type ChatMessage,
   type TokenUsage,
@@ -85,16 +84,13 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
       ...restoreChatContext(messages),
     ]
 
-    const config = loadConfig()
-    const enableWebSearch = config.chat?.webSearch?.enabled === true
-
     let assistantContent = ""
     const MAX_TOOL_ROUNDS = 10
     let totalUsage: TokenUsage = { prompt_tokens: 0, completion_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0 }
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       sanitizeChatMessages(chatMessages)
-      const resp = await callOpenAI(cfg.baseUrl, cfg.apiKey, cfg.id, chatMessages, toolDefinitions, true, enableWebSearch)
+      const resp = await callOpenAI(cfg.baseUrl, cfg.apiKey, cfg.id, chatMessages, toolDefinitions, true)
 
       if (!resp.ok) {
         const errBody = await resp.text()
@@ -135,9 +131,6 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
           }
           case "finish":
             finishReason = event.finishReason || ""
-            break
-          case "web_search_result":
-            send("web_search_result", { result: event.webSearchResult, round })
             break
           case "error":
             send("error", { error: event.error })
