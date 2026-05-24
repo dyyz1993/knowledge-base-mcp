@@ -119,8 +119,9 @@ describe("HTTP API endpoints", () => {
     expect(data.deleted).toBe(true)
     expect(data.id).toBe(writtenDocId)
 
-    const { data: afterDelete } = await get(`/api/doc/${writtenDocId}`)
-    expect(afterDelete).toBeNull()
+    const { status: afterDeleteStatus, data: afterDelete } = await get(`/api/doc/${writtenDocId}`)
+    expect(afterDeleteStatus).toBe(404)
+    expect(afterDelete.error.code).toBe("NOT_FOUND")
   })
 
   test("POST /api/search — keyword search", async () => {
