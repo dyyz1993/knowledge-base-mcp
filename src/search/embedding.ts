@@ -5,6 +5,7 @@ import { parseFrontmatter } from "../storage/markdown"
 import type { DocMeta } from "../storage/index"
 import { loadConfig } from "../config"
 import { embeddingStats } from "../statistics"
+import { recordEmbeddingCall, recordCacheHit, recordCacheMiss } from "./perf-metrics.js"
 import { createLogger } from "../utils/logger.js"
 
 
@@ -165,7 +166,8 @@ async function embedExternal(text: string): Promise<number[]> {
 
 export async function embed(text: string): Promise<number[]> {
   const cached = cacheGet(text)
-  if (cached) return cached
+  if (cached) { recordCacheHit("embedding"); return cached }
+  recordCacheMiss("embedding")
 
   const config = loadConfig()
   const t0 = Date.now()
@@ -186,6 +188,7 @@ export async function embed(text: string): Promise<number[]> {
   const ms = Date.now() - t0
   const tokens = text.length
   embeddingStats.recordCall(tokens, ms)
+  recordEmbeddingCall(ms)
 
   cacheSet(text, result)
   return result

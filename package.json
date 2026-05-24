@@ -43,6 +43,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/dompurify": "^3.2.0",
     "dompurify": "^3.4.5",
+    "fuse.js": "^7.3.0",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },

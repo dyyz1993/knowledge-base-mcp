@@ -1,18 +1,7 @@
 import { searchDocs, searchDocsCombined, readDoc, writeDoc, resolveMiss, recordMiss } from "../storage/index"
 import type { DocMeta } from "../storage/index"
-import { callLlm, type LlmConfig } from "./llm-caller"
-import { getConfiguredModels } from "../chat/api-models"
 import { loadConfig } from "../config"
-import type { AppConfig } from "../config"
-import type { SearchSource, SearchResult } from "./types"
-import { llmStats } from "../statistics"
-import { WebSearchPrimeSource } from "./source-web-search-prime"
-import { TavilySource } from "./source-tavily"
-import { SerperSource } from "./source-serper"
-import { createXBrowserSources } from "./source-xbrowser"
-import { AiSearchSource } from "./source-ai-search"
-import { LlmDirectSource } from "./source-llm-direct"
-import { SearchPipeline } from "./search-pipeline"
+import type { SearchResult } from "./types"
 import {
   HIGH_RELEVANCE_SCORE,
   LOW_RELEVANCE_SCORE,
@@ -23,8 +12,14 @@ import {
   AUTO_COMPLETE_THRESHOLD,
   RRF_K,
 } from "./constants"
+import { resolvePiConfig, analyzeIntent } from "./ask/intent-analyzer.js"
+import type { IntentAnalysis } from "./ask/intent-analyzer.js"
+import { evaluateQuality } from "./ask/quality-evaluator.js"
+import { buildSearchPipelineSources, searchViaPipeline } from "./ask/pipeline-sources.js"
 
-function getAskPipelineConfig() {
+export { buildSearchPipelineSources } from "./ask/pipeline-sources.js"
+
+export function getAskPipelineConfig() {
   const config = loadConfig()
   return config.askPipeline
 }
@@ -58,187 +53,6 @@ export interface AskResult {
   hint: string
 }
 
-interface IntentAnalysis {
-  coreKeywords: string[]
-  subQueries: string[]
-  researchType: string
-  rewrittenQuery: string
-  missingAspects: string[]
-  degraded?: boolean
-}
-
-interface QualityEvaluation {
-  relevanceScore: number
-  isRelevant: boolean
-  completeness: "complete" | "partial" | "incomplete"
-  missingAspects: string[]
-  suggestedRewrite: string | null
-  webSearchRecommended: boolean
-  webSearchQuery: string | null
-}
-
-function resolvePiConfig(): LlmConfig | null {
-  // Allow tests to disable LLM via env var
-  if (process.env.KB_NO_LLM) return null
-  const configured = getConfiguredModels()
-  const usable = configured.filter(m => m.apiKey && m.baseUrl)
-  if (usable.length === 0) return null
-
-  const priorityPatterns = [
-    /glm-4\.5/i, /glm-5/i, /gpt-4/i, /claude/i, /deepseek/i,
-    /mini/i, /flash/i, /air/i, /lite/i,
-  ]
-
-  for (const pattern of priorityPatterns) {
-    const found = usable.find(m => pattern.test(m.id))
-    if (found) {
-      return { baseUrl: found.baseUrl!, apiKey: found.apiKey!, model: found.id }
-    }
-  }
-
-  const first = usable[0]
-  return { baseUrl: first.baseUrl!, apiKey: first.apiKey!, model: first.id }
-}
-
-async function analyzeIntent(query: string, llm: LlmConfig): Promise<IntentAnalysis> {
-  const messages = [
-    {
-      role: "system" as const,
-      content: "You are a search query optimizer for a knowledge base. Analyze the user's natural language query and extract intent. Always respond with valid JSON only.",
-    },
-    {
-      role: "user" as const,
-      content: `Analyze this query: "${query}"
-
-Return JSON ONLY (no markdown fences):
-{"coreKeywords":["keyword1","keyword2"],"subQueries":["query1","query2","query3"],"researchType":"doc|api|code|concept|comparison","rewrittenQuery":"optimized search query"}
-
-Rules:
-- coreKeywords: 3-7 essential terms, remove filler words (什么是 如何 怎么 为什么 我想 请帮我 的 了 吗 呢)
-- subQueries: 3-5 search queries, include:
-  1. English keyword-only query preserving ALL concepts from original (e.g. "Docker sandbox isolation" not just "Docker")
-  2. Chinese keyword query preserving ALL concepts
-  3. Technical variation with different synonyms but keeping ALL concepts
-  Keep subQueries SHORT (2-5 words), keyword-focused, no full sentences
-  CRITICAL: Every subQuery MUST include ALL core concepts. Never drop keywords. "Docker sandbox" → subQueries must contain BOTH "docker" AND "sandbox", not just "docker".
-- researchType: categorize the intent
-- rewrittenQuery: the best short keyword-only query combining ALL core keywords, NEVER dropping any`,
-    },
-  ]
-
-  try {
-    const t0 = Date.now()
-    const raw = await callLlm(llm, messages, 0.1, 600)
-    const ms = Date.now() - t0
-    llmStats.recordCall(llm.model, 600, ms)
-    const cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim()
-    const parsed = JSON.parse(cleaned)
-
-    return {
-      coreKeywords: Array.isArray(parsed.coreKeywords) ? parsed.coreKeywords.slice(0, 7) : [],
-      subQueries: Array.isArray(parsed.subQueries) ? parsed.subQueries.slice(0, 5) : [],
-      researchType: parsed.researchType || "concept",
-      rewrittenQuery: parsed.rewrittenQuery || query,
-      missingAspects: [],
-    }
-  } catch {
-    return {
-      coreKeywords: query.split(/[\s,，]+/).filter(w => w.length > 1).slice(0, 5),
-      subQueries: [query],
-      researchType: "concept",
-      rewrittenQuery: query,
-      missingAspects: [],
-      degraded: true,
-    }
-  }
-}
-
-async function evaluateQuality(
-  query: string,
-  intent: IntentAnalysis,
-  docMeta: DocMeta & { score: number },
-  content: string,
-  allResults: (DocMeta & { score: number })[],
-  llm: LlmConfig,
-): Promise<QualityEvaluation> {
-  const otherTitles = allResults
-    .filter(r => r.id !== docMeta.id)
-    .slice(0, 4)
-    .map(r => r.title)
-    .join(", ")
-
-  const messages = [
-    {
-      role: "system" as const,
-      content: "You are a knowledge base completeness evaluator. Judge if existing documents FULLY cover the user's intent, or if web search is needed to find more resources. Always respond with valid JSON only.",
-    },
-    {
-      role: "user" as const,
-      content: `User query: "${query}"
-Extracted intent: type=${intent.researchType}, keywords=[${intent.coreKeywords.join(", ")}]
-
-Best matching document:
-- Title: "${docMeta.title}"
-- Tags: [${docMeta.tags.join(", ")}]
-- Description: "${docMeta.intent}"
-- Content preview: ${content.slice(0, 600)}
-
-Other KB results: ${otherTitles || "none"}
-
-Evaluate BOTH relevance AND completeness. Return JSON ONLY:
-{"relevanceScore":85,"isRelevant":true,"completeness":"complete|partial|incomplete","missingAspects":[],"suggestedRewrite":null,"webSearchRecommended":false,"webSearchQuery":null}
-
-Rules:
-- relevanceScore: 0-100 based on how well the document CONTENT (not just title) matches the query
-- isRelevant: true if this document directly addresses the query with substantive content
-- completeness:
-  - "complete": Document contains enough detail to fully answer the user's question — includes concrete examples, API references, code snippets, or step-by-step instructions. NOT just links, references, or pointers to other resources.
-  - "partial": Document is on-topic but lacks depth — only high-level overview, missing code examples, or only covers part of the topic. Also use for documents that mainly reference/point to other sources instead of providing answers directly.
-  - "incomplete": Document barely touches the topic or is tangentially related. Also use for documents that are just index pages, navigation guides, or "see also" references.
-- missingAspects: only list aspects that are genuinely important and missing (can be empty [])
-- webSearchRecommended: true ONLY when completeness is "incomplete", or "partial" AND missing aspects are critical. Default to false.
-- webSearchQuery: if webSearchRecommended=true, provide search query; otherwise null
-
-IMPORTANT: Evaluate based on SUBSTANCE, not just topic match. A document titled "AI SDK" that only says "read the docs at ai-sdk.dev" is NOT "complete" — it's "incomplete". A document needs actual explanatory content, code examples, or detailed instructions to qualify as "complete".`,
-    },
-  ]
-
-  try {
-    const t0 = Date.now()
-    const raw = await callLlm(llm, messages, 0.2, 2000)
-    const ms = Date.now() - t0
-    llmStats.recordCall(llm.model, 2000, ms)
-    const cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim()
-    const parsed = JSON.parse(cleaned)
-
-    return {
-      relevanceScore: typeof parsed.relevanceScore === "number" ? parsed.relevanceScore : 0,
-      isRelevant: parsed.isRelevant === true,
-      completeness: ["complete", "partial", "incomplete"].includes(parsed.completeness)
-        ? parsed.completeness
-        : "partial",
-      missingAspects: Array.isArray(parsed.missingAspects) ? parsed.missingAspects : [],
-      suggestedRewrite: typeof parsed.suggestedRewrite === "string" && parsed.suggestedRewrite.length > 0
-        ? parsed.suggestedRewrite
-        : null,
-      webSearchRecommended: parsed.webSearchRecommended === true,
-      webSearchQuery: typeof parsed.webSearchQuery === "string" && parsed.webSearchQuery.length > 0
-        ? parsed.webSearchQuery
-        : null,
-    }
-  } catch {
-    return {
-      relevanceScore: docMeta.score,
-      isRelevant: docMeta.score >= getAskPipelineConfig().highScoreThreshold,
-      completeness: docMeta.score >= getAskPipelineConfig().highScoreThreshold ? "partial" : "incomplete",
-      missingAspects: [],
-      suggestedRewrite: null,
-      webSearchRecommended: true,
-      webSearchQuery: intent.rewrittenQuery,
-    }
-  }
-}
-
 export async function multiSearch(queries: string[], limit = 5): Promise<(DocMeta & { score: number; snippet?: string; matched_by: string[] })[]> {
   const seen = new Map<string, DocMeta & { score: number; snippet?: string; matched_by: string[] }>()
 
@@ -267,60 +81,6 @@ export function buildWebSearchSuggestion(
   return { reason, search_query: searchQuery, missing_aspects: missingAspects }
 }
 
-export function buildSearchPipelineSources(overrideConfig?: AppConfig): SearchSource[] {
-  const config = overrideConfig ?? loadConfig()
-  const sources: SearchSource[] = []
-
-  if (config.searchPipeline?.sources.webSearchPrime.enabled && config.webSearch.apiKey) {
-    sources.push(new WebSearchPrimeSource())
-  }
-  if (config.webSearch.tavilyApiKey && config.searchPipeline?.sources.tavily?.enabled) {
-    sources.push(new TavilySource())
-  }
-  if (config.webSearch.serperApiKey && config.searchPipeline?.sources.serper?.enabled) {
-    sources.push(new SerperSource())
-  }
-  if (config.searchPipeline?.sources.xbrowser.enabled) {
-    const engines = config.searchPipeline.sources.xbrowser.engines?.length
-      ? config.searchPipeline.sources.xbrowser.engines
-      : [config.searchPipeline.sources.xbrowser.engine]
-    const xbrowserSources = createXBrowserSources({
-      enabled: true,
-      engine: config.searchPipeline.sources.xbrowser.engine,
-      cdpEndpoint: config.searchPipeline.sources.xbrowser.cdpEndpoint,
-      headless: config.searchPipeline.sources.xbrowser.headless,
-      timeout: config.searchPipeline.sources.xbrowser.timeout,
-    }, engines)
-    sources.push(...xbrowserSources)
-  }
-  if (config.searchPipeline?.sources.aiSearch?.enabled) {
-    sources.push(new AiSearchSource())
-  }
-  if (config.searchPipeline?.sources.llmDirect?.enabled && config.searchPipeline.sources.llmDirect.apiKey) {
-    sources.push(new LlmDirectSource())
-  }
-
-  return sources
-}
-
-async function searchViaPipeline(query: string, maxResults: number): Promise<SearchResult[]> {
-  const sources = buildSearchPipelineSources()
-  if (sources.length === 0) return []
-
-  const pipeline = new SearchPipeline(sources)
-  const optimizedQuery = optimizeQueryForSearchEngine(query)
-  const result = await pipeline.search(optimizedQuery, maxResults)
-  return result.results
-}
-
-function optimizeQueryForSearchEngine(query: string): string {
-  const tokens = query.split(/\s+/).filter(w => w.length > 1)
-  if (tokens.length >= 2 && !query.includes('"')) {
-    return `"${query}" ${query}`
-  }
-  return query
-}
-
 async function augmentWithWebSearch(
   baseResult: AskResult,
   searchQuery: string,
@@ -338,8 +98,6 @@ async function augmentWithWebSearch(
 
       baseResult.web_results = savedDocs
 
-      // If completeness is not "complete", trigger deep research for a thorough answer
-      // (snippets alone are rarely sufficient; research does actual deep reading)
       if (baseResult.completeness !== "complete") {
         const research = await autoResearch(searchQuery, [])
         if (research) {
@@ -453,7 +211,6 @@ export async function kbAskPipeline(
       try {
         const evaluation = await evaluateQuality(query, intent, best, content, results, llm)
 
-        // Content substance calibration: detect code-less docs for API/tool queries
         let calibratedCompleteness = evaluation.completeness
         const contentLen = content.length
         if (contentLen < MIN_CONTENT_LENGTH && evaluation.completeness === "complete") {
@@ -462,7 +219,6 @@ export async function kbAskPipeline(
           calibratedCompleteness = "incomplete"
         }
 
-        // If doc has no code blocks but user asks for usage/examples, downgrade
         const hasCodeBlock = /```[\s\S]*?```/.test(content)
         const userWantsUsage = /用法|example|how.to|usage|api|tool|function|method|class|component|用|使/.test(query)
         if (!hasCodeBlock && userWantsUsage && calibratedCompleteness === "complete") {
@@ -482,7 +238,6 @@ export async function kbAskPipeline(
           hint: `KB match (score=${best.score}, relevance=${evaluation.relevanceScore}, completeness=${calibratedCompleteness}${calibratedCompleteness !== evaluation.completeness ? ` [calibrated from ${evaluation.completeness}, content=${contentLen}c]` : ""}, loop=${loop})`,
         }
 
-        // incomplete → quick web supplement, partial → deep research directly
         if (calibratedCompleteness === "incomplete") {
           const augQuery = evaluation.webSearchQuery || intent.rewrittenQuery || query
           return await augmentWithWebSearch(baseResult, augQuery, maxWebResults)
@@ -492,7 +247,6 @@ export async function kbAskPipeline(
           const researchQuery = evaluation.webSearchQuery || intent.rewrittenQuery || query
           const research = await autoResearch(researchQuery, allQueriesUsed)
           if (research) return research
-          // research failed, fall through to web search suggestion
         }
 
         if (evaluation.webSearchRecommended && evaluation.webSearchQuery) {
@@ -651,7 +405,6 @@ export async function kbAskPipeline(
     if (loop >= maxLoops) break
   }
 
-  // KB miss — try web search before returning miss response
   if (maxWebResults > 0) {
     try {
       const webResults = await searchViaPipeline(
@@ -675,7 +428,6 @@ export async function kbAskPipeline(
         }
       }
     } catch {
-      // web search failed — try auto research
     }
 
     const researchResult = await autoResearch(query, allQueriesUsed)
@@ -703,7 +455,6 @@ async function autoResearch(query: string, allQueriesUsed: string[]): Promise<As
     const drSuccess = dr.filter(r => r.success).length
     const sources = (result.sources || []).map(s => `- [${s.title}](${s.url})`).slice(0, 10).join("\n")
 
-    // Extract keywords from search result titles + query terms
     const searchTitleWords = (result.searchResults || [])
       .flatMap(r => r.title.split(/[\s|\-–—:：,，.·/\\()（）\[\]]+/))
       .filter(w => w.length > 2 && w.length < 30)

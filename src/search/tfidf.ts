@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import { parseFrontmatter } from "../storage/markdown"
 import type { DocMeta } from "../storage/index"
 import { tokenize } from "../utils/tokenizer"
+import { recordCacheHit, recordCacheMiss } from "./perf-metrics.js"
 
 function readDocBody(filePath: string): string {
   try {
@@ -78,8 +79,10 @@ function evictTfCache() {
 function getCachedWeightedTF(doc: DocMeta): Map<string, number> {
   const cached = tfVectorCache.get(doc.id)
   if (cached && Date.now() - cached.time < TF_CACHE_TTL) {
+    recordCacheHit("tf")
     return cached.vec
   }
+  recordCacheMiss("tf")
   evictTfCache()
   const vec = buildWeightedTF(doc)
   tfVectorCache.set(doc.id, { time: Date.now(), vec })
@@ -97,7 +100,7 @@ function buildIDFUncached(docs: DocMeta[]): Map<string, number> {
   }
   const idf = new Map<string, number>()
   for (const [token, count] of df) {
-    idf.set(token, Math.log(N / (1 + count)))
+    idf.set(token, Math.max(0, Math.log((1 + N) / (1 + count))))
   }
   return idf
 }

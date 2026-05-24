@@ -3,6 +3,7 @@ import { loadConfig, saveConfig } from "../config.js"
 import type { AppConfig } from "../config.js"
 import { getStorageStats } from "../search/vector-store.js"
 import { searchStats, llmStats, embeddingStats, mcpStats } from "../statistics/index.js"
+import { getSearchMetrics, resetSearchMetrics } from "../search/perf-metrics.js"
 import { json } from "./helpers.js"
 import { configUpdateSchema, statsResetSchema } from "./schemas.js"
 import { parseBodyTyped } from "./validate.js"
@@ -126,6 +127,15 @@ export async function handleConfigRoutes(req: IncomingMessage, res: ServerRespon
         lastCalled: t.lastCalledAt,
       })),
     })
+    return true
+  }
+  if (url.pathname === "/api/stats/search-metrics" && req.method === "GET") {
+    json(res, getSearchMetrics())
+    return true
+  }
+  if (url.pathname === "/api/stats/search-metrics" && req.method === "POST" && url.searchParams.has("reset")) {
+    resetSearchMetrics()
+    json(res, { success: true })
     return true
   }
   if (url.pathname === "/api/stats/reset" && req.method === "POST") {

@@ -35,7 +35,7 @@ export interface SearchConfig {
   mode: "combined" | "tfidf" | "semantic"
   minScore: number
   combinedMinScore: number
-  weights: { token: number; tfidf: number; semantic: number }
+  weights: { token: number; tfidf: number; semantic: number; fuzzy: number }
 }
 
 export interface SkillConfig {
@@ -139,7 +139,7 @@ const DEFAULT_CONFIG: AppConfig = {
     mode: "combined",
     minScore: 5.0,
     combinedMinScore: 0.05,
-    weights: { token: 0.2, tfidf: 0.3, semantic: 0.5 },
+    weights: { token: 0.2, tfidf: 0.25, semantic: 0.45, fuzzy: 0.1 },
   },
   skills: {
     paths: DEFAULT_SKILL_PATHS,

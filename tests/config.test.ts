@@ -40,8 +40,9 @@ describe("config", () => {
       expect(config.search.minScore).toBe(5.0)
       expect(config.search.combinedMinScore).toBe(0.05)
       expect(config.search.weights.token).toBe(0.2)
-      expect(config.search.weights.tfidf).toBe(0.3)
-      expect(config.search.weights.semantic).toBe(0.5)
+      expect(config.search.weights.tfidf).toBe(0.25)
+      expect(config.search.weights.semantic).toBe(0.45)
+      expect(config.search.weights.fuzzy).toBe(0.1)
     })
 
     test("should have correct default skills config", () => {
