@@ -70,6 +70,7 @@ export async function handleConfigRoutes(req: IncomingMessage, res: ServerRespon
       storage: { ...current.storage, ...update.storage },
       timeouts: { ...current.timeouts, ...update.timeouts },
       askPipeline: { ...current.askPipeline, ...update.askPipeline },
+      chat: { webSearch: { ...current.chat?.webSearch, ...update.chat?.webSearch } },
     }
 
     saveConfig(merged)

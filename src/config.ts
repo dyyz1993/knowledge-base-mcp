@@ -106,6 +106,14 @@ export interface AskPipelineConfig {
   lowScoreThreshold: number
 }
 
+export interface ChatWebSearchConfig {
+  enabled: boolean
+}
+
+export interface ChatConfig {
+  webSearch: ChatWebSearchConfig
+}
+
 export interface AppConfig {
   embedding: EmbeddingConfig
   search: SearchConfig
@@ -116,6 +124,7 @@ export interface AppConfig {
   storage: StorageConfig
   timeouts: TimeoutsConfig
   askPipeline: AskPipelineConfig
+  chat: ChatConfig
 }
 
 const DEFAULT_SKILL_PATHS = [
@@ -199,6 +208,11 @@ const DEFAULT_CONFIG: AppConfig = {
     highScoreThreshold: 45,
     lowScoreThreshold: 20,
   },
+  chat: {
+    webSearch: {
+      enabled: process.env.CHAT_WEB_SEARCH === "true",
+    },
+  },
 }
 
 function expandPath(p: string): string {
@@ -254,6 +268,7 @@ export function loadConfig(forceReload = false): AppConfig {
         storage: { ...DEFAULT_CONFIG.storage, ...raw.storage },
         timeouts: { ...DEFAULT_CONFIG.timeouts, ...raw.timeouts },
         askPipeline: { ...DEFAULT_CONFIG.askPipeline, ...raw.askPipeline },
+        chat: { webSearch: { ...DEFAULT_CONFIG.chat.webSearch, ...raw.chat?.webSearch } },
       }
       configCache = result
       configCacheTime = now
@@ -262,7 +277,7 @@ export function loadConfig(forceReload = false): AppConfig {
   } catch (e) {
     logger.warn(e instanceof Error ? e.message : String(e))
   }
-  const fallback = { ...DEFAULT_CONFIG, skills: { ...DEFAULT_CONFIG.skills, paths: DEFAULT_CONFIG.skills.paths.map(expandPath) }, storage: { ...DEFAULT_CONFIG.storage }, timeouts: { ...DEFAULT_CONFIG.timeouts }, askPipeline: { ...DEFAULT_CONFIG.askPipeline } }
+  const fallback = { ...DEFAULT_CONFIG, skills: { ...DEFAULT_CONFIG.skills, paths: DEFAULT_CONFIG.skills.paths.map(expandPath) }, storage: { ...DEFAULT_CONFIG.storage }, timeouts: { ...DEFAULT_CONFIG.timeouts }, askPipeline: { ...DEFAULT_CONFIG.askPipeline }, chat: { ...DEFAULT_CONFIG.chat } }
   configCache = fallback
   configCacheTime = now
   return fallback
