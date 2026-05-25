@@ -1,58 +1,86 @@
 # Module: ask
 # Reusable operation sequences
+# Version: 3
+# Last updated: 2026-05-25
 
 ask_query_flow:
   description: "Submit a query in the Ask page and wait for response"
   steps:
-    - action: click
-      selector: "button:has-text('Ask')"
+    - action: find
+      selector: "text 'Ask'"
+      subaction: click
       description: "Navigate to Ask tab"
-    - action: type
-      selector: "textarea[placeholder*='你想了解什么']"
-      description: "Type query into input"
+    - action: eval
+      selector: "javascript"
+      value: "nativeInputValueSetter.call(textarea, 'query'); textarea.dispatchEvent(new Event('input', {bubbles:true}))"
+      description: "Set textarea value using native setter (React-compatible)"
     - action: click
-      selector: "button.shrink-0.bg-amber-600"
-      description: "Click amber submit button"
+      selector: "button.bg-amber-600"
+      description: "Click amber Send button"
   wait_after_submit: 60000
-  expected_result: "Response appears with knowledge content or web search results"
-  notes: "Response can take 30-90 seconds. Use 'text=知识库命中' to verify KB hit. Use 'text=停止查询' to detect loading state."
-  critical_note: "Must use type (not fill) for textarea to properly trigger React state. Fill may not enable the submit button."
+  expected_result: "Response card appears — can be KB hit (green border, '知识库命中') or multi-source pipeline result. Response includes structured answer with citations."
+  notes: "Response takes 30-100s for complex queries. '停止查询' button visible during loading. Loading text shows '正在搜索知识库...'. For KB hits, shows green border with 相似度 score."
+  critical_note: "Must use nativeInputValueSetter (NOT fill) for textarea to properly trigger React state. Fill/type may not enable the submit button."
 
-ask_with_model_selection:
-  description: "Select a specific model before querying"
+ask_suggestion_click:
+  description: "Click a suggested query to fill the textarea"
   steps:
-    - action: click
-      selector: "[role='combobox']"
-      description: "Open model selector dropdown"
-    - action: click
-      selector: "option:has-text('GLM-4.5 Air')"
-      description: "Select desired model"
-    - action: type
-      selector: "textarea[placeholder*='你想了解什么']"
-      description: "Type query"
-    - action: click
-      selector: "button.shrink-0.bg-amber-600"
-      description: "Submit query"
-  wait_after_submit: 60000
+    - action: find
+      selector: "text '如何配置 semantic search'"
+      subaction: click
+      description: "Click suggestion text (use find text, not eval click)"
+  expected_result: "Textarea value is populated with the suggestion text"
+  notes: "Must use 'agent-browser find text ... click' command. DOM eval click does NOT trigger React state update."
 
-ask_mode_selection:
-  description: "Switch between quick/standard/deep modes"
+ask_mode_switch:
+  description: "Switch between Quick/Standard/Deep research modes"
   steps:
-    - action: click
-      selector: "button:has-text('标准 (12步)')"
-      description: "Select standard mode (12 steps)"
-  expected_result: "Mode button becomes active/selected"
-  notes: "Default mode is quick (5 steps). Agent mode button is disabled by default."
+    - action: eval
+      selector: "javascript"
+      value: "document.querySelectorAll('button[aria-pressed]')[0].click()"
+      description: "Click Quick mode (index 0)"
+    - action: eval
+      selector: "javascript"
+      value: "document.querySelectorAll('button[aria-pressed]')[2].click()"
+      description: "Click Deep mode (index 2)"
+  expected_result: "Selected mode shows aria-pressed='true', different bg color"
+  notes: "Index 0=Quick(amber), 1=Standard(purple, default), 2=Deep(blue)"
+
+ask_empty_state_verification:
+  description: "Verify the Ask panel empty state elements"
+  steps:
+    - action: find
+      selector: "text 'Ask'"
+      subaction: click
+      description: "Navigate to Ask tab"
+  expected_result: "Shows Sparkles icon, '智能问答' title, description, 普通查询 card (amber), Agent 深度研究 card (purple), suggestion queries, disabled Send/Agent buttons"
+  elements_to_verify:
+    - "Sparkles SVG icon exists"
+    - "Title '智能问答'"
+    - "Description about 知识库 first search"
+    - "Card '普通查询' with amber label"
+    - "Card 'Agent 深度研究' with purple label"
+    - "Suggestion queries (2+ items)"
+    - "Textarea with placeholder '你想了解什么？描述一下你的问题...'"
+    - "3 mode buttons (aria-pressed)"
+    - "Standard mode default selected (aria-pressed=true)"
+    - "Send button disabled (opacity-30)"
+    - "Agent button disabled (opacity-30)"
+    - "Model selector (select element)"
 
 tips:
-  - "CRITICAL: Use type command, NOT fill, for the query textarea — fill doesn't trigger React onChange properly"
-  - "Submit button is amber (bg-amber-600), small (32x32px), located at right of input area"
-  - "Submit button starts disabled and enables only after text is typed"
-  - "Response streaming can take 30-90 seconds, '停止查询' button visible during loading"
-  - "KB hit shows '知识库命中' with similarity score"
-  - "Response includes markdown with headings, tables, code blocks, and references"
-  - "Model selector defaults to 'GLM-4.5 Air'"
-  - "Agent mode (深度研究) button is disabled by default — may need specific conditions to enable"
-  - "Ref selectors (@e26, @e31) change after clicking Ask tab — always re-snapshot"
-  - "Previous bug: text doubling (什么是知识库什么是知识库) — FIXED in current version"
-  - "Previous bug: 'Failed to fetch' error — FIXED in current version"
+  - "CRITICAL: Use nativeInputValueSetter + Event('input') for textarea — fill/type may not trigger React onChange"
+  - "CRITICAL: For clicking suggestions, use 'agent-browser find text ... click' — DOM eval click doesn't trigger React state"
+  - "Mode buttons have only SVG icons (no text), use aria-pressed attribute and index to identify"
+  - "Mode button styles: Quick=amber, Standard=purple (default), Deep=blue"
+  - "Two submit buttons: amber (Send/query) and purple (Agent research), both disabled when textarea empty"
+  - "Stop button ('停止查询') appears during active query, disappears when done"
+  - "Response can be KB hit (green border, '知识库命中' label, 相似度 score) or web search result (amber border)"
+  - "KB hit responses include: structured answer, numbered citations [1][2]..., and a '参考资料' section at the end"
+  - "KB hit has '展开'/'收起' toggle button for long responses"
+  - "Response wait time varies: 30s for simple KB hits, up to 100s for complex pipeline queries"
+  - "Model selector is a standard HTML select element with many model options"
+  - "Default model: GLM-4.5 Air"
+  - "Textarea auto-resizes: grows from 36px to 96px+ with multi-line content"
+  - "Previous bug: text doubling — FIXED"
+  - "Previous bug: 'Failed to fetch' error — FIXED"

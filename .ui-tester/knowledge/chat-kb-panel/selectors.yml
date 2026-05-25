@@ -1,0 +1,55 @@
+# Module: chat-kb-panel
+# Site: http://localhost:19877
+# Version: 1
+# Status: verified
+# Last verified: 2026-05-25
+# Verified in round: r1
+
+right_panel:
+  container: "aside:nth-of-type(2)"
+  kb_header: "KB text in aside"
+  width: "256px"
+
+search_tab:
+  tab_button: "[role='tablist'] [role='tab']:first-child"
+  tab_label: "搜索"
+  aria_selected_default: "true"
+
+outline_tab:
+  tab_button: "[role='tablist'] [role='tab']:nth-child(2)"
+  tab_label: "大纲"
+  aria_selected_default: "false"
+
+search_panel:
+  search_input: "aside:nth-of-type(2) input[placeholder='Search knowledge base...']"
+  go_button: "aside:nth-of-type(2) button (text: Go)"
+  write_to_kb_button: "aside:nth-of-type(2) button.border-dashed (text: Write to KB)"
+  empty_state_text: "Enter keywords to search the knowledge base"
+  no_data_image: "img[alt='No data']"
+  result_card_button: "button[aria-label^='展开']"
+  expanded_state: "button[aria-expanded='true']"
+
+outline_panel:
+  project_selector: "select (combobox with 184+ options)"
+  project_option_format: "project-name (doc-count)"
+  document_list: "div with document items"
+
+write_to_kb_modal:
+  trigger: "button.border-dashed.border-zinc-700 (text: Write to KB)"
+  dialog_role: "[role='dialog'][aria-modal='true']"
+  modal_class: "ant-modal (Ant Design modal)"
+  title_input: "input[placeholder='Title']"
+  content_textarea: "textarea[placeholder='Content (Markdown)']"
+  tags_input: "input[placeholder='Tags (comma separated)']"
+  keywords_input: "input[placeholder='Keywords (comma separated)']"
+  intent_input: "input[placeholder='Intent (brief description)']"
+  cancel_button: "button (text: Cancel)"
+  save_button: "button (text: Save)"
+
+favorites_section:
+  header: "text: Favorites"
+  list: "[aria-label='收藏列表'] or [role='list']"
+  list_item: "[role='listitem']"
+  item_text: "paragraph element"
+  item_timestamp: "text with date"
+  delete_button: "button (opacity:0, shows on hover)"

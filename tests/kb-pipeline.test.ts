@@ -89,8 +89,8 @@ describe("multiSearch", () => {
     const result = await multiSearch(["q1", "q2"])
     const docA = result.find(r => r.id === "a")
     expect(docA).toBeDefined()
-    // RRF: doc-a appears at rank 0 in q1 (1/61) and rank 0 in q2 (1/61) = 2/61
-    expect(docA!.score).toBeCloseTo(2 / 61, 10)
+    // RRF: doc-a appears at rank 0 in q1 (1000/61) and rank 0 in q2 (1000/61) = 2000/61
+    expect(docA!.score).toBeCloseTo(2000 / 61, 10)
     expect(result.find(r => r.id === "b")).toBeDefined()
   })
 

@@ -1,0 +1,61 @@
+# Module: theme
+# Reusable operation sequences
+
+toggle_theme:
+  description: "Toggle between light and dark theme"
+  steps:
+    - action: click
+      selector: "button[aria-label*='Switch to']"
+      description: "Click theme toggle button in header"
+  wait_after: 500
+  expected_result: "Theme switches, data-theme attribute changes, header/sidebar classes update"
+
+switch_to_dark:
+  description: "Switch to dark theme from any state"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "const btn = document.querySelector('button[aria-label*=\"Switch to\"]'); if (btn && btn.getAttribute('aria-label')?.includes('dark')) btn.click();"
+      description: "Click toggle if currently in light mode"
+  wait_after: 500
+  expected_result: "data-theme='dark', header bg-zinc-950, localStorage kb-theme='dark'"
+
+switch_to_light:
+  description: "Switch to light theme from any state"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "const btn = document.querySelector('button[aria-label*=\"Switch to\"]'); if (btn && btn.getAttribute('aria-label')?.includes('light')) btn.click();"
+      description: "Click toggle if currently in dark mode"
+  wait_after: 500
+  expected_result: "data-theme='light', header bg-white, localStorage kb-theme key removed"
+
+open_search_palette:
+  description: "Open the search palette (⌘K dialog)"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === 'SearchK'); if (btn) btn.click();"
+      description: "Click SearchK button"
+  wait_after: 500
+  expected_result: "Search dialog appears with input[placeholder='Search documents...']"
+
+close_settings_drawer:
+  description: "Close the settings drawer"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "document.querySelector('.ant-drawer-close')?.click(); document.querySelector('.ant-drawer-mask')?.click();"
+      description: "Click close button and mask"
+  wait_after: 500
+  expected_result: "Drawer slides closed, .ant-drawer no longer has 'open' class"
+
+tips:
+  - "Body always has bg-zinc-950 text-zinc-100 regardless of theme - only header/sidebar/content change"
+  - "Theme stored in localStorage as 'kb-theme'. Dark stores 'dark', light removes the key"
+  - "data-theme attribute on <html> is the source of truth for theme state"
+  - "html element always has class='dark' regardless of theme (likely Tailwind CSS requirement)"
+  - "Active tab in dark mode: bg-zinc-800 text-zinc-100. In light mode: bg-gray-200 text-gray-900"
+  - "Settings drawer uses Ant Design (ant-drawer), close via .ant-drawer-close or mask click"
+  - "Search palette is a cmdk dialog: bg-zinc-900 border-zinc-700 rounded-xl"
+  - "Theme toggle uses lucide icons: lucide-moon (light mode), lucide-sun (dark mode)"

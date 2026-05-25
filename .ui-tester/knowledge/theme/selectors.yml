@@ -1,0 +1,43 @@
+# Module: theme
+# Site: http://localhost:19877
+# Version: 1
+# Status: verified
+# Last verified: 2026-05-25
+# Verified in round: r1
+
+theme_toggle:
+  button_selector: "button[aria-label*='Switch to']"
+  dark_mode_label: "Switch to light theme"
+  light_mode_label: "Switch to dark theme"
+  dark_icon: "svg.lucide-sun"
+  light_icon: "svg.lucide-moon"
+
+theme_state:
+  html_dark_class: "dark"
+  data_attr: "data-theme"
+  dark_value: "dark"
+  light_value: "light"
+  storage_key: "kb-theme"
+  storage_dark_value: "dark"
+  storage_light_behavior: "key removed (no stored value = default light)"
+
+dark_mode_classes:
+  body: "bg-zinc-950 text-zinc-100"
+  header: "bg-zinc-950 border-zinc-800"
+  sidebar: "bg-zinc-950 border-zinc-800"
+  search_palette: "bg-zinc-900 border-zinc-700"
+  settings_drawer: "bg-zinc-950 border-zinc-800"
+  tab_active: "bg-zinc-800 text-zinc-100"
+
+light_mode_classes:
+  body: "bg-zinc-950 text-zinc-100"
+  header: "bg-white border-gray-200"
+  sidebar: "bg-white border-gray-200"
+  tab_active: "bg-gray-200 text-gray-900"
+
+navigation:
+  knowledge_base_tab: "button:text('Knowledge Base')"
+  ask_tab: "button:text('Ask')"
+  chat_tab: "button:text('Chat')"
+  search_button: "button containing svg.lucide-search (text='SearchK')"
+  settings_button: "button[aria-label='Open settings']"

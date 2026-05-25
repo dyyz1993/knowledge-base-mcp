@@ -1,0 +1,47 @@
+# Module: navigation
+# Reusable operation sequences
+
+tab_switch_flow:
+  description: "Switch between tabs using agent-browser"
+  steps:
+    - action: snapshot
+      selector: "header"
+      description: "Get fresh refs for header tab buttons"
+    - action: click
+      selector: "@ref" # Use refs from snapshot (e1=KB, e2=Ask, e3=Chat)
+      description: "Click target tab"
+    - action: wait
+      value: 1000
+      description: "Wait for DOM to settle (tab transition takes ~500ms)"
+  wait_after_submit: 1000
+  expected_result: "Target tab becomes active, content changes"
+
+verify_active_tab:
+  description: "Check which tab is currently active regardless of theme"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: |
+        const tabs = document.querySelectorAll('header.h-10 button');
+        let activeTab = '';
+        tabs.forEach(t => {
+          const name = t.textContent.trim();
+          if (['Knowledge Base','Ask','Chat'].includes(name)) {
+            if (t.className.includes('bg-zinc-800') || t.className.includes('bg-gray-200')) {
+              activeTab = name;
+            }
+          }
+        });
+        activeTab;
+      description: "Returns name of active tab (works in both light and dark mode)"
+
+tips:
+  - "IMPORTANT: Dark mode uses bg-zinc-800 for active tab, light mode uses bg-gray-200"
+  - "The Search button is conditionally rendered - only exists in DOM when KB tab is active"
+  - "Clicking already-active tab does NOT change state (same content remains)"
+  - "Tab state is persisted to localStorage key 'kb-active-tab'"
+  - "After tab click, wait at least 500ms-1000ms for DOM to update before checking"
+  - "header.h-10 targets the main nav header. A second header may exist on mobile layouts for chat details."
+  - "Using eval() for tab clicks via Array.from(...).find() is reliable across theme changes"
+  - "The ref-based click (@e1, @e2, @e3) is reliable but must re-snapshot after any navigation"
+  - "Page reload restores the last active tab from localStorage"

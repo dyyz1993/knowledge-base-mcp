@@ -1,0 +1,81 @@
+# Module: chat-kb-panel
+# Reusable operation sequences
+
+switch_to_chat_tab:
+  description: "Switch to Chat tab on wide screen (1280px+)"
+  steps:
+    - action: click
+      selector: "header button:has-text('Chat')"
+      description: "Click Chat tab in header"
+  wait_after: 1500
+  expected_result: "Right panel with KB functionality visible (aside:nth-of-type(2), width=256px)"
+
+search_kb_flow:
+  description: "Search knowledge base from Chat KB panel"
+  steps:
+    - action: fill
+      selector: "aside:nth-of-type(2) input[placeholder='Search knowledge base...']"
+      value: "search keyword"
+      description: "Type search keyword in KB search input"
+    - action: click
+      selector: "aside:nth-of-type(2) button (text: Go)"
+      description: "Click Go button to execute search"
+  wait_after: 1500
+  expected_result: "Search result cards appear with title, tags, score percentage"
+  api_call: "POST /api/search (200)"
+
+expand_card_flow:
+  description: "Expand a search result card to preview content"
+  steps:
+    - action: click
+      selector: "button[aria-label^='展开']"
+      description: "Click expand button on a search result card"
+  wait_after: 500
+  expected_result: "Card expands showing document content"
+  api_call: "GET /api/doc/{id} (200)"
+
+clear_search_flow:
+  description: "Clear search to show empty state"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "const input = document.querySelectorAll('aside')[1].querySelector('input'); const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; setter.call(input, ''); input.dispatchEvent(new Event('input', {bubbles: true}));"
+      description: "Clear input value programmatically"
+    - action: click
+      selector: "aside:nth-of-type(2) button (text: Go)"
+      description: "Click Go with empty input"
+  expected_result: "Shows 'No data' image and 'Enter keywords to search the knowledge base'"
+
+switch_to_outline_flow:
+  description: "Switch to Outline tab and browse project documents"
+  steps:
+    - action: click
+      selector: "[role='tab']:nth-child(2) (text: 大纲)"
+      description: "Click Outline tab"
+    - action: select
+      selector: "aside:nth-of-type(2) select"
+      value: "project-name"
+      description: "Select a project from dropdown"
+  wait_after: 1000
+  expected_result: "Document list for selected project appears"
+  api_call: "GET /api/outline (200)"
+
+open_write_to_kb_modal:
+  description: "Open the Write to Knowledge Base modal"
+  steps:
+    - action: click
+      selector: "button.border-dashed.border-zinc-700 (text: Write to KB)"
+      description: "Click dashed Write to KB button"
+  expected_result: "Ant Design modal opens with Title, Content, Tags, Keywords, Intent fields"
+
+tips:
+  - "Right panel only visible on Chat tab with wide screen (1280px+)"
+  - "Search results use POST /api/search endpoint"
+  - "Card expand uses GET /api/doc/{id} endpoint"
+  - "Outline tab uses GET /api/outline and GET /api/outlines endpoints"
+  - "Write to KB modal is Ant Design modal (ant-modal class)"
+  - "Delete buttons on favorites have opacity:0 and only appear on hover"
+  - "Project selector in Outline tab has 184+ options"
+  - "Favorites section can have many items (74+ in test environment)"
+  - "Search tab is labeled '搜索' and Outline tab is labeled '大纲'"
+  - "Empty search shows 'No data' image + 'Enter keywords to search the knowledge base' text"

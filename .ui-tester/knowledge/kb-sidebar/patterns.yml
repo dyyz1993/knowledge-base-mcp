@@ -1,0 +1,51 @@
+# Module: kb-sidebar
+# Reusable operation sequences
+
+sidebar_navigation:
+  description: "Navigate sidebar to find and select a document"
+  steps:
+    - action: click
+      selector: "button[aria-expanded]"
+      description: "Click project group to expand"
+    - action: wait
+      duration: 500
+      description: "Wait for expand animation"
+    - action: click
+      selector: "button.pl-8"
+      description: "Click document item to select"
+    - action: wait
+      duration: 500
+      description: "Wait for doc content to load"
+  expected_result: "Document highlighted, viewer shows content"
+
+expand_collapse_group:
+  description: "Toggle project group expand/collapse"
+  steps:
+    - action: click
+      selector: "button[aria-expanded='true']"
+      description: "Click expanded group to collapse"
+    - action: wait
+      duration: 300
+      description: "Wait for collapse"
+  expected_result: "aria-expanded toggles between true/false, doc list shows/hides"
+
+switch_document:
+  description: "Switch selection from one document to another"
+  steps:
+    - action: click
+      selector: "button.pl-8.bg-zinc-900"
+      description: "Click currently selected doc (note: selection exists)"
+    - action: click
+      selector: "button.pl-8:not(.bg-zinc-900)"
+      description: "Click different doc to switch"
+  expected_result: "Old doc loses bg-zinc-900 and aria-current, new doc gains both"
+
+tips:
+  - "Sidebar header icon is lucide-database (not folder-open as originally planned)"
+  - "Document buttons are conditionally rendered - collapsing group removes them from DOM"
+  - "Selected doc has bg-zinc-900 class + text-zinc-100; unselected has text-zinc-400"
+  - "Total count badge is in header as span.ml-auto.text-xs.text-zinc-600"
+  - "Scroll area has overflow-y-auto with large scrollHeight (35K+ px for 1200+ docs)"
+  - "Doc title truncation uses 'truncate' class (overflow:hidden, text-overflow:ellipsis, white-space:nowrap)"
+  - "Project groups use aria-expanded attribute for state tracking"
+  - "react-router Link wraps doc buttons - clicking triggers navigation + API POST to /api/docs"

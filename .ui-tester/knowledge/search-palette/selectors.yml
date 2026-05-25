@@ -1,0 +1,43 @@
+# Module: search-palette
+# Site: http://localhost:19877
+# Version: 2
+# Status: verified
+# Last verified: 2026-05-25
+# Last updated: 2026-05-25
+# Updated in round: r2
+
+search_button:
+  selector: "header.h-10 button"
+  note: "Find by text content includes 'Search'. Only visible when KB tab is active."
+  visible_on_tab: "kb"
+  text_content: "SearchK"
+  shortcut: "Meta+K (Cmd+K on macOS)"
+
+search_modal:
+  dialog_role: '[role="dialog"]'
+  aria_label: "搜索文档"
+  container_classes: "fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
+  close_button: 'button[aria-label="Close search"]'
+  input: '[role="dialog"] input'
+  input_alt: 'input[placeholder="Search documents..."]'
+  input_note: 'type="text" is implicit, not in HTML attribute. Use [role="dialog"] input or input[placeholder="Search documents..."]'
+  input_placeholder: "Search documents..."
+
+backdrop:
+  selector: ".fixed.inset-0[class*='bg-black']"
+  classes: "fixed inset-0 bg-black/60"
+  click_to_close: true
+
+search_results:
+  result_count_text: "N results found" or "No results found. Try different keywords?"
+  result_area: ".max-h-80.overflow-y-auto"
+  result_item: 'button[aria-label*="选择文档"]'
+  result_title: "button text content"
+  result_tags: "span elements with text-xs class (max 3 tags shown)"
+  result_score: "text like '0.5pt', '0.4pt' at end of each result"
+  loading_spinner: "svg.lucide-loader-circle.animate-spin"
+
+keyboard_shortcuts:
+  open: "Meta+K"
+  close: "Escape"
+  note: "⌘K only works on KB tab, not Ask or Chat tabs"

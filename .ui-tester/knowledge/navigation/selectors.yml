@@ -1,0 +1,47 @@
+# Module: navigation
+# Site: http://localhost:19877
+# Version: 1
+# Status: verified
+# Last verified: 2026-05-25
+# Last updated: 2026-05-25
+# Updated in round: r1
+
+header:
+  selector: "header.h-10"
+  note: "First header element. A second header may exist on mobile for chat details."
+
+tab_buttons:
+  kb_tab: "header.h-10 button" # Index 1 or find by text "Knowledge Base"
+  ask_tab: "header.h-10 button" # Index 2 or find by text "Ask"
+  chat_tab: "header.h-10 button" # Index 3 or find by text "Chat"
+  active_class_light: "bg-gray-200 text-gray-900"
+  active_class_dark: "bg-zinc-800 text-zinc-100"
+  note: "Use Array.from(header.querySelectorAll('button')).find(b => b.textContent.trim() === 'Tab Name') for reliable targeting"
+
+search_button:
+  selector: "header.h-10 button" # Find by text includes "Search"
+  note: "Only visible when KB tab is active. Rendered conditionally."
+  visible_on_tab: "kb"
+  text_content: "SearchK" # Contains ⌘K
+
+settings_button:
+  selector: "header.h-10 button[aria-label='Open settings']"
+  note: "Always visible regardless of active tab"
+
+theme_button:
+  selector: "header.h-10 button[aria-label='Switch to dark theme']"  # or 'Switch to light theme'
+  note: "Toggles between dark/light. Dark mode adds class 'dark' to <html>"
+
+version_label:
+  selector: "header.h-10 span.text-\\[10px\\]"
+  note: "Small version text like 'v2.47.0'. Always visible."
+
+sidebar:
+  kb_sidebar: "aside" # Shows document list on KB tab
+  chat_sidebar: "aside" # Shows session list on Chat tab
+  note: "Same aside element, content changes based on active tab"
+
+localStorage:
+  key: "kb-active-tab"
+  values: ["kb", "ask", "chat"]
+  note: "Persisted on tab switch, restored on page reload"

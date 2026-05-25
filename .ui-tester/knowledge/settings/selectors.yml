@@ -1,46 +1,79 @@
 # Module: settings
 # Site: http://localhost:19877
-# Version: 1
+# Version: 2
 # Status: verified
-# Last verified: 2026-05-22
-# Verified in round: p2
+# Last verified: 2026-05-25
+# Verified in round: r3
 
-settings_page:
-  gear_button: "button:has(svg.lucide-settings) | document.querySelectorAll('button')[4]"
-  close_button: "button:text('Close')"
+settings_drawer:
+  open_button: "button[aria-label='Open settings'] | 6th button in nav header"
+  close_button: "button[aria-label='Close'] | .ant-drawer-close"
+  title: ".ant-drawer-title"
+  drawer_container: ".ant-drawer-right"
 
-navigation:
-  knowledge_base_tab: "button:text('Knowledge Base')"
-  ask_tab: "button:text('Ask')"
-  chat_tab: "button:text('Chat')"
-  new_chat: "button:text('New Chat')"
+skill_path_section:
+  section_header: "Text contains 'SKILL 路径管理' with FolderSearch icon"
+  scanned_path_tags: ".ant-tag (removable, with close icon)"
+  path_input: "input[placeholder*='~/path']"
+  add_button: "button text 'Add'"
+  scan_skills_button: "button text 'Scan Skills'"
+
+browser_config_section:
+  section_header: "Text contains 'BROWSER 配置'"
+  cdp_endpoint_input: "input[placeholder*='ws://']"
+  browser_path_input: "input[placeholder*='Chrome/Chromium']"
+  detect_button: "button text 'Detect'"
+  headless_switch: ".ant-switch (1st switch, index 0, default ON)"
+  timeout_spinbutton: ".ant-input-number (1st spinbutton, index 0, default 15000ms)"
+
+web_search_section:
+  section_header: "Text contains 'WEB SEARCH' with Sparkles icon"
+  enable_toggle: ".ant-switch (2nd switch, index 1, default ON)"
+  api_key_input: "input[placeholder*='智谱'] (type=password)"
+
+embedding_section:
+  section_header: "Text contains 'EMBEDDING' with Brain icon"
+  enabled_switch: ".ant-switch (3rd switch, index 2, default ON)"
+  provider_select: ".ant-select (1st combobox)"
+  base_url_input: "input[value*='siliconflow']"
+  api_key_input: "input[placeholder='sk-xxx'] (type=password, 1st occurrence)"
+  eye_toggle_button: "button containing .lucide-eye icon (1st eye button)"
+  model_select: ".ant-select (2nd combobox)"
+  dimensions_input: ".ant-input-number (2nd spinbutton, default 1024)"
+
+search_section:
+  section_header: "Text contains 'SEARCH' (not PIPELINE)"
+  search_mode_select: ".ant-select (3rd combobox, shows 'Combined (Hybrid)')"
+  min_score_threshold: ".ant-input-number (3rd spinbutton, default 5.0)"
+  token_weight_slider: ".ant-slider (1st slider, default 20%)"
+  tfidf_weight_slider: ".ant-slider (2nd slider, default 30%)"
+  semantic_weight_slider: ".ant-slider (3rd slider, default 50%)"
 
 search_pipeline_section:
-  section_header: "contains text '搜索管道' or 'SEARCH PIPELINE'"
-  enable_switch: ".ant-switch within parent containing '搜索管道'"
+  section_header: "Text contains '搜索管道' with Layers icon"
+  enable_switch: ".ant-switch (4th switch, index 3, default ON)"
+  websearch_prime_switch: ".ant-switch (5th switch, index 4, default ON)"
+  xbrowser_switch: ".ant-switch (6th switch, index 5, default ON)"
   engine_tags:
-    container: ".flex.flex-wrap.gap-1.5"
-    bing: "span.ant-tag:text('Bing')"
-    google: "span.ant-tag:text('Google')"
-    baidu: "span.ant-tag:text('Baidu')"
-    duckduckgo: "span.ant-tag:text('DuckDuckGo')"
-  cdp_endpoint_input: "input[placeholder*='ws://']"
-  headless_switch: ".ant-switch within XBrowser sub-section"
-  timeout_input: ".ant-input-number within XBrowser sub-section"
-
-search_config_section:
-  search_mode_select: ".ant-select containing 'Combined (Hybrid)'"
-  weight_sliders:
-    token: ".ant-slider-handle[aria-valuenow] within parent containing 'Token'"
-    tfidf: ".ant-slider-handle[aria-valuenow] within parent containing 'TF-IDF'"
-    semantic: ".ant-slider-handle[aria-valuenow] within parent containing 'Semantic'"
+    bing: ".ant-tag text 'Bing'"
+    google: ".ant-tag text 'Google'"
+    baidu: ".ant-tag text 'Baidu'"
+    duckduckgo: ".ant-tag text 'DuckDuckGo'"
+  xbrowser_cdp_input: "input[value='ws://localhost:9221']"
+  xbrowser_headless_switch: ".ant-switch (7th switch, index 6, default ON)"
+  xbrowser_timeout_input: ".ant-input-number (4th spinbutton, default 30000ms, range 5000-120000)"
 
 llm_direct_section:
-  toggle: ".ant-switch within parent containing 'LLM 直接回答'"
-  base_url_input: "input[placeholder='https://api.example.com/v1']"
-  api_key_input: "input[placeholder='sk-xxx']"
-  model_input: "input[placeholder='gpt-4o / deepseek-chat']"
+  toggle: ".ant-switch (8th switch, index 7, default OFF)"
+  base_url_input: "input[placeholder*='api.example.com']"
+  api_key_input: "input[placeholder='sk-xxx'] (2nd occurrence, type=password)"
+  model_input: "input[placeholder*='gpt-4o']"
 
-chat_section:
-  message_input: "textarea[placeholder='Type a message...']"
-  send_button: "button near textarea, becomes enabled when text entered"
+plugin_slot_section:
+  prompt_input: "input[placeholder*='插件描述']"
+  max_results_input: ".ant-input-number (5th spinbutton, default 10)"
+
+footer:
+  save_button: "button text 'Save'"
+  reindex_button: "button text 'Reindex'"
+  test_button: "button text 'Test' (with wifi icon indicator)"

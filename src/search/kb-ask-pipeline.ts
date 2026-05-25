@@ -77,7 +77,7 @@ export async function multiSearch(queries: string[], limit = 5): Promise<(DocMet
     const results = await _deps.searchDocsCombined(q, undefined, undefined, limit)
     for (let rank = 0; rank < results.length; rank++) {
       const r = results[rank]
-      const rrfScore = 1 / (RRF_K + rank + 1)
+      const rrfScore = 1000 / (RRF_K + rank + 1)
       const existing = seen.get(r.id)
       if (existing) {
         existing.score += rrfScore

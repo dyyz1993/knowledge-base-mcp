@@ -1,0 +1,37 @@
+# Module: doc-viewer
+# Site: http://localhost:19877
+# Version: 1
+# Status: verified
+# Last updated: 2026-05-25
+# Updated in round: r1
+
+empty_state:
+  text: "Select a document to view"
+  container: "div.flex-1 > div.flex.items-center.justify-center"
+
+toolbar:
+  container: "div.sticky.top-0.z-10"
+  doc_title_span: "span.text-sm.text-zinc-300.truncate"
+  doc_id_span: "span.text-xs.text-zinc-600.font-mono"
+  copy_ref_button: "button[aria-label='复制文档引用']"
+  copy_ref_text: "Copy Reference"
+
+content_area:
+  article_role: "[role='article']"
+  content_wrapper: "div.max-w-4xl.mx-auto.px-8.py-6"
+  prose_container: "div.prose.prose-invert"
+
+metadata:
+  h1_title: "h1.text-2xl.font-semibold"
+  clock_icon: "svg.lucide-clock"
+  clock_date_span: "span.flex.items-center.gap-1"  # contains clock svg + date text
+  external_link_icon: "svg.lucide-external-link"
+  external_link_span: "span.flex.items-center.gap-1"  # contains ext-link svg + project text
+  tag_badges: ".mb-6 .inline-block.px-2.py-0\\.5"
+  keywords_div: ".text-xs.text-zinc-600"
+
+code_blocks:
+  container: "div.rounded-lg.overflow-hidden"
+  lang_label: "span.font-mono"
+  copy_button: "button"  # within code block header
+  syntax_highlight: "span[style*='color']"

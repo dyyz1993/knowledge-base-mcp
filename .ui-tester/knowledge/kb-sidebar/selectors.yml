@@ -1,0 +1,37 @@
+# Module: kb-sidebar
+# Site: http://localhost:19877
+# Version: 1
+# Status: verified
+# Last updated: 2026-05-25
+# Updated in round: r1
+
+sidebar:
+  container: "aside.w-72.shrink-0"
+  header_area: ".w-72 > div:first-child"
+  scroll_area: ".w-72 > div.flex-1.overflow-y-auto"
+  title_text: "span.text-sm.font-medium"
+  total_count_badge: "span.ml-auto.text-xs.text-zinc-600"
+  width_class: "w-72"
+  fixed_width_style: "shrink-0"
+
+project_groups:
+  group_button: "button[aria-expanded]"
+  group_name_span: "button[aria-expanded] span:first-child"
+  group_count_span: "button[aria-expanded] span:last-child"
+  expand_state: "aria-expanded attribute"
+  chevron_icon: "svg.lucide-chevron-right, svg.lucide-chevron-down"
+
+document_items:
+  doc_button: "button.pl-8[aria-current]"
+  doc_title_span: "button.pl-8 span.truncate"
+  doc_icon: "svg.lucide-file-text"
+  selected_class: "bg-zinc-900"
+  selected_text_class: "text-zinc-100"
+  unselected_text_class: "text-zinc-400"
+  selected_aria: "aria-current='page'"
+  truncated_class: "truncate"
+  indent_class: "pl-8"
+
+doc_viewer:
+  container: "#root > div > div.flex > div.flex-1"
+  content_area: "div.flex-1.overflow-y-auto"

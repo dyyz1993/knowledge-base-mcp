@@ -2,80 +2,39 @@
 
 ## 项目信息
 - **目标**: http://localhost:19877
-- **创建时间**: 2026-05-21
-- **最后更新**: 2026-05-22
-- **版本**: v2.42.0
+- **创建时间**: 2026-05-25
+- **最后更新**: 2026-05-25
+- **版本**: v2.47.0
 
 ## 模块进度
 | 模块 | 用例数 | 通过 | 失败 | 跳过 | 状态 |
 |------|--------|------|------|------|------|
-| navigation | 4 | 4 | 0 | 0 | ✅ |
-| kb-browse | 8 | 8 | 0 | 0 | ✅ |
-| search | 6 | 6 | 0 | 0 | ✅ |
-| ask-query | 8 | 8 | 0 | 0 | ✅ |
-| ask-research | 4 | 4 | 0 | 0 | ✅ |
-| chat | 8 | 8 | 0 | 0 | ✅ |
-| settings | 6 | 6 | 0 | 0 | ✅ |
-| responsive | 4 | 4 | 0 | 0 | ✅ |
-| edge-cases | 10 | 10 | 0 | 0 | ✅ |
-| stress | 6 | 6 | 0 | 0 | ✅ |
-| session-advanced | 4 | 4 | 0 | 0 | ✅ |
-| kb-panel | 4 | 4 | 0 | 0 | ✅ |
-| ask-advanced | 8 | 8 | 0 | 0 | ✅ |
-| docviewer | 4 | 4 | 0 | 0 | ✅ |
-| settings-advanced | 4 | 4 | 0 | 0 | ✅ |
-| chat-advanced | 4 | 4 | 0 | 0 | ✅ |
-| keyboard | 1 | 1 | 0 | 0 | ✅ |
+| [theme](modules/theme.md) | 15 | 15 | 0 | 0 | ✅ 已完成 |
+| [navigation-tabs](modules/navigation-tabs.md) | 14 | 14 | 0 | 0 | ✅ 已完成 |
+| [kb-sidebar](modules/kb-sidebar.md) | 15 | 15 | 0 | 0 | ✅ 已完成 |
+| [doc-viewer](modules/doc-viewer.md) | 16 | 15 | 0 | 1 | ✅ 已完成 |
+| [search-palette](modules/search-palette.md) | 18 | 18 | 0 | 0 | ✅ 已完成 |
+| [ask-panel](modules/ask-panel.md) | 20 | 20 | 0 | 0 | ✅ 已完成 |
+| [chat-panel](modules/chat-panel.md) | 30 | 30 | 0 | 0 | ✅ 已完成 |
+| [settings-panel](modules/settings-panel.md) | 46 | 46 | 0 | 0 | ✅ 已完成 |
+| [chat-kb-panel](modules/chat-kb-panel.md) | 19 | 19 | 0 | 0 | ✅ 已完成 |
+| [responsive-mobile](modules/responsive-mobile.md) | 13 | 12 | 0 | 1 | ✅ 已完成 |
 
 ## 总计
-- 总用例：93
-- 已通过：93
+- 总用例：206
+- 已通过：204
 - 已失败：0
+- 已跳过：2
 - 完成率：100%
-- 通过率：100%
+- 通过率：100%（排除 skip）
 
-## 发现并修复的 Bug（28个）
+## 发现的 Bug（2个）
+1. **P3-轻微**: DocViewer 切换文档后滚动位置未重置
+2. **P2-一般**: 移动端 375px Chat 代码块水平溢出
 
-### 安全漏洞（3）
-1. 静态文件路径遍历漏洞
-2. SSRF 绕过（web-read/deep-read 未校验 URL）
-3. 零安全响应头
-
-### 可靠性（7）
-4. callLlm 静默失败返回空字符串
-5. SSE 心跳 interval 泄漏
-6. SSE 断连不中止研究操作
-7. 搜索 fallback 错误被吞掉
-8. NaN parseInt 无 fallback
-9. POST body 无类型验证（/api/docs/write、/api/ingest-site）
-10. /api/stats/usage 同步 curl 阻塞事件循环
-
-### 前端 Bug（11）
-11. 搜索 API 响应格式不匹配
-12. Ask 查询文本重复（isComposing + 竞态）
-13. Ask 结果截断无展开/折叠按钮
-14. Tailwind 动态 class 编译后不存在
-15. Test Connection 调错端点（新增 /api/embedding/test）
-16. SearchPalette 搜索无防抖
-17. 删除会话无确认对话框
-18. Tab 刷新后不记住
-19. 文档截断指示器后端未激活
-20. Ask textarea 无自动调整高度
-21. 搜索结果无数量提示
-
-### 可访问性（4）
-22. SearchPalette 关闭按钮缺 aria-label
-23. App 汉堡菜单/设置按钮缺 aria-label
-24. ChatPanel 发送/停止按钮缺 aria-label
-25. SessionList 删除按钮缺 aria-label
-
-### UX（3）
-26. SearchPalette 无 Escape 关闭
-27. SearchPalette 无焦点管理
-28. Config PUT 丢失未知 source 类型
-
-## 代码质量审计清单（低优先级，未修）
-- handle-api.ts 巨型函数（1050 行），建议拆分
-- 深度读取逻辑重复 3 处，建议抽共享工具
-- LRU Cache O(n) 淘汰，建议改双向链表
-- readBody 销毁后残留监听器
+## 测试报告位置
+- `/tmp/ui-test-screenshots/theme-20260525-103333/`
+- `/tmp/ui-test-screenshots/nav-tabs-20260525-105830/`
+- `/tmp/ui-test-screenshots/kb-sidebar-20260525-114039/`
+- `/tmp/ui-test-screenshots/search-palette-20260525-120322/`
+- `/tmp/ui-test-screenshots/chat-panel-20260525-122815/`

@@ -1,0 +1,91 @@
+# Module: search-palette
+# Reusable operation sequences
+
+open_search_palette:
+  description: "Open the search palette via keyboard shortcut"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "document.dispatchEvent(new KeyboardEvent('keydown', {key: 'k', code: 'KeyK', metaKey: true, bubbles: true}))"
+      description: "Press ⌘K to open search"
+    - action: wait
+      value: 500
+      description: "Wait for modal animation"
+  expected_result: "Modal with role=dialog and aria-label='搜索文档' appears"
+
+open_search_by_click:
+  description: "Open the search palette by clicking the Search button"
+  steps:
+    - action: snapshot
+      selector: "header.h-10"
+      description: "Get header refs"
+    - action: click
+      selector: "@ref" # The Search button ref
+      description: "Click Search button in header"
+    - action: wait
+      value: 500
+  expected_result: "Search modal appears"
+  note: "Only works when KB tab is active"
+
+search_and_click_result:
+  description: "Search for a document and click a result"
+  steps:
+    - action: snapshot
+      selector: '[role="dialog"]'
+      description: "Get modal refs including input"
+    - action: fill
+      selector: '[role="dialog"] input'
+      value: "search query"
+      description: "Type search query"
+    - action: wait
+      value: 2000
+      description: "Wait for debounced search + API response"
+    - action: snapshot
+      selector: '[role="dialog"] .overflow-y-auto'
+      description: "Get result refs"
+    - action: click
+      selector: "@ref"
+      description: "Click desired result"
+    - action: wait
+      value: 1000
+  expected_result: "Modal closes, document opens in viewer"
+
+close_search_escape:
+  description: "Close search palette with Escape key"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "document.querySelector('[role=dialog] input').dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', code: 'Escape', bubbles: true}))"
+      description: "Press Escape on focused input"
+  expected_result: "Modal closes"
+
+close_search_backdrop:
+  description: "Close search palette by clicking backdrop"
+  steps:
+    - action: eval
+      selector: "javascript"
+      value: "document.querySelector('.fixed.inset-0[class*=\"bg-black\"]').click()"
+      description: "Click the semi-transparent backdrop"
+  expected_result: "Modal closes"
+
+close_search_button:
+  description: "Close search palette by clicking X button"
+  steps:
+    - action: snapshot
+      selector: '[role="dialog"]'
+      description: "Get close button ref"
+    - action: click
+      selector: 'button[aria-label="Close search"]'
+      description: "Click the X button"
+  expected_result: "Modal closes"
+
+tips:
+  - "Search has 300ms debounce - rapid typing only fires one API call for the final value"
+  - "Search button is conditionally rendered - only exists in DOM when KB tab is active"
+  - "⌘K shortcut only works on KB tab, NOT on Ask or Chat tabs"
+  - "Escape key dispatch on the input element works reliably for closing"
+  - "dispatchEvent for Escape on document also works when input is focused"
+  - "Loading spinner has class 'animate-spin' and appears briefly during search"
+  - "Results show title, up to 3 tags, and relevance score (e.g., '0.5pt')"
+  - "No results message is 'No results found. Try different keywords?'"
+  - "Result count shown as 'N results found' at top of results area"

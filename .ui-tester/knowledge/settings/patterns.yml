@@ -1,48 +1,111 @@
 # Module: settings
 # Reusable operation sequences
+# Version: 2
 
 open_settings:
-  description: "Open settings panel from any page"
+  description: "Open settings drawer from any page"
   steps:
-    - action: eval
-      selector: "document.querySelectorAll('button')[4].click()"
+    - action: click
+      selector: "button[aria-label='Open settings']"
       description: "Click gear icon in top nav bar"
-  expected_result: "Settings drawer opens on right side"
+    - action: wait
+      value: 1500
+      description: "Wait for drawer animation + API calls"
+  expected_result: "Settings drawer opens on right side, calls GET /api/config and GET /api/skills/paths"
 
-toggle_engine_tag:
-  description: "Toggle search engine tags on/off"
+close_settings:
+  description: "Close settings drawer"
   steps:
     - action: eval
-      selector: "document.querySelectorAll('span.ant-tag')"
-      description: "Find engine tag by text content, click to toggle"
-      notes: |
-        Selected state: bg rgba(31,111,235,0.2), color rgb(96,165,250), border rgb(59,130,246)
-        Unselected state: bg rgb(39,39,42), color rgb(161,161,170), border rgb(63,63,70)
-  expected_result: "Tag visual state changes between highlighted and muted"
+      selector: "document.querySelector('.ant-drawer [aria-label=\"Close\"]').click()"
+      description: "Click close button via eval (ref click may be blocked)"
+    - action: wait
+      value: 1000
+  expected_result: "Drawer closes"
+  notes: "Using eval click because agent-browser click on @ref may fail with 'blocked by another element'"
 
-toggle_llm_direct:
-  description: "Toggle LLM Direct section on/off"
+save_config:
+  description: "Save current configuration"
+  steps:
+    - action: click
+      selector: "button text 'Save'"
+      description: "Click Save button in footer"
+    - action: wait
+      value: 2000
+  expected_result: "PUT /api/config returns 200, drawer stays open"
+
+test_connection:
+  description: "Test embedding connection"
+  steps:
+    - action: click
+      selector: "button text 'Test'"
+      description: "Click Test button in footer"
+    - action: wait
+      value: 3000
+  expected_result: "POST /api/embedding/test returns 200, wifi icon shows green for success"
+
+close_and_reopen_preserves_values:
+  description: "Close and reopen settings, all values preserved"
   steps:
     - action: eval
-      selector: "Find .ant-switch in parent containing 'LLM 直接回答', click it"
-      description: "Toggle LLM Direct switch"
-  expected_result: "Base URL, API Key, Model fields appear/disappear"
+      selector: "document.querySelector('.ant-drawer [aria-label=\"Close\"]').click()"
+      description: "Close drawer"
+    - action: wait
+      value: 1500
+    - action: click
+      selector: "button[aria-label='Open settings']"
+      description: "Reopen settings"
+    - action: wait
+      value: 1500
+  expected_result: "All field values and switch states are preserved"
 
-send_chat_message:
-  description: "Send a message in Chat tab"
-  steps:
-    - action: fill
-      selector: "textarea[placeholder='Type a message...']"
-      description: "Type message in chat input"
-    - action: eval
-      selector: "Find enabled button near textarea, click"
-      description: "Click send button"
-  wait_after_submit: 15000
-  expected_result: "AI response with possible tool call blocks"
+switch_index_mapping:
+  description: "Switch index to function mapping (9 switches total)"
+  mapping:
+    - index: 0
+      function: "Headless mode (Browser section) - default ON"
+    - index: 1
+      function: "启用联网搜索 (Web Search) - default ON"
+    - index: 2
+      function: "Embedding Enabled - default ON"
+    - index: 3
+      function: "搜索管道 Enable - default ON"
+    - index: 4
+      function: "WebSearch Prime - default ON"
+    - index: 5
+      function: "XBrowser - default ON"
+    - index: 6
+      function: "XBrowser Headless - default ON"
+    - index: 7
+      function: "LLM 直接回答 - default OFF"
+    - index: 8
+      function: "Plugin slot toggle - default OFF"
+
+spinbutton_index_mapping:
+  description: "Spinbutton index to function mapping (5 spinbuttons total)"
+  mapping:
+    - index: 0
+      function: "Browser Timeout - default 15000ms"
+    - index: 1
+      function: "Embedding Dimensions - default 1024"
+    - index: 2
+      function: "Min Score Threshold - default 5.0"
+    - index: 3
+      function: "XBrowser Timeout - default 30000ms"
+    - index: 4
+      function: "Max Results - default 10"
 
 tips:
-  - "Settings opens as a right-side drawer panel"
-  - "Engine tags use ant-tag component with visual state changes"
-  - "Ant Design sliders don't use native input[type=range], use .ant-slider-handle with role=slider"
-  - "Tool call blocks render as inline [工具: tool_name → ...] in markdown body, not as separate expandable UI"
-  - "CDP endpoint at 9221, connect with --cdp flag"
+  - "Settings opens as a right-side drawer panel (ant-drawer-right)"
+  - "Drawer title is 'Settings' via .ant-drawer-title"
+  - "Close button click via agent-browser ref may fail with 'blocked' error - use eval click instead"
+  - "9 ant-switch elements total, indices 0-8, mapped in switch_index_mapping"
+  - "3 password-type inputs: 智谱 API Key, Embedding API Key, LLM API Key"
+  - "1 eye toggle button (lucide-eye) for password visibility toggle"
+  - "Test Connection button shows wifi icon (lucide-wifi), green for success"
+  - "API calls on open: GET /api/config, GET /api/skills/paths"
+  - "Save calls PUT /api/config (200 = success)"
+  - "Test calls POST /api/embedding/test (200 = success)"
+  - "Lucide icons used: folder-search, sparkles, brain, eye, search, layers, save, refresh-cw, wifi, settings"
+  - "Ant Design sliders (3 total) for Token/TF-IDF/Semantic weights"
+  - "Ant Design selects (3 total) for Provider, Model, Search Mode"

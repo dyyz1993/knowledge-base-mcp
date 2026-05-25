@@ -1,39 +1,73 @@
 # Module: responsive-design
 # Site: http://localhost:19877
-# Version: 1
+# Version: 2
 # Status: verified
-# Last updated: 2026-05-22
-# Updated in round: r1
+# Last verified: 2026-05-25
+# Updated in round: r2
 
 layout:
-  header: "header.h-10.border-b"
+  header: "header.h-10"
+  header_classes: "h-10 border-b border-gray-200 flex items-center px-3 md:px-4 shrink-0 bg-white gap-2"
+  
+  # Container below header
+  content_container: "div.flex.flex-1.overflow-hidden.relative"
+  
   nav_tabs:
-    knowledge_base: "button:has-text('Knowledge Base')"
-    ask: "button:has-text('Ask')"
-    chat: "button:has-text('Chat')"
-  hamburger_button: "header > button:first-child"
-  hamburger_classes: "lg:hidden shrink-0 p-1 rounded-md"
-  hamburger_note: "Hidden on lg+ (≥1024px), visible on mobile/tablet. Has SVG with 3 paths (hamburger icon)."
+    knowledge_base: "header.h-10 button" # find by text "Knowledge Base"
+    ask: "header.h-10 button" # find by text "Ask"
+    chat: "header.h-10 button" # find by text "Chat"
+  
+  hamburger_button:
+    selector: "header.h-10 button.lg\\:hidden" # or "header.h-10 > button:first-child"
+    aria_label: "Toggle sidebar"
+    note: "Hidden on lg+ (≥1024px) via lg:hidden class. Visible at <1024px with display:block."
 
 sidebar:
-  left_sidebar: "aside:first-of-type"
-  sidebar_classes: "-translate-x-full fixed top-10 bottom-0 left-0 z-30 w-64 lg:translate-x-0 lg:relative lg:top-0 lg:w-72 transition-transform duration-200 ease-in-out"
-  sidebar_behavior: "Hidden by default on mobile (-translate-x-full), shown on lg+ (lg:translate-x-0). React state toggle via hamburger button."
-  right_sidebar: "aside:nth-of-type(2)"
+  left_sidebar:
+    selector: "aside:first-of-type" # or container.children[0] when backdrop present, children[1] otherwise
+    classes: "-translate-x-full fixed top-10 bottom-0 left-0 z-30 w-64 sm:w-56 lg:translate-x-0 lg:relative lg:top-0 lg:w-72"
+    open_class: "translate-x-0"
+    closed_class: "-translate-x-full"
+    behavior: "Hidden by default on mobile (-translate-x-full), slides in via React state toggle. At lg+ always visible (lg:translate-x-0)."
+    note: "On Chat tab width is w-64 sm:w-56. On KB tab width is w-64."
+
+  right_sidebar:
+    selector: "aside:nth-of-type(2)" # container.children[2] on Chat tab
+    classes: "hidden xl:flex w-64 border-l border-gray-200 flex-col shrink-0"
+    behavior: "KB panel on Chat tab. Only visible at xl+ (≥1280px). Uses hidden xl:flex pattern."
+    note: "Only present on Chat tab."
+
+backdrop:
+  selector: "div.fixed.inset-0.top-10.z-20.bg-black\\/20" # inside content_container as first child when open
+  classes: "fixed inset-0 top-10 z-20 bg-black/20 lg:hidden"
+  behavior: "Rendered by React when sidebar is open on mobile. Clicking it closes sidebar."
+  note: "Unmounted from DOM when sidebar closes."
+
+search_palette:
+  overlay: "div.fixed.inset-0.z-50"
+  backdrop: "div.fixed.inset-0.bg-black\\/60"
+  container: "div.relative.w-full.max-w-xl" # max-w-xl with w-full
+  input: "input[placeholder='Search documents...']"
+  note: "Visible on KB tab. 375px wide on mobile (w-full). max-w-xl at desktop."
+
+settings_drawer:
+  selector: "div.ant-drawer.ant-drawer-right"
+  uses_ant_design: true
+  note: "Ant Design Drawer component. 100% viewport width on mobile."
 
 responsive_breakpoints:
-  mobile: "<1024px - sidebar hidden, hamburger visible"
-  tablet: "<1024px - sidebar hidden, hamburger visible" 
-  desktop: "≥1024px (lg) - sidebar always visible, hamburger hidden"
-  note: "CDP mode with window.resizeTo does NOT change CSS breakpoint matching. Use CSS override or Emulation.setDeviceMetricsOverride for true responsive testing."
+  sm: "≥640px - sidebar width changes from w-64 to sm:w-56"
+  md: "≥768px - header padding changes from px-3 to md:px-4"
+  lg: "≥1024px - sidebar always visible (lg:translate-x-0), hamburger hidden (lg:hidden)"
+  xl: "≥1280px - KB panel visible on Chat tab (xl:flex)"
+  
+  viewport_command: "agent-browser set viewport <w> <h>"
+  note: "Use 'agent-browser set viewport' to properly change CSS breakpoints. It uses CDP Emulation.setDeviceMetricsOverride."
 
-tabs:
-  kb_tab:
-    content_area: "main.flex-1.min-w-0"
-    sidebar_visible: true
-  ask_tab:
-    query_input: "textarea[placeholder*='你想了解什么']"
-    model_selector: "[role='combobox']"
-  chat_tab:
-    chat_input: "textarea[placeholder='Type a message...']"
-    session_sidebar: "aside:first-of-type"
+bugs_found:
+  horizontal_overflow_375:
+    location: "Chat tab, code blocks in messages"
+    description: "Code blocks (<code class='language-javascript'>) extend beyond 375px viewport causing horizontal scroll"
+    impact: "document.documentElement.scrollWidth = 414 > clientWidth = 375"
+    severity: "minor - visual only, content still readable"
+    status: "open"

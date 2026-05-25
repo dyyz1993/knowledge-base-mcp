@@ -4,55 +4,108 @@
 navigate_all_tabs:
   description: "Navigate through all 3 tabs to verify layout at each viewport"
   steps:
-    - action: click
-      selector: "button:has-text('Knowledge Base')"
-      description: "Click Knowledge Base tab"
-    - action: screenshot
-      description: "Capture KB tab layout"
-    - action: click
-      selector: "button:has-text('Ask')"
-      description: "Click Ask tab"
-    - action: screenshot
-      description: "Capture Ask tab layout"
-    - action: click
-      selector: "button:has-text('Chat')"
-      description: "Click Chat tab"
-    - action: screenshot
-      description: "Capture Chat tab layout"
-  expected_result: "All 3 tabs render without layout issues"
+    - action: eval
+      value: |
+        (function() {
+          const btns = document.querySelectorAll('header.h-10 button');
+          const kbBtn = Array.from(btns).find(b => b.textContent.trim() === 'Knowledge Base');
+          if (kbBtn) kbBtn.click();
+          return 'clicked KB';
+        })()
+      description: "Click Knowledge Base tab via eval (avoids strict mode)"
+    - action: wait
+      value: 300
+    - action: eval
+      value: |
+        (function() {
+          const btns = document.querySelectorAll('header.h-10 button');
+          const chatBtn = Array.from(btns).find(b => b.textContent.trim() === 'Chat');
+          if (chatBtn) chatBtn.click();
+          return 'clicked Chat';
+        })()
+      description: "Click Chat tab via eval"
+    - action: wait
+      value: 300
+  expected_result: "All tabs render without layout issues"
 
 hamburger_toggle:
   description: "Toggle sidebar via hamburger menu on mobile"
   steps:
-    - action: eval
-      selector: "header > button:first-child"
-      value: "dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))"
-      description: "Click hamburger button to toggle sidebar"
+    - action: set_viewport
+      value: "1023 768"
+      description: "Set viewport to mobile width (< 1024px)"
+    - action: snapshot
+      selector: "header.h-10"
+      description: "Get fresh refs for header"
+    - action: click
+      selector: "header.h-10 button.lg\\:hidden"
+      description: "Click hamburger button (aria-label='Toggle sidebar')"
     - action: wait
       value: 500
-      description: "Wait for animation"
     - action: eval
-      selector: "aside:first-of-type"
-      value: "getBoundingClientRect().x >= 0"
-      description: "Check if sidebar is open"
-  expected_result: "Sidebar toggles open/closed"
-  note: "Hamburger button only visible at <1024px (lg:hidden). At desktop viewport it has zero dimensions."
+      value: "document.querySelector('aside').getBoundingClientRect().x >= 0"
+      description: "Verify sidebar is open"
+  expected_result: "Sidebar slides in with backdrop overlay"
+  note: "Hamburger only visible at <1024px. Backdrop is first child of content container."
 
-simulate_mobile_viewport:
-  description: "Force mobile appearance via CSS override (CDP workaround)"
+backdrop_close:
+  description: "Close sidebar by clicking backdrop overlay"
   steps:
     - action: eval
       value: |
-        const style = document.createElement('style');
-        style.id = 'hamburger-override';
-        style.textContent = 'header > button:first-child { display: flex !important; width: 28px !important; height: 28px !important; }';
-        document.head.appendChild(style);
-      description: "Make hamburger visible (simulating mobile)"
+        (function() {
+          const container = document.querySelector('.flex.flex-1.overflow-hidden.relative');
+          const backdrop = Array.from(container.children).find(c => {
+            const cls = (typeof c.className === 'string') ? c.className : '';
+            return cls.includes('bg-black');
+          });
+          if (backdrop) backdrop.click();
+          return 'clicked';
+        })()
+      description: "Find and click the backdrop overlay element"
+    - action: wait
+      value: 300
+  expected_result: "Sidebar closes, backdrop unmounted from DOM"
+
+change_viewport:
+  description: "Change viewport using agent-browser set viewport command"
+  steps:
+    - action: command
+      value: "agent-browser set viewport <width> <height>"
+      description: "Uses CDP Emulation.setDeviceMetricsOverride for real CSS breakpoint changes"
+  note: "IMPORTANT: Do NOT use window.resizeTo - it doesn't change CSS breakpoints in CDP mode. Always use 'agent-browser set viewport'."
+
+check_responsive_layout:
+  description: "Verify layout state at any viewport size"
+  steps:
+    - action: eval
+      value: |
+        (function() {
+          const container = document.querySelector('.flex.flex-1.overflow-hidden.relative');
+          const aside = document.querySelector('aside');
+          const hamburger = document.querySelector('header.h-10 button.lg\\:hidden');
+          const rightAside = container.children[2] || null;
+          return JSON.stringify({
+            viewport: { w: window.innerWidth },
+            lgMatch: window.matchMedia('(min-width: 1024px)').matches,
+            xlMatch: window.matchMedia('(min-width: 1280px)').matches,
+            hamburgerVisible: hamburger ? getComputedStyle(hamburger).display !== 'none' : false,
+            sidebarOpen: aside.getBoundingClientRect().x >= 0,
+            rightAsideVisible: rightAside ? getComputedStyle(rightAside).display !== 'none' : false,
+            overflow: document.documentElement.scrollWidth > window.innerWidth
+          });
+        })()
+      description: "Get complete responsive state in one call"
 
 tips:
-  - "CDP connection does NOT support viewport resize via window.resizeTo — CSS breakpoints remain at 1920px"
-  - "agent-browser resize command hangs in CDP mode — avoid using it"
-  - "Hamburger button uses lg:hidden class — only rendered at <1024px breakpoint"
-  - "Sidebar uses -translate-x-full for hiding + lg:translate-x-0 for showing at desktop"
-  - "All 3 tabs are always accessible regardless of viewport — tabs are in the header"
-  - "No horizontal overflow issues detected at desktop viewport"
+  - "Use 'agent-browser set viewport <w> <h>' to change viewport - it uses CDP properly"
+  - "DO NOT use 'agent-browser resize' - plugin not available in this version"
+  - "DO NOT use window.resizeTo via eval - it does NOT change CSS breakpoints in CDP mode"
+  - "Hamburger uses lg:hidden class, only visible at <1024px"
+  - "Sidebar uses -translate-x-full / translate-x-0 for sliding animation"
+  - "KB panel on Chat tab uses hidden xl:flex pattern (≥1280px)"
+  - "Backdrop overlay is React-conditionally rendered, removed from DOM when sidebar closes"
+  - "matchMedia() is the reliable way to check CSS breakpoint state"
+  - "At 375px on Chat tab, code blocks cause horizontal overflow (scrollWidth=414) - known bug"
+  - "Settings drawer uses Ant Design (ant-drawer), takes 100% width on mobile"
+  - "Search palette uses w-full max-w-xl, adapts perfectly to all viewport sizes"

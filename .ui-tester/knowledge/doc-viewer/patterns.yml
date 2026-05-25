@@ -1,0 +1,51 @@
+# Module: doc-viewer
+# Reusable operation sequences
+
+select_document:
+  description: "Click a document in sidebar to view it"
+  steps:
+    - action: click
+      selector: "aside button"
+      description: "Click document button in sidebar"
+    - action: wait
+      duration: 1500
+      description: "Wait for doc content to load"
+  expected_result: "Article with role='article' shows doc content"
+
+copy_reference:
+  description: "Copy document reference snippet"
+  steps:
+    - action: click
+      selector: "button[aria-label='复制文档引用']"
+      description: "Click Copy Reference button in toolbar"
+  expected_result: "Clipboard contains kb_read snippet with doc ID"
+
+switch_document:
+  description: "Switch from one document to another"
+  steps:
+    - action: click
+      selector: "aside button"
+      description: "Click different document in sidebar"
+    - action: wait
+      duration: 1500
+      description: "Wait for new doc content to load"
+  expected_result: "New doc title, ID, and content replace old completely"
+
+scroll_document:
+  description: "Scroll through long document content"
+  steps:
+    - action: eval
+      selector: "javascript"
+      description: "Set scrollTop on article element"
+  expected_result: "Smooth scrolling, all content accessible"
+
+tips:
+  - "Empty state shows 'Select a document to view' with centered layout"
+  - "Toolbar is sticky with backdrop blur (bg-zinc-950/90)"
+  - "Copy Reference button uses navigator.clipboard.writeText API"
+  - "Code blocks use custom div structure, not <pre> tags"
+  - "Syntax highlighting uses inline color styles on spans"
+  - "Tag badges use different bg colors: cyan=reference, orange=architecture, green=guide, zinc=skill"
+  - "ExternalLink icon shows project name text; if no project, icon shows alone"
+  - "Document scroll position may carry over when switching (minor bug)"
+  - "No mermaid documents exist in current KB - TC-DV-14 should be SKIP"
