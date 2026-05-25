@@ -82,46 +82,40 @@ const CDP_URL_TTL = 5 * 60 * 1000 // 5 minutes
  * Otherwise, fetch /json/version to get the webSocketDebuggerUrl.
  */
 function resolveCdpUrl(cdpEndpoint: string): string {
-  // Already a full browser URL
-  if (cdpEndpoint.includes("/devtools/browser/")) {
-    return cdpEndpoint
+  const normalized = normalizeToIpv4(cdpEndpoint)
+  if (normalized.includes("/devtools/browser/")) {
+    return normalized
   }
 
-  // Use cached value if fresh
   const now = Date.now()
   if (cachedCdpUrl && now - cachedCdpUrlTime < CDP_URL_TTL) {
     return cachedCdpUrl
   }
 
-  // Try to resolve synchronously via HTTP (Bun supports sync fetch in some contexts)
-  // But since we can't do sync HTTP, we'll just return the base URL and let xbrowser handle it
-  // For now, try common pattern: if it's ws://host:port, try http://host:port/json/version
-  try {
-    const httpUrl = cdpEndpoint.replace(/^ws/, "http") + "/json/version"
-    // We can't do sync fetch here, so we'll cache from the first successful resolution
-    // Return the endpoint as-is for now — the caller should pre-resolve
-    return cdpEndpoint
-  } catch {
-    /* 忽略: CDP URL 解析失败时返回原始端点 */
-    return cdpEndpoint
-  }
+  return normalized
 }
 
 /**
  * Async version: resolve CDP URL by fetching /json/version.
  * Should be called once at startup or when constructing the CLI.
  */
+function normalizeToIpv4(url: string): string {
+  return url.replace(/\/\/localhost:/, "//127.0.0.1:")
+}
+
 export async function resolveCdpEndpoint(cdpEndpoint: string): Promise<string> {
   if (!cdpEndpoint || cdpEndpoint.includes("/devtools/browser/")) {
     return cdpEndpoint
   }
 
+  const normalized = normalizeToIpv4(cdpEndpoint)
+
   try {
-    const httpUrl = cdpEndpoint.replace(/^ws/, "http") + "/json/version"
+    const httpUrl = normalized.replace(/^ws/, "http") + "/json/version"
     const resp = await fetch(httpUrl, { signal: AbortSignal.timeout(3000) })
     const data = await resp.json() as { webSocketDebuggerUrl?: string }
     if (data.webSocketDebuggerUrl) {
-      cachedCdpUrl = data.webSocketDebuggerUrl
+      cachedCdpUrl = normalizeToIpv4(data.webSocketDebuggerUrl)
       cachedCdpUrlTime = Date.now()
       logger.debug(`Resolved CDP: ${cdpEndpoint} -> ${cachedCdpUrl}`)
       return cachedCdpUrl
@@ -129,7 +123,7 @@ export async function resolveCdpEndpoint(cdpEndpoint: string): Promise<string> {
   } catch (e) {
     logger.debug(`Failed to resolve CDP URL from ${cdpEndpoint}: ${e instanceof Error ? e.message : e}`)
   }
-  return cdpEndpoint
+  return normalized
 }
 
 async function runCommand(
