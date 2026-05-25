@@ -86,6 +86,11 @@ function MermaidBlock({ code }: { code: string }) {
 
 export default function DocViewer({ doc, loading }: { doc: { meta: DocMeta; content: string; truncated: boolean } | null; loading?: boolean }) {
   const { copied, copy } = useCopy()
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo(0, 0)
+  }, [doc?.meta.id])
 
   if (loading && !doc) {
     return <div className="flex-1"><DocSkeleton /></div>
@@ -111,7 +116,7 @@ export default function DocViewer({ doc, loading }: { doc: { meta: DocMeta; cont
 来源项目: ${meta.source_project}`
 
   return (
-    <div className="flex-1 overflow-y-auto" role="article" aria-label={doc ? doc.meta.title : "文档查看器"}>
+    <div ref={scrollRef} className="flex-1 overflow-y-auto" role="article" aria-label={doc ? doc.meta.title : "文档查看器"}>
       <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur border-b border-zinc-800 px-8 py-2 flex items-center gap-3">
         <FileText size={14} className="text-zinc-500" />
         <span className="text-sm text-zinc-300 truncate flex-1">{meta.title}</span>

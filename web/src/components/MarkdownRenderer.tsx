@@ -82,7 +82,7 @@ function CodeBlock({ children, className, ...rest }: { children?: ReactNode; cla
   }
 
   return (
-    <div className="relative group my-2 rounded-lg overflow-hidden border border-zinc-700/50">
+    <div className="relative group my-2 rounded-lg overflow-x-auto border border-zinc-700/50">
       <div className="flex items-center justify-between bg-zinc-800 px-3 py-1 text-xs text-zinc-500 border-b border-zinc-700/50">
         <span>{language || "code"}</span>
         <CopyButton text={code} className="opacity-0 group-hover:opacity-100 -mr-1 -mt-0.5" />
