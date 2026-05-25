@@ -119,6 +119,16 @@ export interface AskPipelineConfig {
   lowScoreThreshold: number
 }
 
+export interface EmbeddingConfig {
+  provider: string
+  baseUrl: string
+  apiKey: string
+  model: string
+  dimensions: number
+  enabled: boolean
+  autoDownload: boolean
+}
+
 export interface AppConfig {
   embedding: EmbeddingConfig
   search: SearchConfig
@@ -237,7 +247,20 @@ function removeUndefined<T extends Record<string, unknown>>(obj: T): T {
   return result as T
 }
 
+let _loadConfigOverride: ((defaults: () => AppConfig) => AppConfig) | null = null
+
+export function _setLoadConfigOverride(fn: ((defaults: () => AppConfig) => AppConfig) | null) {
+  _loadConfigOverride = fn
+}
+
 export function loadConfig(forceReload = false): AppConfig {
+  if (_loadConfigOverride) {
+    return _loadConfigOverride(() => loadConfigInner(forceReload))
+  }
+  return loadConfigInner(forceReload)
+}
+
+function loadConfigInner(forceReload = false): AppConfig {
   const now = Date.now()
   const currentDir = getConfigDir()
   const cached = configCacheMap.get(currentDir)
@@ -272,7 +295,7 @@ export function loadConfig(forceReload = false): AppConfig {
             ...getDefaults().searchPipeline.sources,
             ...raw.searchPipeline?.sources,
             webSearchPrime: { ...getDefaults().searchPipeline.sources.webSearchPrime, ...raw.searchPipeline?.sources?.webSearchPrime },
-            xbrowser: { ...getDefaults().searchPipeline.sources.xbrowser, ...raw.searchPipeline?.sources?.xbrowser, cdpEndpoint: raw.searchPipeline?.sources?.xbrowser?.cdpEndpoint || getDefaults().searchPipeline.sources.xbrowser.cdpEndpoint },
+            xbrowser: { ...getDefaults().searchPipeline.sources.xbrowser, ...raw.searchPipeline?.sources?.xbrowser, cdpEndpoint: raw.searchPipeline?.sources?.xbrowser?.cdpEndpoint ?? getDefaults().searchPipeline.sources.xbrowser.cdpEndpoint },
             llmDirect: { ...getDefaults().searchPipeline.sources.llmDirect, ...raw.searchPipeline?.sources?.llmDirect },
             plugin: { ...getDefaults().searchPipeline.sources.plugin, ...raw.searchPipeline?.sources?.plugin },
             tavily: { ...getDefaults().searchPipeline.sources.tavily, ...raw.searchPipeline?.sources?.tavily },

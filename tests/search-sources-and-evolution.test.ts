@@ -1,8 +1,10 @@
-import { describe, it, expect, mock, beforeAll, beforeEach, afterEach, spyOn } from "bun:test"
+import { describe, it, expect, mock, beforeAll, beforeEach, afterEach, afterAll, spyOn } from "bun:test"
+import { mkdirSync, writeFileSync, rmSync } from "node:fs"
+import { join } from "node:path"
+import os from "node:os"
 
 const RUN_ISOLATED = !process.env.KB_FULL_SUITE
 
-// ─── Shared mutable mock state ────────────────────────────────
 let _execFileResponse: any = { stdout: JSON.stringify({ results: [] }) }
 let _execFileError: Error | null = null
 
@@ -25,38 +27,107 @@ let _fuzzyIndex: Record<string, any> | null = {
   },
 }
 
-if (RUN_ISOLATED) {
-  mock.module("../src/config", () => ({
-    loadConfig: () => ({
-      webSearch: { tavilyApiKey: configState.tavilyApiKey, serperApiKey: configState.serperApiKey },
-      searchPipeline: {
-        sources: {
-          aiSearch: { enabled: configState.aiSearchEnabled ?? true, engines: configState.aiSearchEngines ?? ["deepseek"], timeout: 10000 },
-          xbrowser: { cdpEndpoint: configState.xbrowserCdp ?? "ws://localhost:9222", headless: true },
-        },
-        maxResults: 10,
-      },
-    }),
-  }))
+const _testTempDir = join(os.tmpdir(), `kb-search-test-${process.pid}-${Date.now()}`)
+const _testDataDir = join(_testTempDir, ".kb-chat")
+const _testKbDir = join(_testTempDir, ".knowledge")
 
+function withConfig<T>(overrides: Record<string, any>, fn: () => T): T {
+  const { _setLoadConfigOverride } = require("../src/config") as any
+  _setLoadConfigOverride((realConfig: any) => {
+    const real = realConfig()
+    return {
+      ...real,
+      webSearch: {
+        ...(real.webSearch || {}),
+        tavilyApiKey: overrides.tavilyApiKey ?? real.webSearch?.tavilyApiKey,
+        serperApiKey: overrides.serperApiKey ?? real.webSearch?.serperApiKey,
+      },
+      searchPipeline: {
+        ...(real.searchPipeline || {}),
+        sources: {
+          ...(real.searchPipeline?.sources || {}),
+          aiSearch: {
+            ...(real.searchPipeline?.sources?.aiSearch || {}),
+            enabled: overrides.aiSearchEnabled ?? real.searchPipeline?.sources?.aiSearch?.enabled,
+            engines: overrides.aiSearchEngines ?? real.searchPipeline?.sources?.aiSearch?.engines,
+          },
+          xbrowser: {
+            ...(real.searchPipeline?.sources?.xbrowser || {}),
+            cdpEndpoint: overrides.xbrowserCdp ?? real.searchPipeline?.sources?.xbrowser?.cdpEndpoint,
+          },
+        },
+      },
+    }
+  })
+  try {
+    return fn()
+  } finally {
+    _setLoadConfigOverride(null)
+  }
+}
+
+async function withConfigAsync<T>(overrides: Record<string, any>, fn: () => Promise<T>): Promise<T> {
+  const { _setLoadConfigOverride } = require("../src/config") as any
+  _setLoadConfigOverride((realConfig: any) => {
+    const real = realConfig()
+    return {
+      ...real,
+      webSearch: {
+        ...(real.webSearch || {}),
+        tavilyApiKey: overrides.tavilyApiKey ?? real.webSearch?.tavilyApiKey,
+        serperApiKey: overrides.serperApiKey ?? real.webSearch?.serperApiKey,
+      },
+      searchPipeline: {
+        ...(real.searchPipeline || {}),
+        sources: {
+          ...(real.searchPipeline?.sources || {}),
+          aiSearch: {
+            ...(real.searchPipeline?.sources?.aiSearch || {}),
+            enabled: overrides.aiSearchEnabled ?? real.searchPipeline?.sources?.aiSearch?.enabled,
+            engines: overrides.aiSearchEngines ?? real.searchPipeline?.sources?.aiSearch?.engines,
+          },
+          xbrowser: {
+            ...(real.searchPipeline?.sources?.xbrowser || {}),
+            cdpEndpoint: overrides.xbrowserCdp ?? real.searchPipeline?.sources?.xbrowser?.cdpEndpoint,
+          },
+        },
+      },
+    }
+  })
+  try {
+    return await fn()
+  } finally {
+    _setLoadConfigOverride(null)
+  }
+}
+
+if (RUN_ISOLATED) {
   mock.module("node:child_process", () => ({
     execFile: (_cmd: string, _args: string[], _opts: any, cb: Function) => {
       if (_execFileError) cb(_execFileError, null)
       else cb(null, _execFileResponse)
     },
+    execSync: (..._args: any[]) => Buffer.from(""),
+    exec: (..._args: any[]) => {},
+    spawn: (..._args: any[]) => ({ on: () => {}, stdout: { on: () => {} }, stderr: { on: () => {} } }),
+    fork: (..._args: any[]) => ({ on: () => {} }),
   }))
 
-  mock.module("node:util", () => ({
-    promisify: (fn: Function) => {
-      return (...args: any[]) =>
-        new Promise((resolve, reject) => {
-          fn(...args, (err: any, result: any) => {
-            if (err) reject(err)
-            else resolve(result)
+  mock.module("node:util", () => {
+    const util = import.meta.require("node:util")
+    return {
+      ...util,
+      promisify: (fn: Function) => {
+        return (...args: any[]) =>
+          new Promise((resolve, reject) => {
+            fn(...args, (err: any, result: any) => {
+              if (err) reject(err)
+              else resolve(result)
+            })
           })
-        })
-    },
-  }))
+      },
+    }
+  })
 
   mock.module("../src/search/xbrowser-cli", () => {
     class MockXBrowserCLI {
@@ -74,13 +145,13 @@ if (RUN_ISOLATED) {
   mock.module("../src/search/utils", () => ({
     normalizeUrl: (url: string) => url.replace(/\/+$/, "").toLowerCase(),
   }))
-
-  mock.module("../src/storage/index.js", () => ({
-    readIndex: () => _fuzzyIndex,
-  }))
 }
 
 const describeSuite = RUN_ISOLATED ? describe : describe.skip
+
+afterAll(() => {
+  try { rmSync(_testTempDir, { recursive: true, force: true }) } catch {}
+})
 
 // ─── source-tavily ────────────────────────────────────────────
 describeSuite("source-tavily", () => {
@@ -94,19 +165,20 @@ describeSuite("source-tavily", () => {
   beforeEach(() => {
     _execFileError = null
     _execFileResponse = { stdout: JSON.stringify({ results: [] }) }
-    configState.tavilyApiKey = "test-tavily-key"
-    configState.serperApiKey = "test-serper-key"
   })
 
   it("should be available when API key is set", () => {
-    const src = new TavilySource()
-    expect(src.available()).toBe(true)
+    withConfig({ tavilyApiKey: "test-tavily-key" }, () => {
+      const src = new TavilySource()
+      expect(src.available()).toBe(true)
+    })
   })
 
   it("should not be available when API key is missing", () => {
-    configState.tavilyApiKey = ""
-    const src = new TavilySource()
-    expect(src.available()).toBe(false)
+    withConfig({ tavilyApiKey: "" }, () => {
+      const src = new TavilySource()
+      expect(src.available()).toBe(false)
+    })
   })
 
   it("should parse search results correctly", async () => {
@@ -118,28 +190,45 @@ describeSuite("source-tavily", () => {
         ],
       }),
     }
-    const src = new TavilySource()
-    const results = await src.search("test query")
-    expect(results.length).toBe(2)
-    expect(results[0].title).toBe("Test Title")
-    expect(results[0].url).toBe("https://example.com")
-    expect(results[0].snippet).toBe("Some content here")
-    expect(results[0].source).toBe("tavily")
-    expect(results[0].qualityScore).toBe(5)
+    const { _setLoadConfigOverride } = require("../src/config") as any
+    _setLoadConfigOverride((realConfig: any) => {
+      const real = realConfig()
+      return {
+        ...real,
+        webSearch: { ...(real.webSearch || {}), tavilyApiKey: "test-tavily-key" },
+        searchPipeline: real.searchPipeline,
+      }
+    })
+    try {
+      const src = new TavilySource()
+      const results = await src.search("test query")
+      expect(results.length).toBe(2)
+      expect(results[0].title).toBe("Test Title")
+      expect(results[0].url).toBe("https://example.com")
+      expect(results[0].snippet).toBe("Some content here")
+      expect(results[0].source).toBe("tavily")
+      expect(results[0].qualityScore).toBe(5)
+    } finally {
+      _setLoadConfigOverride(null)
+    }
   })
 
   it("should return empty on API errors", async () => {
     _execFileError = new Error("network error")
-    const src = new TavilySource()
-    const results = await src.search("fail query")
-    expect(results).toEqual([])
+    await withConfigAsync({ tavilyApiKey: "test-tavily-key" }, async () => {
+      const src = new TavilySource()
+      const results = await src.search("fail query")
+      expect(results).toEqual([])
+    })
   })
 
   it("should return empty when results array is missing", async () => {
     _execFileResponse = { stdout: JSON.stringify({ message: "no results" }) }
-    const src = new TavilySource()
-    const results = await src.search("empty")
-    expect(results).toEqual([])
+    await withConfigAsync({ tavilyApiKey: "test-tavily-key" }, async () => {
+      const src = new TavilySource()
+      const results = await src.search("empty")
+      expect(results).toEqual([])
+    })
   })
 
   it("should truncate snippet to 300 chars", async () => {
@@ -148,9 +237,18 @@ describeSuite("source-tavily", () => {
         results: [{ title: "T", url: "https://x.com", content: "a".repeat(500) }],
       }),
     }
-    const src = new TavilySource()
-    const results = await src.search("long")
-    expect(results[0].snippet.length).toBeLessThanOrEqual(300)
+    const { _setLoadConfigOverride } = require("../src/config") as any
+    _setLoadConfigOverride((realConfig: any) => {
+      const real = realConfig()
+      return { ...real, webSearch: { ...(real.webSearch || {}), tavilyApiKey: "test-tavily-key" }, searchPipeline: real.searchPipeline }
+    })
+    try {
+      const src = new TavilySource()
+      const results = await src.search("long")
+      expect(results[0].snippet.length).toBeLessThanOrEqual(300)
+    } finally {
+      _setLoadConfigOverride(null)
+    }
   })
 })
 
@@ -166,19 +264,20 @@ describeSuite("source-serper", () => {
   beforeEach(() => {
     _execFileError = null
     _execFileResponse = { stdout: JSON.stringify({ organic: [] }) }
-    configState.serperApiKey = "test-serper-key"
-    configState.tavilyApiKey = "test-tavily-key"
   })
 
   it("should be available when API key is set", () => {
-    const src = new SerperSource()
-    expect(src.available()).toBe(true)
+    withConfig({ serperApiKey: "test-serper-key" }, () => {
+      const src = new SerperSource()
+      expect(src.available()).toBe(true)
+    })
   })
 
   it("should not be available when API key is missing", () => {
-    configState.serperApiKey = ""
-    const src = new SerperSource()
-    expect(src.available()).toBe(false)
+    withConfig({ serperApiKey: "" }, () => {
+      const src = new SerperSource()
+      expect(src.available()).toBe(false)
+    })
   })
 
   it("should parse Google search results from organic field", async () => {
@@ -190,26 +289,39 @@ describeSuite("source-serper", () => {
         ],
       }),
     }
-    const src = new SerperSource()
-    const results = await src.search("google query")
-    expect(results.length).toBe(2)
-    expect(results[0].title).toBe("Google Result")
-    expect(results[0].url).toBe("https://google.com/r1")
-    expect(results[0].source).toBe("serper")
+    const { _setLoadConfigOverride } = require("../src/config") as any
+    _setLoadConfigOverride((realConfig: any) => {
+      const real = realConfig()
+      return { ...real, webSearch: { ...(real.webSearch || {}), serperApiKey: "test-serper-key" }, searchPipeline: real.searchPipeline }
+    })
+    try {
+      const src = new SerperSource()
+      const results = await src.search("google query")
+      expect(results.length).toBe(2)
+      expect(results[0].title).toBe("Google Result")
+      expect(results[0].url).toBe("https://google.com/r1")
+      expect(results[0].source).toBe("serper")
+    } finally {
+      _setLoadConfigOverride(null)
+    }
   })
 
   it("should handle API errors gracefully", async () => {
     _execFileError = new Error("serper down")
-    const src = new SerperSource()
-    const results = await src.search("fail")
-    expect(results).toEqual([])
+    await withConfigAsync({ serperApiKey: "test-serper-key" }, async () => {
+      const src = new SerperSource()
+      const results = await src.search("fail")
+      expect(results).toEqual([])
+    })
   })
 
   it("should return empty when organic field is absent", async () => {
     _execFileResponse = { stdout: JSON.stringify({ knowledgeGraph: {} }) }
-    const src = new SerperSource()
-    const results = await src.search("no organic")
-    expect(results).toEqual([])
+    await withConfigAsync({ serperApiKey: "test-serper-key" }, async () => {
+      const src = new SerperSource()
+      const results = await src.search("no organic")
+      expect(results).toEqual([])
+    })
   })
 })
 
@@ -223,9 +335,6 @@ describeSuite("source-ai-search", () => {
   })
 
   beforeEach(() => {
-    configState.aiSearchEnabled = true
-    configState.aiSearchEngines = ["deepseek"]
-    configState.xbrowserCdp = "ws://localhost:9222"
     _aiSearchResult = {
       results: [
         { title: "AI Result", url: "https://ai.com/1", snippet: "AI snippet", aiSummary: "AI summary" },
@@ -234,30 +343,34 @@ describeSuite("source-ai-search", () => {
   })
 
   it("should be available when enabled with engines and cdpEndpoint", () => {
-    const src = new AiSearchSource()
-    expect(src.available()).toBe(true)
+    withConfig({ aiSearchEnabled: true, aiSearchEngines: ["deepseek"], xbrowserCdp: "ws://localhost:9222" }, () => {
+      const src = new AiSearchSource()
+      expect(src.available()).toBe(true)
+    })
   })
 
   it("should not be available when disabled", () => {
-    configState.aiSearchEnabled = false
-    configState.aiSearchEngines = []
-    configState.xbrowserCdp = ""
-    const src = new AiSearchSource()
-    expect(src.available()).toBe(false)
+    withConfig({ aiSearchEnabled: false, aiSearchEngines: [], xbrowserCdp: "" }, () => {
+      const src = new AiSearchSource()
+      expect(src.available()).toBe(false)
+    })
   })
 
   it("should not be available without cdpEndpoint", () => {
-    configState.xbrowserCdp = ""
-    const src = new AiSearchSource()
-    expect(src.available()).toBe(false)
+    withConfig({ xbrowserCdp: "" }, () => {
+      const src = new AiSearchSource()
+      expect(src.available()).toBe(false)
+    })
   })
 
   it("should parse AI search results", async () => {
-    const src = new AiSearchSource()
-    const results = await src.search("ai query")
-    expect(results.length).toBe(1)
-    expect(results[0].source).toBe("ai-search")
-    expect(results[0].qualityScore).toBe(8)
+    await withConfigAsync({ aiSearchEnabled: true, aiSearchEngines: ["deepseek"], xbrowserCdp: "ws://localhost:9222" }, async () => {
+      const src = new AiSearchSource()
+      const results = await src.search("ai query")
+      expect(results.length).toBe(1)
+      expect(results[0].source).toBe("ai-search")
+      expect(results[0].qualityScore).toBe(8)
+    })
   })
 })
 
@@ -273,6 +386,8 @@ describeSuite("source-llm-direct", () => {
 
     mock.module("../src/chat/api-models", () => ({
       getConfiguredModels: getModelsMock,
+      handleGetModels: async (_req: any, res: any) => { res.writeHead(200); res.end("[]") },
+      handleSetModel: async (_req: any, res: any) => { res.writeHead(200); res.end("{}") },
     }))
 
     const mod = await import("../src/search/source-llm-direct")
@@ -403,11 +518,15 @@ describeSuite("source-xbrowser", () => {
 describeSuite("fuzzy-search extended", () => {
   let fuzzySearch: any
   let invalidateFuzzyIndex: any
+  let _setDeps: any
+  let _resetDeps: any
 
   beforeAll(async () => {
     const mod = await import("../src/search/fuzzy-search")
     fuzzySearch = mod.fuzzySearch
     invalidateFuzzyIndex = mod.invalidateFuzzyIndex
+    _setDeps = mod._setDeps
+    _resetDeps = mod._resetDeps
   })
 
   beforeEach(() => {
@@ -418,10 +537,12 @@ describeSuite("fuzzy-search extended", () => {
         doc3: { title: "Docker Deployment Guide", keywords: ["docker", "containers", "deployment"], tags: ["guide", "devops"], intent: "Deploy apps with Docker", project_description: "DevOps infrastructure" },
       },
     }
+    _setDeps({ readIndex: () => _fuzzyIndex })
     invalidateFuzzyIndex()
   })
 
   afterEach(() => {
+    _resetDeps()
     invalidateFuzzyIndex()
   })
 
@@ -457,7 +578,7 @@ describeSuite("fuzzy-search extended", () => {
   })
 
   it("should return empty for no-index scenario", () => {
-    _fuzzyIndex = null
+    _setDeps({ readIndex: () => null })
     invalidateFuzzyIndex()
     const results = fuzzySearch("anything", 5)
     expect(results).toEqual([])
