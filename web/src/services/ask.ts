@@ -118,7 +118,7 @@ export function agentResearch(
 
         const decoder = new TextDecoder()
         let buffer = ""
-
+        let currentEvent = ""
         let resolved = false
 
         const processChunk = (chunk: string) => {
@@ -126,7 +126,6 @@ export function agentResearch(
           const lines = buffer.split("\n")
           buffer = lines.pop() || ""
 
-          let currentEvent = ""
           for (const line of lines) {
             if (line.startsWith("event: ")) {
               currentEvent = line.slice(7).trim()
