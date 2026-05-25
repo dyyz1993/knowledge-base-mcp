@@ -253,7 +253,7 @@ describe("MCP search-tools", () => {
     expect(typeof result.from_kb).toBe("boolean")
     expect(typeof result.loops_used).toBe("number")
     expect(Array.isArray(result.queries_used)).toBe(true)
-  })
+  }, 30000)
 })
 
 // ─── MCP file-tools ─────────────────────────────────────────

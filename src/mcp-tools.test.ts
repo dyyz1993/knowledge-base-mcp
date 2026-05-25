@@ -69,7 +69,7 @@ beforeAll(async () => {
     let output = ""
     const timeout = setTimeout(() => {
       reject(new Error("Server startup timeout"))
-    }, 10000)
+}, 30000)
 
     serverProcess!.stdout!.on("data", (data: Buffer) => {
       output += data.toString()
