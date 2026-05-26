@@ -47,7 +47,7 @@ export function AskInput({
           <div className="flex gap-1">
             <button
               onClick={() => onResearchModeChange("quick")}
-              className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "quick" ? "bg-amber-900/50 text-amber-300" : (isDark ? "bg-zinc-800 text-zinc-500" : "bg-gray-100 text-gray-500")}`}
+              className={`px-1.5 py-0.5 rounded text-[9px] border ${researchMode === "quick" ? "bg-amber-900/50 text-amber-300 border-amber-700" : (isDark ? "border-zinc-700 bg-zinc-800 text-zinc-500 hover:bg-zinc-700" : "border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200")}`}
               title="快速 (5步)"
               aria-label="快速研究模式"
               aria-pressed={researchMode === "quick"}
@@ -56,7 +56,7 @@ export function AskInput({
             </button>
             <button
               onClick={() => onResearchModeChange("standard")}
-              className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "standard" ? "bg-purple-900/50 text-purple-300" : (isDark ? "bg-zinc-800 text-zinc-500" : "bg-gray-100 text-gray-500")}`}
+              className={`px-1.5 py-0.5 rounded text-[9px] border ${researchMode === "standard" ? "bg-purple-900/50 text-purple-300 border-purple-700" : (isDark ? "border-zinc-700 bg-zinc-800 text-zinc-500 hover:bg-zinc-700" : "border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200")}`}
               title="标准 (12步)"
               aria-label="标准研究模式"
               aria-pressed={researchMode === "standard"}
@@ -65,7 +65,7 @@ export function AskInput({
             </button>
             <button
               onClick={() => onResearchModeChange("deep")}
-              className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "deep" ? "bg-blue-900/50 text-blue-300" : (isDark ? "bg-zinc-800 text-zinc-500" : "bg-gray-100 text-gray-500")}`}
+              className={`px-1.5 py-0.5 rounded text-[9px] border ${researchMode === "deep" ? "bg-blue-900/50 text-blue-300 border-blue-700" : (isDark ? "border-zinc-700 bg-zinc-800 text-zinc-500 hover:bg-zinc-700" : "border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200")}`}
               title="深度 (25步)"
               aria-label="深度研究模式"
               aria-pressed={researchMode === "deep"}
