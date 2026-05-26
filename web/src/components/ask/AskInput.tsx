@@ -1,5 +1,6 @@
 import { Send, FlaskConical, Zap, Brain, Cpu } from "lucide-react"
 import type { ResearchMode } from "../../services/api"
+import { useTheme } from "../../theme"
 
 interface AskInputProps {
   input: string
@@ -22,8 +23,11 @@ export function AskInput({
   onResearchModeChange,
   onAgentResearch,
 }: AskInputProps) {
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
+
   return (
-    <div className="border-t border-zinc-800 p-3 shrink-0">
+    <div className={`border-t p-3 shrink-0 ${isDark ? "border-zinc-800" : "border-gray-200"}`}>
       <div className="flex gap-2 items-end">
         <textarea
           value={input}
@@ -37,13 +41,13 @@ export function AskInput({
           placeholder="你想了解什么？描述一下你的问题..."
           rows={1}
           aria-label="搜索问题"
-          className="flex-1 resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 max-h-24"
+          className={`flex-1 resize-none rounded-lg border px-3 py-2 text-sm focus:outline-none focus:border-zinc-500 max-h-24 ${isDark ? "border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-600" : "border-gray-300 bg-white text-gray-900 placeholder:text-gray-400"}`}
         />
         <div className="shrink-0 flex flex-col gap-1">
           <div className="flex gap-1">
             <button
               onClick={() => onResearchModeChange("quick")}
-              className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "quick" ? "bg-amber-900/50 text-amber-300" : "bg-zinc-800 text-zinc-500"}`}
+              className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "quick" ? "bg-amber-900/50 text-amber-300" : (isDark ? "bg-zinc-800 text-zinc-500" : "bg-gray-100 text-gray-500")}`}
               title="快速 (5步)"
               aria-label="快速研究模式"
               aria-pressed={researchMode === "quick"}
@@ -52,7 +56,7 @@ export function AskInput({
             </button>
             <button
               onClick={() => onResearchModeChange("standard")}
-              className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "standard" ? "bg-purple-900/50 text-purple-300" : "bg-zinc-800 text-zinc-500"}`}
+              className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "standard" ? "bg-purple-900/50 text-purple-300" : (isDark ? "bg-zinc-800 text-zinc-500" : "bg-gray-100 text-gray-500")}`}
               title="标准 (12步)"
               aria-label="标准研究模式"
               aria-pressed={researchMode === "standard"}
@@ -61,7 +65,7 @@ export function AskInput({
             </button>
             <button
               onClick={() => onResearchModeChange("deep")}
-              className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "deep" ? "bg-blue-900/50 text-blue-300" : "bg-zinc-800 text-zinc-500"}`}
+              className={`px-1.5 py-0.5 rounded text-[9px] ${researchMode === "deep" ? "bg-blue-900/50 text-blue-300" : (isDark ? "bg-zinc-800 text-zinc-500" : "bg-gray-100 text-gray-500")}`}
               title="深度 (25步)"
               aria-label="深度研究模式"
               aria-pressed={researchMode === "deep"}
