@@ -2,6 +2,7 @@ import { type ReactNode, useState, useEffect, Suspense, type ComponentType } fro
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import CopyButton from "./CopyButton"
+import { useTheme } from "../theme"
 
 type SHProps = {
   style: Record<string, unknown>
@@ -11,7 +12,7 @@ type SHProps = {
   children: string
 }
 
-function LazyHighlighter({ language, code }: { language: string; code: string }) {
+function LazyHighlighter({ language, code, isDark }: { language: string; code: string; isDark: boolean }) {
   const [Component, setComponent] = useState<ComponentType<SHProps> | null>(null)
 
   useEffect(() => {
@@ -44,16 +45,16 @@ function LazyHighlighter({ language, code }: { language: string; code: string })
       langs.forEach((lang) => {
         if (lang.default) mod.default.registerLanguage(lang.default.name || lang.default, lang.default)
       })
-      const style = styles.oneDark as Record<string, unknown>
+      const style = isDark ? styles.oneDark : styles.oneLight as Record<string, unknown>
       const SH = mod.default as unknown as ComponentType<SHProps>
       const Wrapped = (props: SHProps) => <SH {...props} style={style} />
       setComponent(() => Wrapped)
     })()
     return () => { cancelled = true }
-  }, [])
+  }, [isDark])
 
   if (!Component) {
-    return <div className="h-20 animate-pulse bg-zinc-800" />
+    return <div className={`h-20 animate-pulse ${isDark ? "bg-zinc-800" : "bg-gray-100"}`} />
   }
 
   return (
@@ -61,7 +62,7 @@ function LazyHighlighter({ language, code }: { language: string; code: string })
       style={{}}
       language={language || "text"}
       PreTag="div"
-      customStyle={{ margin: 0, borderRadius: 0, fontSize: "13px", background: "#18181b" }}
+      customStyle={{ margin: 0, borderRadius: 0, fontSize: "13px", background: isDark ? "#18181b" : "#f5f5f5" }}
     >
       {code}
     </Component>
@@ -72,23 +73,25 @@ function CodeBlock({ children, className, ...rest }: { children?: ReactNode; cla
   const match = /language-(\w+)/.exec(className || "")
   const code = String(children).replace(/\n$/, "")
   const language = match ? match[1] : ""
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
 
   if (!className) {
     return (
-      <code className="rounded bg-zinc-900 px-1.5 py-0.5 text-xs text-zinc-300 font-mono" {...rest}>
+      <code className={`rounded px-1.5 py-0.5 text-xs font-mono ${isDark ? "bg-zinc-900 text-zinc-300" : "bg-gray-100 text-gray-800"}`} {...rest}>
         {children}
       </code>
     )
   }
 
   return (
-    <div className="relative group my-2 rounded-lg overflow-x-auto border border-zinc-700/50">
-      <div className="flex items-center justify-between bg-zinc-800 px-3 py-1 text-xs text-zinc-500 border-b border-zinc-700/50">
+    <div className={`relative group my-2 rounded-lg overflow-x-auto border ${isDark ? "border-zinc-700/50" : "border-gray-200"}`}>
+      <div className={`flex items-center justify-between px-3 py-1 text-xs border-b ${isDark ? "bg-zinc-800 text-zinc-500 border-zinc-700/50" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
         <span>{language || "code"}</span>
         <CopyButton text={code} className="opacity-0 group-hover:opacity-100 -mr-1 -mt-0.5" />
       </div>
-      <Suspense fallback={<div className="h-20 animate-pulse bg-zinc-800" />}>
-        <LazyHighlighter language={language} code={code} />
+      <Suspense fallback={<div className={`h-20 animate-pulse ${isDark ? "bg-zinc-800" : "bg-gray-100"}`} />}>
+        <LazyHighlighter language={language} code={code} isDark={isDark} />
       </Suspense>
     </div>
   )

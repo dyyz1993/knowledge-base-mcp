@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import CopyButton from "../CopyButton"
 import { MarkdownRenderer } from "../MarkdownRenderer"
+import { useTheme } from "../../theme"
 
 interface ThinkingMessageProps {
   content: string
@@ -8,9 +9,11 @@ interface ThinkingMessageProps {
 }
 
 export function ThinkingMessage({ content, streaming }: ThinkingMessageProps) {
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
   return (
-    <div role="status" aria-live="polite" className="mx-auto max-w-[80%] md:max-w-[80%] rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-500 italic">
-      <span className="font-medium text-zinc-400">{streaming ? "Thinking..." : "Thinking"}</span>
+    <div role="status" aria-live="polite" className={`mx-auto max-w-[80%] md:max-w-[80%] rounded-lg border px-3 py-2 text-xs italic ${isDark ? "border-zinc-800 bg-zinc-900/30 text-zinc-500" : "border-gray-200 bg-gray-50 text-gray-500"}`}>
+      <span className={`font-medium ${isDark ? "text-zinc-400" : "text-gray-600"}`}>{streaming ? "Thinking..." : "Thinking"}</span>
       <p className="mt-1 whitespace-pre-wrap">{content}</p>
     </div>
   )
@@ -22,9 +25,11 @@ interface AssistantMessageProps {
 }
 
 export function AssistantMessage({ content, messageKey }: AssistantMessageProps) {
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
   return (
     <div className="flex justify-start" role="article" aria-label="助手消息">
-      <div className="max-w-[85%] md:max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
+      <div className={`max-w-[85%] md:max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${isDark ? "bg-zinc-800 text-zinc-200" : "bg-gray-100 text-gray-800"}`}>
         <div className="group relative markdown-body">
           <MarkdownRenderer content={content} />
           <div className="mt-1.5 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ marginTop: "4px" }}>
@@ -52,11 +57,13 @@ export function UserMessage({ content }: UserMessageProps) {
 }
 
 export function StreamingIndicator() {
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
   return (
     <span className="inline-flex gap-1 ml-1" role="status" aria-label="正在输入">
-      <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
-      <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
-      <span className="streaming-dot w-1.5 h-1.5 rounded-full bg-zinc-400" />
+      <span className={`streaming-dot w-1.5 h-1.5 rounded-full ${isDark ? "bg-zinc-400" : "bg-gray-400"}`} />
+      <span className={`streaming-dot w-1.5 h-1.5 rounded-full ${isDark ? "bg-zinc-400" : "bg-gray-400"}`} />
+      <span className={`streaming-dot w-1.5 h-1.5 rounded-full ${isDark ? "bg-zinc-400" : "bg-gray-400"}`} />
     </span>
   )
 }

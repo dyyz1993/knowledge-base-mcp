@@ -4,6 +4,7 @@ import { message } from "antd"
 import { useChatStore } from "../../stores/chat"
 import { buildShareUrl } from "../../services/api"
 import { SessionContextMenu } from "./SessionContextMenu"
+import { useTheme } from "../../theme"
 
 export function SessionItem({
   session,
@@ -22,6 +23,8 @@ export function SessionItem({
   const toggleSessionFavorite = useChatStore((s) => s.toggleSessionFavorite)
   const renameSessionLocal = useChatStore((s) => s.renameSessionLocal)
   const running = streamState?.isStreaming ?? false
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
 
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState("")
@@ -115,8 +118,8 @@ export function SessionItem({
         onContextMenu={handleContextMenu}
         className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 cursor-pointer transition-colors relative ${
           isActive
-            ? "bg-zinc-800 text-zinc-100"
-            : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+            ? (isDark ? "bg-zinc-800 text-zinc-100" : "bg-gray-200 text-gray-900")
+            : (isDark ? "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200" : "text-gray-600 hover:bg-gray-100 hover:text-gray-800")
         } ${running ? "ring-1 ring-blue-500/30" : ""}`}
       >
         <MessageSquare size={13} className="shrink-0" />
@@ -129,13 +132,13 @@ export function SessionItem({
               onBlur={handleRenameSubmit}
               onKeyDown={handleRenameKey}
               aria-label="编辑会话名称"
-              className="w-full bg-zinc-700 text-xs text-zinc-100 px-1 py-0.5 rounded outline-none border border-zinc-600 focus:border-blue-500"
+              className={`w-full text-xs px-1 py-0.5 rounded outline-none border focus:border-blue-500 ${isDark ? "bg-zinc-700 text-zinc-100 border-zinc-600" : "bg-gray-100 text-gray-900 border-gray-300"}`}
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
             <div className="text-xs truncate">{session.name}</div>
           )}
-          <div className="text-[10px] text-zinc-600 flex items-center gap-1">
+          <div className={`text-[10px] flex items-center gap-1 ${isDark ? "text-zinc-600" : "text-gray-400"}`}>
             <span>{new Date(session.createdAt).toLocaleDateString()}</span>
             {isFavorited && <Star size={9} className="text-yellow-500 fill-yellow-500" />}
           </div>
@@ -152,7 +155,7 @@ export function SessionItem({
             if (!window.confirm("确定删除此会话？此操作不可恢复。")) return
             onDelete(session.id)
           }}
-          className="shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-zinc-700 text-zinc-500 hover:text-red-400 transition-all"
+          className={`shrink-0 opacity-0 group-hover:opacity-100 p-1 rounded transition-all ${isDark ? "hover:bg-zinc-700 text-zinc-500 hover:text-red-400" : "hover:bg-gray-200 text-gray-400 hover:text-red-500"}`}
           aria-label="Delete session"
         >
           <Trash2 size={12} />

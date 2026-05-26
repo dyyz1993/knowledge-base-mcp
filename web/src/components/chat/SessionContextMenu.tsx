@@ -1,6 +1,7 @@
 import { useRef, useEffect } from "react"
 import { Star, Pencil, Share2, Copy, Trash2 } from "lucide-react"
 import { buildShareUrl } from "../../services/api"
+import { useTheme } from "../../theme"
 
 export function SessionContextMenu({
   x,
@@ -24,6 +25,8 @@ export function SessionContextMenu({
   onClose: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -50,13 +53,13 @@ export function SessionContextMenu({
       ref={ref}
       role="menu"
       aria-label="会话操作菜单"
-      className="fixed z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[160px]"
+      className={`fixed z-50 border rounded-lg shadow-xl py-1 min-w-[160px] ${isDark ? "bg-zinc-800 border-zinc-700" : "bg-white border-gray-200"}`}
       style={{ left: adjustedX, top: adjustedY }}
     >
       <button
         onClick={onFavorite}
         role="menuitem"
-        className="flex w-full items-center gap-2.5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
+        className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${isDark ? "text-zinc-300 hover:bg-zinc-700" : "text-gray-700 hover:bg-gray-100"}`}
       >
         <Star size={13} className={isFavorited ? "text-yellow-500 fill-yellow-500" : ""} />
         <span>{isFavorited ? "取消收藏" : "收藏会话"}</span>
@@ -64,7 +67,7 @@ export function SessionContextMenu({
       <button
         onClick={onRename}
         role="menuitem"
-        className="flex w-full items-center gap-2.5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
+        className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${isDark ? "text-zinc-300 hover:bg-zinc-700" : "text-gray-700 hover:bg-gray-100"}`}
       >
         <Pencil size={13} />
         <span>重命名</span>
@@ -72,7 +75,7 @@ export function SessionContextMenu({
       <button
         onClick={onShare}
         role="menuitem"
-        className="flex w-full items-center gap-2.5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
+        className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${isDark ? "text-zinc-300 hover:bg-zinc-700" : "text-gray-700 hover:bg-gray-100"}`}
       >
         <Share2 size={13} />
         <span>分享</span>
@@ -90,16 +93,16 @@ export function SessionContextMenu({
           onClose()
         }}
         role="menuitem"
-        className="flex w-full items-center gap-2.5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
+        className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${isDark ? "text-zinc-300 hover:bg-zinc-700" : "text-gray-700 hover:bg-gray-100"}`}
       >
         <Copy size={13} />
         <span>复制链接</span>
       </button>
-      <div className="my-1 border-t border-zinc-700" role="separator" />
+      <div className={`my-1 border-t ${isDark ? "border-zinc-700" : "border-gray-200"}`} role="separator" />
       <button
         onClick={onDelete}
         role="menuitem"
-        className="flex w-full items-center gap-2.5 px-3 py-1.5 text-xs text-red-400 hover:bg-zinc-700 transition-colors"
+        className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-xs text-red-400 hover:bg-zinc-700 transition-colors`}
       >
         <Trash2 size={13} />
         <span>删除</span>

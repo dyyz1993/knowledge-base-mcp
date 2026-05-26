@@ -5,6 +5,7 @@ import { useChatStore } from "../../stores/chat"
 import { writeKB } from "../../services/api"
 import { SearchTab } from "./SearchTab"
 import { OutlineTab } from "./OutlineTab"
+import { useTheme } from "../../theme"
 
 type RightTab = "search" | "outline"
 
@@ -13,6 +14,8 @@ export default function KBPanel() {
   const [activeTab, setActiveTab] = useState<RightTab>("search")
   const [writeOpen, setWriteOpen] = useState(false)
   const [writeForm, setWriteForm] = useState({ title: "", content: "", tags: "", keywords: "", intent: "" })
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
 
   const handleSearch = useCallback(() => {
     searchKB(kbQuery)
@@ -42,15 +45,15 @@ export default function KBPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex border-b border-zinc-800" role="tablist" aria-label="知识库面板">
+      <div className={`flex border-b ${isDark ? "border-zinc-800" : "border-gray-200"}`} role="tablist" aria-label="知识库面板">
         <button
           role="tab"
           aria-selected={activeTab === "search"}
           aria-controls="kb-panel-search"
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors ${
             activeTab === "search"
-              ? "text-zinc-200 border-b-2 border-blue-500"
-              : "text-zinc-500 hover:text-zinc-300"
+              ? `${isDark ? "text-zinc-200" : "text-gray-800"} border-b-2 border-blue-500`
+              : `${isDark ? "text-zinc-500 hover:text-zinc-300" : "text-gray-500 hover:text-gray-700"}`
           }`}
           onClick={() => setActiveTab("search")}
         >
@@ -63,8 +66,8 @@ export default function KBPanel() {
           aria-controls="kb-panel-outline"
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors ${
             activeTab === "outline"
-              ? "text-zinc-200 border-b-2 border-blue-500"
-              : "text-zinc-500 hover:text-zinc-300"
+              ? `${isDark ? "text-zinc-200" : "text-gray-800"} border-b-2 border-blue-500`
+              : `${isDark ? "text-zinc-500 hover:text-zinc-300" : "text-gray-500 hover:text-gray-700"}`
           }`}
           onClick={() => setActiveTab("outline")}
         >

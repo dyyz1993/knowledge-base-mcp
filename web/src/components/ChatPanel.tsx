@@ -6,6 +6,7 @@ import CopyButton from "./CopyButton"
 import ChatInput from "./chat/ChatInput"
 import { ToolCallBlock, ResearchProgressBar } from "./chat/ToolCallDisplay"
 import { ThinkingMessage, AssistantMessage, UserMessage, StreamingIndicator, MarkdownContent } from "./chat/ChatMessage"
+import { useTheme } from "../theme"
 
 interface MergedEvent {
   type: "thinking" | "text" | "tool_call" | "tool_result"
@@ -52,8 +53,10 @@ function calculateCost(usage: TokenUsage): number {
 function UsageBar({ usage }: { usage: TokenUsage }) {
   const total = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)
   const cost = calculateCost(usage)
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
   return (
-    <div className="mt-2 flex items-center gap-3 text-[10px] text-zinc-600 select-none">
+    <div className={`mt-2 flex items-center gap-3 text-[10px] select-none ${isDark ? "text-zinc-600" : "text-gray-400"}`}>
       <span>Tokens: {total.toLocaleString()}</span>
       <span>Cost: ¥{cost.toFixed(4)}</span>
       {usage.cache_read_tokens > 0 && <span>Cache Hit: {usage.cache_read_tokens.toLocaleString()}</span>}
@@ -121,6 +124,8 @@ export default function ChatPanel() {
   const messages = useChatStore((s) => s.messages)
   const sendMessage = useChatStore((s) => s.sendMessage)
   const abort = useChatStore((s) => s.abort)
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
 
   const isStreaming = streamState?.isStreaming ?? false
   const streamingTimeline = streamState?.streamingTimeline ?? []
@@ -159,16 +164,16 @@ export default function ChatPanel() {
     <div className="flex flex-col h-full">
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-3 md:px-4 py-3 space-y-3" role="log" aria-label="聊天记录" aria-live="polite">
         {messages.length === 0 && !isStreaming && (
-          <div className="flex flex-col items-center justify-center h-full text-zinc-600 gap-2">
-            <MessageSquare size={28} className="text-zinc-700" />
-            <span className="text-xs text-zinc-500">发送消息开始聊天</span>
+          <div className={`flex flex-col items-center justify-center h-full gap-2 ${isDark ? "text-zinc-600" : "text-gray-500"}`}>
+            <MessageSquare size={28} className={isDark ? "text-zinc-700" : "text-gray-400"} />
+            <span className={`text-xs ${isDark ? "text-zinc-500" : "text-gray-400"}`}>发送消息开始聊天</span>
           </div>
         )}
 
         <MessageList messages={messages} />
 
         {isStreaming && streamingContent?.includes("[SUGGESTIONS]") && (
-          <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
+          <div className={`mt-2 flex items-center gap-2 text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>
             <Loader2 className="w-3 h-3 animate-spin" />
             正在生成推荐话题...
           </div>
@@ -184,7 +189,7 @@ export default function ChatPanel() {
 
         {isStreaming && merged.length === 0 && (
           <div className="flex justify-start">
-            <div className="rounded-2xl bg-zinc-800 text-zinc-400 px-4 py-2.5 text-sm flex items-center gap-2">
+            <div className={`rounded-2xl px-4 py-2.5 text-sm flex items-center gap-2 ${isDark ? "bg-zinc-800 text-zinc-400" : "bg-gray-100 text-gray-600"}`}>
               <Loader2 size={14} className="animate-spin" />
               <span>Thinking</span>
               <StreamingIndicator />
@@ -205,7 +210,7 @@ export default function ChatPanel() {
               if (!displayContent) return null
               return (
                 <div key={`tl-${i}`} className="flex justify-start">
-                  <div className="max-w-[85%] md:max-w-[80%] rounded-2xl bg-zinc-800 text-zinc-200 px-4 py-2.5 text-sm">
+                  <div className={`max-w-[85%] md:max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${isDark ? "bg-zinc-800 text-zinc-200" : "bg-gray-100 text-gray-800"}`}>
                     <div className="group relative markdown-body">
                       <MarkdownContent content={displayContent} />
                       <StreamingIndicator />
@@ -233,7 +238,7 @@ export default function ChatPanel() {
             }
             case "tool_result":
               return (
-                <div key={`tl-${i}`} className="my-1 ml-4 rounded bg-zinc-900/50 px-3 py-1.5 text-xs text-zinc-400 max-h-32 overflow-y-auto">
+                <div key={`tl-${i}`} className={`my-1 ml-4 rounded px-3 py-1.5 text-xs max-h-32 overflow-y-auto ${isDark ? "bg-zinc-900/50 text-zinc-400" : "bg-gray-50 text-gray-500"}`}>
                   <pre className="whitespace-pre-wrap">{event.content}</pre>
                 </div>
               )

@@ -112,7 +112,7 @@ export default function AskPanel() {
               停止查询
             </button>
             {statusText && (
-              <span className="text-[11px] text-zinc-500 animate-pulse">{statusText}</span>
+              <span className={`text-[11px] animate-pulse ${isDark ? "text-zinc-500" : "text-gray-500"}`}>{statusText}</span>
             )}
           </div>
         )}

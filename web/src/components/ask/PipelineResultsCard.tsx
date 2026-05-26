@@ -2,18 +2,21 @@ import { useState } from "react"
 import { ChevronDown, ChevronUp, Search, Key, BookOpen, Save, Loader2 } from "lucide-react"
 import { askDeepRead } from "../../services/api"
 import type { PipelineSearchResponse, PipelineSearchResult } from "../../services/api"
+import { useTheme } from "../../theme"
 
 export function PipelineResultsCard({ searchResult, onIngest, onGenerateWorkKey }: {
   searchResult: PipelineSearchResponse
   onIngest: (query: string, title: string, content: string, url?: string) => void
   onGenerateWorkKey: (query: string, results: PipelineSearchResult[]) => void
 }) {
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
   return (
-    <div className="max-w-[85%] w-full rounded-xl bg-zinc-900 border border-zinc-800 border-l-2 border-l-blue-500 overflow-hidden">
-      <div className="px-3 py-2 flex items-center gap-2 border-b border-zinc-800">
+    <div className={`max-w-[85%] w-full rounded-xl border border-l-2 border-l-blue-500 overflow-hidden ${isDark ? "bg-zinc-900 border-zinc-800" : "bg-white border-gray-200"}`}>
+      <div className={`px-3 py-2 flex items-center gap-2 border-b ${isDark ? "border-zinc-800" : "border-gray-200"}`}>
         <Search size={13} className="text-blue-400" />
         <span className="text-xs font-medium text-blue-400">多源搜索</span>
-        <span className="text-[10px] text-zinc-500">
+        <span className={`text-[10px] ${isDark ? "text-zinc-500" : "text-gray-500"}`}>
           {searchResult.totalSources} 来源 · {searchResult.results.length} 结果 · {(searchResult.durationMs / 1000).toFixed(1)}s
         </span>
         <button
@@ -43,6 +46,8 @@ function PipelineResultItem({ item, query, onIngest }: {
   const [detail, setDetail] = useState<string | null>(null)
   const [detailTitle, setDetailTitle] = useState<string>("")
   const [expanded, setExpanded] = useState(false)
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
 
   const handleDeepRead = async () => {
     if (reading) return
@@ -68,7 +73,7 @@ function PipelineResultItem({ item, query, onIngest }: {
     platform: "bg-amber-900/50 text-amber-400",
     blog: "bg-orange-900/50 text-orange-400",
     "llm-knowledge": "bg-purple-900/50 text-purple-400",
-    unknown: "bg-zinc-800 text-zinc-400",
+    unknown: isDark ? "bg-zinc-800 text-zinc-400" : "bg-gray-100 text-gray-600",
   }
   const sourceNames: Record<string, string> = {
     "web-search-prime": "智谱搜索",
@@ -80,7 +85,7 @@ function PipelineResultItem({ item, query, onIngest }: {
   const sourceName = sourceNames[item.source] || item.source
 
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950 overflow-hidden">
+    <div className={`rounded-lg border overflow-hidden ${isDark ? "border-zinc-800 bg-zinc-950" : "border-gray-200 bg-gray-50"}`}>
       <div className="px-2.5 py-1.5">
         <div className="flex items-start gap-1.5">
           <div className="flex-1 min-w-0">
@@ -90,15 +95,15 @@ function PipelineResultItem({ item, query, onIngest }: {
                   {item.title}
                 </a>
               ) : (
-                <span className="text-xs font-medium text-zinc-200 truncate">{item.title}</span>
+                <span className={`text-xs font-medium truncate ${isDark ? "text-zinc-200" : "text-gray-800"}`}>{item.title}</span>
               )}
               <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium ${badge}`}>
                 {item.sourceType}
               </span>
             </div>
-            <p className={`text-[10px] text-zinc-500 mt-0.5 ${expanded ? "" : "line-clamp-2"}`}>{item.snippet}</p>
+            <p className={`text-[10px] mt-0.5 ${isDark ? "text-zinc-500" : "text-gray-500"} ${expanded ? "" : "line-clamp-2"}`}>{item.snippet}</p>
             {item.snippet && item.snippet.length > 80 && (
-              <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="flex items-center gap-1 mt-0.5 text-[10px] text-zinc-500 hover:text-zinc-300">
+              <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className={`flex items-center gap-1 mt-0.5 text-[10px] ${isDark ? "text-zinc-500 hover:text-zinc-300" : "text-gray-500 hover:text-gray-700"}`}>
                 {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                 {expanded ? "收起" : "展开"}
               </button>
@@ -106,30 +111,30 @@ function PipelineResultItem({ item, query, onIngest }: {
           </div>
         </div>
         <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-[9px] text-zinc-600">{sourceName}</span>
+          <span className={`text-[9px] ${isDark ? "text-zinc-600" : "text-gray-400"}`}>{sourceName}</span>
           {item.qualityScore > 0 && (
             <>
               <div className="hidden sm:flex items-center gap-1 flex-1">
-                <div className="flex-1 h-1 rounded-full bg-zinc-800 overflow-hidden">
+                <div className={`flex-1 h-1 rounded-full overflow-hidden ${isDark ? "bg-zinc-800" : "bg-gray-200"}`}>
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-zinc-600 to-emerald-400"
                     style={{ width: `${item.qualityScore}%` }}
                   />
                 </div>
-                <span className="text-[9px] text-zinc-500">{item.qualityScore}</span>
+                <span className={`text-[9px] ${isDark ? "text-zinc-500" : "text-gray-500"}`}>{item.qualityScore}</span>
               </div>
-              <span className="sm:hidden text-[9px] text-zinc-500">{item.qualityScore}</span>
+              <span className={`sm:hidden text-[9px] ${isDark ? "text-zinc-500" : "text-gray-500"}`}>{item.qualityScore}</span>
             </>
           )}
         </div>
       </div>
       {item.url && (
-        <div className="px-2.5 py-1.5 border-t border-zinc-800 flex items-center gap-2">
+        <div className={`px-2.5 py-1.5 border-t flex items-center gap-2 ${isDark ? "border-zinc-800" : "border-gray-200"}`}>
           <button
             onClick={handleDeepRead}
             disabled={reading}
             aria-label={reading ? "正在读取" : "深度读取"}
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium disabled:opacity-50 transition-colors ${isDark ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
           >
             {reading ? <Loader2 size={10} className="animate-spin" /> : <BookOpen size={10} />}
             {reading ? "读取中..." : "深度读取"}
@@ -137,8 +142,8 @@ function PipelineResultItem({ item, query, onIngest }: {
         </div>
       )}
       {detail && (
-        <div className="px-2.5 py-2 border-t border-zinc-800">
-          <div className="text-[10px] text-zinc-400 whitespace-pre-wrap max-h-40 overflow-y-auto">{detail.slice(0, 5000)}</div>
+        <div className={`px-2.5 py-2 border-t ${isDark ? "border-zinc-800" : "border-gray-200"}`}>
+          <div className={`text-[10px] whitespace-pre-wrap max-h-40 overflow-y-auto ${isDark ? "text-zinc-400" : "text-gray-600"}`}>{detail.slice(0, 5000)}</div>
           {detail !== "深度读取失败" && (
             <button
               onClick={() => onIngest(query, detailTitle || item.title, detail, item.url)}
