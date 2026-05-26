@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react"
 import { Sparkles, Trash2, Square } from "lucide-react"
 import { useAskStore } from "../stores/ask"
-import { useChatStore } from "../stores/chat"
+import ModelSelector from "./ModelSelector"
 import type { ResearchMode } from "../services/api"
 import { AskEmptyState } from "./ask/AskEmptyState"
 import { AskInput } from "./ask/AskInput"
@@ -10,7 +10,6 @@ import { useTheme } from "../theme"
 
 export default function AskPanel() {
   const { messages, loading, statusText, ask, agentResearchAction, cancel, clear } = useAskStore()
-  const { models, currentModel, setModel: setChatModel } = useChatStore()
   const { theme } = useTheme()
   const isDark = theme === "dark"
   const [input, setInput] = useState("")
@@ -59,27 +58,7 @@ export default function AskPanel() {
         <div className="flex items-center gap-2">
           <Sparkles size={16} className="text-amber-400" />
           <span className="text-sm font-medium">智能问答</span>
-          {models.length > 0 && (
-            <select
-              value={currentModel ? `${currentModel.provider}|${currentModel.id}` : ""}
-              aria-label="选择模型"
-              onChange={(e) => {
-                const val = e.target.value
-                if (val) {
-                  const idx = val.indexOf("|")
-                  setChatModel(val.slice(0, idx), val.slice(idx + 1))
-                }
-              }}
-              className={`ml-2 text-[10px] border rounded px-1.5 py-0.5 focus:outline-none ${isDark ? "bg-zinc-800 border-zinc-700 text-zinc-400" : "bg-white border-gray-300 text-gray-600"}`}
-            >
-              <option value="">默认模型</option>
-              {models.map((m) => (
-                <option key={`${m.provider}|${m.id}`} value={`${m.provider}|${m.id}`}>
-                  {m.name || m.id}
-                </option>
-              ))}
-            </select>
-          )}
+          <ModelSelector className="ml-2" />
         </div>
         {messages.length > 0 && (
           <button onClick={clear} aria-label="清空消息" className={`p-1 rounded text-zinc-500 hover:text-zinc-300 transition-colors ${isDark ? "hover:bg-zinc-800" : "hover:bg-gray-100 hover:text-gray-700"}`}>
