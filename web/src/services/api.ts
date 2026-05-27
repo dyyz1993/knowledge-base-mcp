@@ -55,4 +55,4 @@ export {
 
 export { getConfig, updateConfig, reindexEmbeddings, scanSkills, getSkillPaths, updateSkillPaths, detectBrowser } from "./config"
 
-export { smartAsk, ingestWebContent, webRead, askSearch, askDeepRead, askWorkKey, askResearch, agentResearch, askSummarize } from "./ask"
+export { smartAsk, ingestWebContent, webRead, askSearch, askDeepRead, askWorkKey, askResearch, agentResearch, askSummarize, getResearchStatus, getResearchResult } from "./ask"

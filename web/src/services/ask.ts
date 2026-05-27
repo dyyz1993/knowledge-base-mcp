@@ -95,7 +95,7 @@ export function agentResearch(
   smallModel?: { provider: string; id: string },
   onProgress?: (progress: AgentResearchProgress) => void,
   signal?: AbortSignal,
-): Promise<AgentResearchResult> {
+): Promise<AgentResearchResult & { researchId?: string }> {
   return new Promise((resolve, reject) => {
     (async () => {
       try {
@@ -120,6 +120,7 @@ export function agentResearch(
         let buffer = ""
         let currentEvent = ""
         let resolved = false
+        let capturedResearchId: string | undefined
 
         const processChunk = (chunk: string) => {
           buffer += chunk
@@ -132,11 +133,13 @@ export function agentResearch(
             } else if (line.startsWith("data: ") && currentEvent) {
               try {
                 const data = JSON.parse(line.slice(6))
-                if (currentEvent === "step" && onProgress) {
+                if (currentEvent === "started") {
+                  capturedResearchId = data.researchId
+                } else if (currentEvent === "step" && onProgress) {
                   onProgress(data as AgentResearchProgress)
                 } else if (currentEvent === "done") {
                   resolved = true
-                  resolve(data as AgentResearchResult)
+                  resolve({ ...(data as AgentResearchResult), researchId: capturedResearchId })
                 } else if (currentEvent === "error") {
                   resolved = true
                   reject(new Error(data.error || "Unknown error"))
@@ -166,6 +169,22 @@ export function agentResearch(
       }
     })()
   })
+}
+
+export async function getResearchStatus(researchId: string): Promise<{
+  researchId: string
+  status: "running" | "completed" | "failed"
+  mode: string
+  query: string
+  progress: AgentResearchProgress[]
+  createdAt: number
+  updatedAt: number
+}> {
+  return requestJson(`${BASE}/api/agent-research/${researchId}/status`)
+}
+
+export async function getResearchResult(researchId: string): Promise<AgentResearchResult> {
+  return requestJson(`${BASE}/api/agent-research/${researchId}/result`)
 }
 
 export async function askSummarize(params: {

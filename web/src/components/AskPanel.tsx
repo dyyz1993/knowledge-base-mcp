@@ -21,6 +21,10 @@ export default function AskPanel() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  useEffect(() => {
+    useAskStore.getState().reconnectResearch()
+  }, [])
+
   const handleSubmit = () => {
     const q = input.trim()
     if (!q || useAskStore.getState().loading) return

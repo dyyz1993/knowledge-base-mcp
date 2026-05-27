@@ -72,6 +72,12 @@ export function AgentResearchCard({ result, progress, errorDetail }: {
         <div className="relative pl-8">
           <div className={`absolute left-3 top-0 bottom-0 w-0.5 rounded-full ${isDark ? "bg-zinc-700" : "bg-gray-200"}`} />
           {uniqueSteps.map((s, idx) => {
+            const duration = s.status === "done"
+              ? "完成"
+              : s.status === "running" ? "进行中..."
+              : s.status === "failed" ? "失败"
+              : s.status === "skipped" ? "已跳过"
+              : ""
             return (
               <div key={s.step} className="relative pb-3 last:pb-0">
                 <div className={`absolute left-3 w-1.5 h-1.5 rounded-full border-2 ${isDark ? "border-zinc-900" : "border-white"} ${
