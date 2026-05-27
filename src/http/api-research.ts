@@ -1,9 +1,11 @@
 import { IncomingMessage, ServerResponse } from "node:http"
+import crypto from "node:crypto"
 import { writeDoc, resolveMiss } from "../storage/index.js"
 import { getMcpWebSearch } from "../search/mcp-web-search.js"
 import { getConfiguredModels } from "../chat/api-models.js"
 import { loadConfig } from "../config.js"
 import { json, apiError, parseBody, validateUrl, extractHtmlContent, getApiUserAgent, setupSSE } from "./helpers.js"
+import { createResearchState, getResearchState, updateResearchProgress, completeResearch, failResearch } from "../research/research-state-store.js"
 import { createLogger } from "../utils/logger.js"
 
 const logger = createLogger("http:api-research")
@@ -184,7 +186,9 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
     return true
   }
 
-  if (url.pathname === "/api/agent-research" && req.method === "POST") {
+  const agentResearchPrefix = "/api/agent-research/"
+
+  if (url.pathname === agentResearchPrefix.slice(0, -1) && req.method === "POST") {
     const body = (await parseBody(req, res)) as Record<string, any>
     if (body === null) return true
     const query = body.query as string | undefined
@@ -196,32 +200,91 @@ export async function handleResearchRoutes(req: IncomingMessage, res: ServerResp
       return true
     }
 
+    const researchId = crypto.randomUUID()
+    const mode = body.mode || "standard"
+    createResearchState(researchId, query, mode)
+
     const { send, cleanup } = setupSSE(res, req.headers.origin)
+
+    send("started", { researchId })
 
     try {
       const { ResearchAgent } = await import("../research/research-agent.js")
       const agent = new ResearchAgent(
         {
           query,
-          mode: body.mode || "standard",
+          mode,
           model: body.model,
           smallModel: body.smallModel,
         },
         (progress) => {
+          updateResearchProgress(researchId, progress)
           send("step", progress)
         },
       )
 
       const result = await agent.run()
+      completeResearch(researchId, result)
       send("done", result)
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      send("error", { error: msg })
+      failResearch(researchId, msg)
+      send("error", { error: msg, researchId })
     } finally {
       cleanup()
       res.end()
     }
 
+    return true
+  }
+
+  if (url.pathname.startsWith(agentResearchPrefix) && req.method === "GET") {
+    const parts = url.pathname.slice(agentResearchPrefix.length).split("/")
+    const researchId = parts[0]
+    const subPath = parts[1]
+
+    if (!researchId) {
+      apiError(res, 400, "MISSING_FIELD", "Missing researchId in path")
+      return true
+    }
+
+    const state = getResearchState(researchId)
+    if (!state) {
+      apiError(res, 404, "NOT_FOUND", `Research ${researchId} not found`)
+      return true
+    }
+
+    if (subPath === "status") {
+      json(res, {
+        researchId: state.researchId,
+        status: state.status,
+        mode: state.mode,
+        query: state.query,
+        progress: state.progress,
+        createdAt: state.createdAt,
+        updatedAt: state.updatedAt,
+      })
+      return true
+    }
+
+    if (subPath === "result") {
+      if (state.status === "running") {
+        apiError(res, 409, "STILL_RUNNING", `Research ${researchId} is still running`)
+        return true
+      }
+      if (state.status === "failed") {
+        apiError(res, 500, "RESEARCH_FAILED", state.error || "Research failed")
+        return true
+      }
+      if (!state.result) {
+        apiError(res, 404, "NO_RESULT", `No result for research ${researchId}`)
+        return true
+      }
+      json(res, state.result)
+      return true
+    }
+
+    apiError(res, 400, "INVALID_PATH", "Use /status or /result sub-path")
     return true
   }
 
