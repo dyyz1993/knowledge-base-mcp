@@ -8,6 +8,7 @@ import { SearchSection } from "./settings/SearchSection"
 import { SearchPipelineSection } from "./settings/SearchPipelineSection"
 import { DEFAULT_BROWSER, DEFAULT_SEARCH_PIPELINE } from "./settings/constants"
 import { useSettings } from "./settings/useSettings"
+import { useTheme } from "../theme"
 
 export default function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const {
@@ -19,6 +20,8 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
     handleAddPath, handleRemovePath, handleScanSkills,
     setShowKey, setNewPath, setConfig,
   } = useSettings(open)
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
 
   return (
     <Drawer
@@ -33,17 +36,17 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
       open={open}
       onClose={onClose}
       styles={{
-        header: { background: "#18181b", borderBottom: "1px solid #27272a" },
-        body: { background: "#09090b", padding: "16px" },
+        header: isDark ? { background: "#18181b", borderBottom: "1px solid #27272a" } : { background: "#ffffff", borderBottom: "1px solid #e4e4e7" },
+        body: isDark ? { background: "#09090b", padding: "16px" } : { background: "#f9fafb", padding: "16px" },
         mask: { background: "rgba(0,0,0,0.6)" },
       }}
       footer={
-        <div className="flex items-center gap-2" style={{ background: "#18181b", padding: "12px 16px" }}>
+        <div className="flex items-center gap-2" style={{ background: isDark ? "#18181b" : "#ffffff", borderTop: isDark ? undefined : "1px solid #e4e4e7", padding: "12px 16px" }}>
           <Button
             icon={<Save size={13} />}
             onClick={handleSave}
             loading={saving}
-            className="flex items-center gap-1.5 bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
+            className={`flex items-center gap-1.5 ${isDark ? "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900"}`}
           >
             Save
           </Button>
@@ -57,7 +60,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
           </Button>
           <div className="ml-auto flex items-center gap-2">
             {connected !== null && (
-              <span className="flex items-center gap-1 text-xs text-zinc-400">
+              <span className={`flex items-center gap-1 text-xs ${isDark ? "text-zinc-400" : "text-gray-500"}`}>
                 {connected ? <Wifi size={12} className="text-green-400" /> : <WifiOff size={12} className="text-red-400" />}
                 {connected ? "Connected" : "Disconnected"}
               </span>
@@ -70,7 +73,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
       }
     >
       {loading ? (
-        <div className="flex items-center justify-center py-12 text-zinc-500">
+        <div className={`flex items-center justify-center py-12 ${isDark ? "text-zinc-500" : "text-gray-400"}`}>
           <Loader2 size={20} className="animate-spin mr-2" />
           Loading...
         </div>

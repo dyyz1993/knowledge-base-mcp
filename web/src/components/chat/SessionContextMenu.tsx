@@ -102,7 +102,7 @@ export function SessionContextMenu({
       <button
         onClick={onDelete}
         role="menuitem"
-        className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-xs text-red-400 hover:bg-zinc-700 transition-colors`}
+        className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-xs text-red-400 ${isDark ? "hover:bg-zinc-700" : "hover:bg-gray-100"} transition-colors`}
       >
         <Trash2 size={13} />
         <span>删除</span>

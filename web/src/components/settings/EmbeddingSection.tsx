@@ -2,6 +2,7 @@ import { Select, Input, InputNumber, Switch, Button, Divider, Tooltip } from "an
 import { Eye, EyeOff, Brain } from "lucide-react"
 import { PROVIDERS, PRESET_MODELS } from "./constants"
 import type { EmbeddingConfig } from "../../services/api"
+import { useTheme } from "../../theme"
 
 interface EmbeddingSectionProps {
   embedding: EmbeddingConfig
@@ -11,17 +12,19 @@ interface EmbeddingSectionProps {
 }
 
 export function EmbeddingSection({ embedding, showKey, onUpdate, onToggleShowKey }: EmbeddingSectionProps) {
+  const { theme } = useTheme()
+  const isDark = theme === "dark"
   const presetModels = PRESET_MODELS[embedding.provider] || []
 
   return (
-    <section className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 space-y-4">
-      <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
-        <Brain size={13} className="text-zinc-500" />
+    <section className={`rounded-lg border p-4 space-y-4 ${isDark ? "border-zinc-800 bg-zinc-950" : "border-gray-200 bg-white"}`}>
+      <div className={`flex items-center gap-2 text-xs font-medium uppercase tracking-wider ${isDark ? "text-zinc-400" : "text-gray-500"}`}>
+        <Brain size={13} className={isDark ? "text-zinc-500" : "text-gray-400"} />
         Embedding
       </div>
 
       <div className="flex items-center justify-between">
-        <span className="text-xs text-zinc-400">Enabled</span>
+        <span className={`text-xs ${isDark ? "text-zinc-400" : "text-gray-500"}`}>Enabled</span>
         <Switch
           size="small"
           checked={embedding.enabled}
@@ -30,7 +33,7 @@ export function EmbeddingSection({ embedding, showKey, onUpdate, onToggleShowKey
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs text-zinc-400">Provider</label>
+        <label className={`text-xs ${isDark ? "text-zinc-400" : "text-gray-500"}`}>Provider</label>
         <Select
           value={embedding.provider}
           options={[...PROVIDERS]}
@@ -43,7 +46,7 @@ export function EmbeddingSection({ embedding, showKey, onUpdate, onToggleShowKey
       {embedding.provider !== "local" && (
         <>
           <div className="space-y-1.5">
-            <label className="text-xs text-zinc-400">Base URL</label>
+            <label className={`text-xs ${isDark ? "text-zinc-400" : "text-gray-500"}`}>Base URL</label>
             <Input
               size="small"
               value={embedding.baseUrl}
@@ -53,7 +56,7 @@ export function EmbeddingSection({ embedding, showKey, onUpdate, onToggleShowKey
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs text-zinc-400">API Key</label>
+            <label className={`text-xs ${isDark ? "text-zinc-400" : "text-gray-500"}`}>API Key</label>
             <div className="flex gap-1.5">
               <Input
                 size="small"
@@ -77,7 +80,7 @@ export function EmbeddingSection({ embedding, showKey, onUpdate, onToggleShowKey
       )}
 
       <div className="space-y-1.5">
-        <label className="text-xs text-zinc-400">Model</label>
+        <label className={`text-xs ${isDark ? "text-zinc-400" : "text-gray-500"}`}>Model</label>
         {presetModels.length > 0 ? (
           <Select
             value={embedding.model}
@@ -113,7 +116,7 @@ export function EmbeddingSection({ embedding, showKey, onUpdate, onToggleShowKey
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs text-zinc-400">Dimensions</label>
+        <label className={`text-xs ${isDark ? "text-zinc-400" : "text-gray-500"}`}>Dimensions</label>
         <InputNumber
           size="small"
           min={128}
