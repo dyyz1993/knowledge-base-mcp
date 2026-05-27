@@ -61,33 +61,47 @@ export function AgentResearchCard({ result, progress, errorDetail }: {
       </div>
 
       <div className="px-3 py-2">
-        <div className={`w-full rounded-full h-1.5 mb-2 ${isDark ? "bg-zinc-800" : "bg-gray-200"}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`研究进度 ${pct}%`}>
-          <div
-            className="bg-violet-500 h-1.5 rounded-full transition-all duration-500"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {uniqueSteps.map((s) => (
-            <span
-              key={s.step}
-              className="flex items-center gap-0.5 text-[9px]"
-              title={`${STEP_LABELS[s.step] || s.step}: ${s.status}`}
-            >
-              {s.status === "done" && <CheckCircle2 size={9} className="text-emerald-400" />}
-              {s.status === "running" && <Loader size={9} className="text-violet-400 animate-spin" />}
-              {s.status === "failed" && <XCircle size={9} className="text-red-400" />}
-              {s.status === "skipped" && <Circle size={9} className={isDark ? "text-zinc-600" : "text-gray-400"} />}
-              <span className={s.status === "done" ? (isDark ? "text-zinc-400" : "text-gray-600") : s.status === "running" ? "text-violet-300" : (isDark ? "text-zinc-600" : "text-gray-400")}>
-                {STEP_LABELS[s.step] || s.step}
-              </span>
-            </span>
-          ))}
+        {isComplete && (
+          <div className={`w-full rounded-full h-1.5 mb-3 ${isDark ? "bg-zinc-800" : "bg-gray-200"}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`研究进度 ${pct}%`}>
+            <div
+              className="bg-violet-500 h-1.5 rounded-full transition-all duration-500"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        )}
+        <div className="relative pl-8">
+          <div className={`absolute left-3 top-0 bottom-0 w-0.5 rounded-full ${isDark ? "bg-zinc-700" : "bg-gray-200"}`} />
+          {uniqueSteps.map((s, idx) => {
+            return (
+              <div key={s.step} className="relative pb-3 last:pb-0">
+                <div className={`absolute left-3 w-1.5 h-1.5 rounded-full border-2 ${isDark ? "border-zinc-900" : "border-white"} ${
+                  s.status === "done" ? "bg-emerald-400" :
+                  s.status === "running" ? "bg-violet-400 animate-pulse" :
+                  s.status === "failed" ? "bg-red-400" :
+                  "bg-zinc-400"
+                }`} style={{ top: "0.35rem" }} />
+                <div className="flex items-center justify-between gap-3 ml-4">
+                  <div className="flex items-center gap-2">
+                    {s.status === "done" && <CheckCircle2 size={14} className="text-emerald-400" />}
+                    {s.status === "running" && <Loader size={14} className="text-violet-400 animate-spin" />}
+                    {s.status === "failed" && <XCircle size={14} className="text-red-400" />}
+                    {s.status === "skipped" && <Circle size={14} className={isDark ? "text-zinc-600" : "text-gray-400"} />}
+                    <span className={`text-xs ${s.status === "done" ? (isDark ? "text-zinc-200" : "text-gray-800") : s.status === "running" ? (isDark ? "text-violet-300" : "text-violet-600") : (isDark ? "text-zinc-500" : "text-gray-400")}`}>
+                      {STEP_LABELS[s.step] || s.step}
+                    </span>
+                  </div>
+                  <span className={`text-[10px] ${isDark ? "text-zinc-500" : "text-gray-500"}`}>
+                    {s.status === "done" ? "完成" : s.status === "running" ? "进行中..." : s.status === "failed" ? "失败" : s.status === "skipped" ? "已跳过" : ""}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
           {!isComplete && steps.length > 0 && steps[steps.length - 1].status === "running" && (
-            <span className={`flex items-center gap-0.5 text-[9px] ${isDark ? "text-zinc-500" : "text-gray-500"}`}>
-              <Loader size={9} className="animate-spin" />
+            <div className="flex items-center gap-2 ml-4 text-[10px] text-violet-400">
+              <Loader size={10} className="animate-spin" />
               进行中...
-            </span>
+            </div>
           )}
         </div>
       </div>
