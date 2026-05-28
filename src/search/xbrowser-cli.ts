@@ -123,12 +123,90 @@ export async function resolveCdpEndpoint(cdpEndpoint: string): Promise<string> {
   } catch (e) {
     logger.debug(`Failed to resolve CDP URL from ${cdpEndpoint}: ${e instanceof Error ? e.message : e}`)
   }
-  return normalized
+
+  return ensureCdpAvailable(normalized)
 }
 
+import { existsSync } from "node:fs"
 import { resolve } from "node:path"
 
 const XBR_BIN = resolve(process.cwd(), "node_modules", ".bin", "xbrowser")
+
+let fallbackEndpoint: string | null = null
+
+const CHROMIUM_PATHS = [
+  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+]
+
+const FALLBACK_PORT = 9333
+const FALLBACK_PROFILE_DIR = "/tmp/kb-chrome-profile"
+
+async function testCdpEndpoint(httpUrl: string): Promise<boolean> {
+  try {
+    const resp = await fetch(httpUrl, { signal: AbortSignal.timeout(2000) })
+    return resp.ok
+  } catch {
+    return false
+  }
+}
+
+async function launchFallbackChromium(port = FALLBACK_PORT): Promise<string> {
+  const endpoint = `http://127.0.0.1:${port}`
+  const versionUrl = `${endpoint}/json/version`
+
+  if (await testCdpEndpoint(versionUrl)) {
+    logger.debug(`Fallback Chromium already running on port ${port}, reusing`)
+    return endpoint
+  }
+
+  const chromiumBin = CHROMIUM_PATHS.find(p => existsSync(p))
+  if (!chromiumBin) {
+    throw new Error("No Chromium/Chrome binary found for fallback")
+  }
+
+  logger.debug(`Launching fallback Chromium on port ${port}: ${chromiumBin}`)
+
+  Bun.spawn([
+    chromiumBin,
+    `--headless=new`,
+    "--disable-gpu",
+    "--no-sandbox",
+    `--remote-debugging-port=${port}`,
+    "--disable-dev-shm-usage",
+    `--user-data-dir=${FALLBACK_PROFILE_DIR}`,
+  ], {
+    detached: true,
+    stdio: ["ignore", "ignore", "ignore"],
+  })
+
+  const deadline = Date.now() + 5000
+  while (Date.now() < deadline) {
+    if (await testCdpEndpoint(versionUrl)) {
+      logger.debug(`Fallback Chromium ready at ${endpoint}`)
+      return endpoint
+    }
+    await Bun.sleep(250)
+  }
+
+  throw new Error(`Fallback Chromium failed to start within 5s on port ${port}`)
+}
+
+export async function ensureCdpAvailable(cdpEndpoint: string): Promise<string> {
+  if (fallbackEndpoint) return cdpEndpoint
+
+  const httpBase = cdpEndpoint.replace(/^ws/, "http").replace(/\/devtools\/browser\/.*$/, "")
+  const versionUrl = `${httpBase}/json/version`
+
+  if (await testCdpEndpoint(versionUrl)) {
+    return cdpEndpoint
+  }
+
+  logger.debug(`CDP endpoint ${cdpEndpoint} unavailable, launching fallback Chromium`)
+  const fb = await launchFallbackChromium()
+  fallbackEndpoint = fb
+  return `${fb}/devtools/browser/`
+}
 
 async function runCommand(
   args: string[],
