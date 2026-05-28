@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from "node:http"
-import { loadConfig, saveConfig } from "../config.js"
+import { loadConfig, saveConfig, reloadConfig } from "../config.js"
 import { getDefaults } from "../config.js"
 import type { AppConfig } from "../config.js"
 import { getStorageStats } from "../search/vector-store.js"
@@ -10,6 +10,15 @@ import { configUpdateSchema, statsResetSchema } from "./schemas.js"
 import { parseBodyTyped } from "./validate.js"
 
 export async function handleConfigRoutes(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
+  if (url.pathname === "/api/config/reload" && req.method === "POST") {
+    try {
+      reloadConfig()
+      json(res, { ok: true, message: "Config reloaded" })
+    } catch (e) {
+      json(res, { ok: false, error: e instanceof Error ? e.message : String(e) }, 500)
+    }
+    return true
+  }
   if (url.pathname === "/api/config" && req.method === "GET") {
     const config = loadConfig()
     let storage

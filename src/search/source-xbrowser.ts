@@ -9,7 +9,7 @@ const logger = createLogger("search:source-xbrowser")
 
 function filterIrrelevant(query: string, results: Array<{ title: string; url: string; snippet: string }>): typeof results {
   const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2)
-  if (queryWords.length === 0 || results.length <= 3) return results
+  if (queryWords.length === 0 || results.length <= 5) return results
 
   return results.filter(r => {
     const text = `${r.title} ${r.snippet}`.toLowerCase()

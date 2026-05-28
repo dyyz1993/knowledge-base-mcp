@@ -126,11 +126,15 @@ export async function resolveCdpEndpoint(cdpEndpoint: string): Promise<string> {
   return normalized
 }
 
+import { resolve } from "node:path"
+
+const XBR_BIN = resolve(process.cwd(), "node_modules", ".bin", "xbrowser")
+
 async function runCommand(
   args: string[],
   timeout: number,
 ): Promise<string> {
-  const proc = Bun.spawn(["xbrowser", ...args], {
+  const proc = Bun.spawn([XBR_BIN, ...args], {
     stdout: "pipe",
     stderr: "pipe",
   })
@@ -433,6 +437,30 @@ export class XBrowserCLI {
       }
     } catch {
       /* 忽略: scrape 整体失败返回 null */
+      return null
+    }
+  }
+
+  async getText(url: string): Promise<string | null> {
+    if (!this.config.enabled) return null
+
+    try {
+      await this.ensureCdpResolved()
+
+      const sessionId = `kb-disc-${Date.now()}`
+      const baseArgs = buildBaseArgs(this.config)
+
+      await runCommand(["open", url, "--session", sessionId, ...baseArgs], this.config.timeout)
+
+      const textArgs = ["text", "--session", sessionId, ...baseArgs]
+      const raw = await runCommand(textArgs, this.config.timeout)
+
+      try {
+        await runCommand(["close", "--session", sessionId, ...baseArgs], 5000)
+      } catch { /* ignore */ }
+
+      return raw.trim() || null
+    } catch {
       return null
     }
   }

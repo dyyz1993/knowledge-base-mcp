@@ -32,6 +32,62 @@ export async function smartAsk(query: string, signal?: AbortSignal): Promise<Ask
   })
 }
 
+export async function smartAskStream(
+  query: string,
+  onStatus: (status: string) => void,
+  signal?: AbortSignal,
+): Promise<AskResult> {
+  const res = await fetch(`${BASE}/api/kb-ask?stream=true`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+    signal,
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`)
+  }
+
+  const reader = res.body?.getReader()
+  if (!reader) return smartAsk(query, signal)
+
+  const decoder = new TextDecoder()
+  let buffer = ""
+  let currentEvent = ""
+  let finalResult: AskResult | null = null
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split("\n")
+    buffer = lines.pop() || ""
+
+    for (const line of lines) {
+      if (line.startsWith("event: ")) {
+        currentEvent = line.slice(7).trim()
+      } else if (line.startsWith("data: ") && currentEvent) {
+        try {
+          const data = JSON.parse(line.slice(6))
+          if (currentEvent === "status" && data.status) {
+            onStatus(data.status)
+          } else if (currentEvent === "done") {
+            finalResult = data as AskResult
+          } else if (currentEvent === "error") {
+            throw new Error(data.error || "Unknown error")
+          }
+        } catch (e) {
+          if (e instanceof Error && !e.message.includes("Unknown error")) throw e
+        }
+        currentEvent = ""
+      }
+    }
+  }
+
+  return finalResult || { from_kb: false, hint: "无结果" }
+}
+
 export async function ingestWebContent(params: {
   url: string
   title: string

@@ -19,14 +19,17 @@ export class SearchPipeline {
   private mediumTimeout: number
   private slowTimeout: number
 
-  constructor(sources: SearchSource[], options?: { fastTimeout?: number; slowTimeout?: number }) {
+  constructor(sources: SearchSource[], options?: { fastTimeout?: number; slowTimeout?: number; enableFallback?: boolean }) {
     this.slowSources = sources.filter(s => s.name === "ai-search")
     this.mediumSources = sources.filter(s => s.name === "xbrowser")
     this.fastSources = sources.filter(s => s.name !== "ai-search" && s.name !== "xbrowser")
     this.fastTimeout = options?.fastTimeout ?? 10_000
     this.mediumTimeout = 15_000
     this.slowTimeout = options?.slowTimeout ?? 60_000
+    this.enableFallback = options?.enableFallback ?? true
   }
+
+  private enableFallback: boolean
 
   async search(query: string, maxResults = 10): Promise<AggregatedResult> {
     const start = Date.now()
@@ -103,6 +106,24 @@ export class SearchPipeline {
       }
     }
 
+    if (allResults.length === 0 && this.enableFallback) {
+      const { LlmDirectSource } = await import("./source-llm-direct.js")
+      const llmFallback = new LlmDirectSource()
+      if (llmFallback.available()) {
+        log("INFO", "All sources returned 0 results, trying LLM direct fallback...")
+        try {
+          const fallbackResults = await llmFallback.search(query)
+          if (fallbackResults.length > 0) {
+            allResults.push(...fallbackResults)
+            sourceTimings.push({ name: "llm-direct-fallback", ms: Date.now() - start, count: fallbackResults.length })
+            log("INFO", `LLM fallback: ${fallbackResults.length} results`)
+          }
+        } catch (e) {
+          log("WARN", `LLM fallback failed: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+    }
+
     log("INFO", `Raw total: ${allResults.length} results before aggregation`)
     const aggregated = aggregateResults(allResults, query, maxResults)
     log("INFO", `After aggregation: ${aggregated.length} results (deduped + scored)`)
@@ -114,6 +135,11 @@ export class SearchPipeline {
 
     const durationMs = Date.now() - start
     log("INFO", `Done: ${durationMs}ms total | Sources: ${sourceTimings.map(s => `${s.name}=${s.count}/${s.ms}ms${s.error ? " ERR" : ""}`).join(", ")}`)
+
+    try {
+      const { recordSearch } = await import("./search-history.js")
+      recordSearch(query, aggregated.length, sourceTimings.map(s => s.name), durationMs)
+    } catch {}
 
     return {
       query,

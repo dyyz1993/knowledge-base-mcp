@@ -116,7 +116,11 @@ export async function callLlm(
 
     const reasoning =
       typeof message.reasoning_content === "string" ? message.reasoning_content.trim() : ""
-    if (reasoning.length > 0) return reasoning
+    if (reasoning.length > 0) {
+      const jsonMatch = reasoning.match(/\{[\s\S]*\}/)
+      if (jsonMatch) return jsonMatch[0]
+      return reasoning
+    }
 
     return ""
   })

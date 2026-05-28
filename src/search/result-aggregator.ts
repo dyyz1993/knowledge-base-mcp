@@ -98,11 +98,22 @@ export function aggregateResults(
 
   const byUrl = new Map<string, SearchResult>()
   const urlCount = new Map<string, number>()
+  const titleSet = new Map<string, string>()
 
   for (const r of allResults) {
     const key = normalizeUrl(r.url || r.title)
     const count = (urlCount.get(key) || 0) + 1
     urlCount.set(key, count)
+
+    const titleNorm = r.title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 80)
+    const titleDupeKey = titleSet.get(titleNorm)
+    if (titleDupeKey && titleDupeKey !== key) {
+      const existingCount = urlCount.get(titleDupeKey) || 0
+      if (existingCount >= count) continue
+      byUrl.delete(titleDupeKey)
+    }
+    titleSet.set(titleNorm, key)
+
     const existing = byUrl.get(key)
     if (!existing || r.snippet.length > existing.snippet.length) {
       byUrl.set(key, { ...r, sourceType: r.sourceType === "unknown" ? identifySourceType(r.url) : r.sourceType })

@@ -64,6 +64,7 @@ async function retryEvaluateSimple(
       ],
       0.1,
       200,
+      60_000,
     )
 
     const jsonStr = extractJsonArray(retryRaw)
@@ -131,6 +132,7 @@ Return ONLY valid JSON matching this structure:
     ],
     0.2,
     800,
+    60_000,
   )
 
   let parsed: EvaluateResult

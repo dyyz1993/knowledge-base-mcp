@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-import { smartAsk, ingestWebContent, askSearch, askResearch, agentResearch, getResearchStatus, getResearchResult, type AskResult, type PipelineSearchResponse, type ResearchResult, type AgentResearchResult, type AgentResearchProgress, type ResearchMode } from "../services/api"
+import { smartAsk, smartAskStream, ingestWebContent, askSearch, askResearch, agentResearch, getResearchStatus, getResearchResult, type AskResult, type PipelineSearchResponse, type ResearchResult, type AgentResearchResult, type AgentResearchProgress, type ResearchMode } from "../services/api"
 import { useChatStore } from "./chat"
 
 interface Message {
@@ -91,7 +91,9 @@ export const useAskStore = create<AskState>()(
         set((s) => ({ messages: [...s.messages, userMsg], loading: true, statusText: "正在搜索知识库..." }))
 
         try {
-          const result = await smartAsk(query, ac.signal)
+          const result = await smartAskStream(query, (status) => {
+            set({ statusText: status })
+          }, ac.signal)
           if (ac.signal.aborted) return
           if (result.error) {
             const errorMsg: Message = {

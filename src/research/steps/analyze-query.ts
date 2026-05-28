@@ -26,6 +26,9 @@ Rules:
   * 1 broad OVERVIEW query
   NEVER repeat the original query. Each subQuery MUST be meaningfully different.
   CRITICAL: Every subQuery MUST preserve ALL core concepts from the original query. Do NOT drop any important keyword. E.g. "Docker sandbox" → subQueries must include BOTH "docker" AND "sandbox" concepts.
+  IMPORTANT: Each subQuery must be SHORT (3-6 words max). Avoid long compound queries — they return 0 results from search engines. Break complex queries into focused short phrases.
+  GOOD: "free backlink submission sites 2025" or "tech startup directory dofollow"
+  BAD: "complete list of all websites where tech startups can submit SEO backlinks with DA scores"
 - researchType: one of doc|api|code|concept|comparison
 - language: zh|en|mixed
 
@@ -126,7 +129,7 @@ export async function analyzeQuery(
     { role: "user", content: buildUserPrompt(query, warningPrompt) },
   ]
 
-  const raw = await callLlm(smallModel, messages, 0.3, 1200)
+  const raw = await callLlm(smallModel, messages, 0.3, 1200, 60_000)
   if (!raw) return buildFallback(query)
 
   return parseResponse(raw, query)

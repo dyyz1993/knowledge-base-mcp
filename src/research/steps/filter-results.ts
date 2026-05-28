@@ -86,6 +86,7 @@ async function scoreBatch(
     ],
     0.1,
     1500,
+    60_000,
   )
 
   if (!raw) return []

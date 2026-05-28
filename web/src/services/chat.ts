@@ -197,3 +197,23 @@ export function buildShareUrl(sessionId: string): string {
   const loc = window.location
   return `${loc.protocol}//${loc.hostname}:${loc.port}/api/share/${sessionId}`
 }
+
+export async function exportChatHistory(sessionId?: string): Promise<void> {
+  const url = sessionId
+    ? `${BASE}/api/chat/export/${sessionId}?format=markdown`
+    : `${BASE}/api/chat/export?format=markdown`
+  const res = await fetch(url)
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`Export failed: ${text || `HTTP ${res.status}`}`)
+  }
+  const blob = await res.blob()
+  const disposition = res.headers.get("Content-Disposition") || ""
+  const filenameMatch = disposition.match(/filename="?([^"]+)"?/)
+  const filename = filenameMatch ? filenameMatch[1] : `chat-export-${new Date().toISOString().split("T")[0]}.md`
+  const a = document.createElement("a")
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}

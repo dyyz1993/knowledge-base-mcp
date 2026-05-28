@@ -244,7 +244,7 @@ describe("SearchPipeline degradation", () => {
     const source1 = mockSource("tavily" as any, [], true)
     const source2 = mockSource("serper" as any, [], true)
 
-    const pipeline = new SearchPipeline([source1, source2], { fastTimeout: 2000, slowTimeout: 2000 })
+    const pipeline = new SearchPipeline([source1, source2], { fastTimeout: 2000, slowTimeout: 2000, enableFallback: false })
     const result = await pipeline.search("test query")
 
     expect(result.results.length).toBe(0)
@@ -253,7 +253,7 @@ describe("SearchPipeline degradation", () => {
 
   it("should return hint indicating no results when all fail", async () => {
     const source = mockSource("tavily" as any, [], true)
-    const pipeline = new SearchPipeline([source], { fastTimeout: 2000, slowTimeout: 2000 })
+    const pipeline = new SearchPipeline([source], { fastTimeout: 2000, slowTimeout: 2000, enableFallback: false })
     const result = await pipeline.search("nothing")
 
     expect(result.hint).toContain("未找到")
@@ -278,7 +278,7 @@ describe("SearchPipeline degradation", () => {
 
   it("should record source timings even for failed sources", async () => {
     const badSource = mockSource("tavily" as any, [], true)
-    const pipeline = new SearchPipeline([badSource], { fastTimeout: 2000, slowTimeout: 2000 })
+    const pipeline = new SearchPipeline([badSource], { fastTimeout: 2000, slowTimeout: 2000, enableFallback: false })
     const result = await pipeline.search("test")
 
     expect(result.sourceTimings).toBeDefined()

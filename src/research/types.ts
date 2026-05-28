@@ -3,6 +3,7 @@ export type ResearchMode = "quick" | "standard" | "deep"
 export type StepName =
   | "analyze_query"
   | "search"
+  | "site_directed_read"
   | "filter_results"
   | "evaluate"
   | "deep_read"
@@ -25,6 +26,7 @@ export interface StepCost {
 export const STEP_COSTS: Record<StepName, StepCost> = {
   analyze_query: { model: "small", cost: 1 },
   search: { model: "none", cost: 1 },
+  site_directed_read: { model: "small", cost: 1 },
   filter_results: { model: "small", cost: 1 },
   evaluate: { model: "large", cost: 2 },
   deep_read: { model: "none", cost: 1 },
@@ -42,9 +44,9 @@ export const MODE_BUDGETS: Record<ResearchMode, { maxSteps: number; maxCost: num
   deep: { maxSteps: 25, maxCost: 40 },
 }
 
-export const QUICK_FLOW: StepName[] = ["analyze_query", "search", "filter_results", "evaluate", "deep_read", "synthesize"]
+export const QUICK_FLOW: StepName[] = ["analyze_query", "search", "site_directed_read", "filter_results", "evaluate", "deep_read", "synthesize"]
 export const STANDARD_FLOW: StepName[] = [
-  "analyze_query", "search", "filter_results", "evaluate",
+  "analyze_query", "search", "site_directed_read", "filter_results", "evaluate",
   "deep_read",
   "check_sitemap",
   "check_github",
@@ -52,13 +54,14 @@ export const STANDARD_FLOW: StepName[] = [
   "synthesize",
 ]
 export const DEEP_FLOW: StepName[] = [
-  "analyze_query", "search", "filter_results", "evaluate",
+  "analyze_query", "search", "site_directed_read", "filter_results", "evaluate",
   "deep_read",
   "check_sitemap",
   "check_github",
   "evaluate_depth",
   // Second pass: targeted gap-filling search
   "search",
+  "site_directed_read",
   "filter_results",
   "evaluate",
   "deep_read",

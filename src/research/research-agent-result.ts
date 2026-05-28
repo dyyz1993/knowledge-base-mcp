@@ -4,6 +4,35 @@ import { synthesize } from "./steps/synthesize"
 import { tierToLlmConfig } from "./model-tier"
 import type { ModelTier } from "./types"
 
+function dedupDeepReadResults(results: DeepReadItem[]): DeepReadItem[] {
+  const successful = results.filter(r => r.success && r.content.length > 50)
+  if (successful.length <= 1) return successful
+
+  const kept: DeepReadItem[] = []
+  for (const item of successful) {
+    const contentNorm = item.content.toLowerCase().replace(/\s+/g, " ").slice(0, 500)
+    let isDuplicate = false
+    for (const existing of kept) {
+      const existingNorm = existing.content.toLowerCase().replace(/\s+/g, " ").slice(0, 500)
+      const shorter = Math.min(contentNorm.length, existingNorm.length)
+      if (shorter === 0) continue
+      let matches = 0
+      const words1 = new Set(contentNorm.split(" "))
+      for (const w of existingNorm.split(" ")) {
+        if (words1.has(w)) matches++
+      }
+      const overlap = matches / Math.max(existingNorm.split(" ").length, 1)
+      if (overlap > 0.8) {
+        isDuplicate = true
+        break
+      }
+    }
+    if (!isDuplicate) kept.push(item)
+  }
+
+  return kept
+}
+
 export async function doSynthesize(
   query: string,
   mode: ResearchMode,
@@ -19,7 +48,8 @@ export async function doSynthesize(
   maxDurationMs: number,
   phaseLog: string[],
 ): Promise<string> {
-  const hasDeepRead = deepReadResults.filter((r) => r.success).length > 0
+  const dedupedResults = dedupDeepReadResults(deepReadResults)
+  const hasDeepRead = dedupedResults.length > 0
 
   if (hasDeepRead) {
     const remainingMs = maxDurationMs > 0
@@ -27,7 +57,7 @@ export async function doSynthesize(
       : undefined
     const result = await synthesize(
       query,
-      deepReadResults,
+      dedupedResults,
       outline,
       tierToLlmConfig(modelTier.large),
       qualityScore,

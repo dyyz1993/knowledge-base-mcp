@@ -234,16 +234,16 @@ function budget(bm: BudgetManager) {
 // 3. Flow configuration
 // ---------------------------------------------------------------------------
 describe("Flow configuration", () => {
-  it("QUICK_FLOW has 6 steps", () => {
-    expect(QUICK_FLOW).toHaveLength(6)
+  it("QUICK_FLOW has 7 steps", () => {
+    expect(QUICK_FLOW).toHaveLength(7)
   })
 
-  it("STANDARD_FLOW has 9 steps", () => {
-    expect(STANDARD_FLOW).toHaveLength(9)
+  it("STANDARD_FLOW has 10 steps", () => {
+    expect(STANDARD_FLOW).toHaveLength(10)
   })
 
-  it("DEEP_FLOW has 14 steps", () => {
-    expect(DEEP_FLOW).toHaveLength(14)
+  it("DEEP_FLOW has 16 steps", () => {
+    expect(DEEP_FLOW).toHaveLength(16)
   })
 
   it("all flows end with synthesize", () => {
@@ -260,7 +260,7 @@ describe("Flow configuration", () => {
 
   it("all step names are valid StepName values", () => {
     const validNames = new Set<string>([
-      "analyze_query", "search", "filter_results", "evaluate",
+      "analyze_query", "search", "site_directed_read", "filter_results", "evaluate",
       "deep_read", "check_sitemap", "evaluate_depth", "check_github",
       "clone_index", "code_search", "synthesize",
     ])

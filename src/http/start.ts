@@ -12,6 +12,7 @@ import { handleListSessionFavorites, handleAddSessionFavorite, handleDeleteSessi
 import { handleShareSession } from "../chat/api-share.js"
 import { handleScanSkills, handleGetSkillPaths, handleUpdateSkillPaths } from "../chat/api-skills.js"
 import { handleBrowserDetect } from "../chat/api-browser.js"
+import { handleChatExport } from "./api-chat-export.js"
 import { getAllKeywords } from "../storage/index.js"
 import { getKbDir, getDataDir, getDirContext } from "../config.js"
 import { readBody, json, apiError, parseBody, createTieredRateLimiter, getCorsHeaders } from "./helpers.js"
@@ -154,6 +155,7 @@ export function startHttp(port: number, noMcp: boolean, options?: { apiKey?: str
         return
       }
       if (url.pathname === "/api/chat" && req.method === "POST") return handleChat(req, res)
+      if (url.pathname.match(/^\/api\/chat\/export/) && req.method === "GET") return handleChatExport(req, res, url)
       if (url.pathname === "/api/models" && req.method === "GET") return handleGetModels(req, res)
       if (url.pathname === "/api/models" && req.method === "PUT") return handleSetModel(req, res)
       if (url.pathname === "/api/sessions" && req.method === "GET") return handleListSessions(req, res)

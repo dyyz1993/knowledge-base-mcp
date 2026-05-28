@@ -6,7 +6,7 @@ import { LlmDirectSource } from "../search/source-llm-direct.js"
 import { SearchPipeline } from "../search/search-pipeline.js"
 import { getConfiguredModels } from "../chat/api-models.js"
 import { loadConfig } from "../config.js"
-import { json, apiError, validateUrl, extractHtmlContent, getApiUserAgent } from "./helpers.js"
+import { json, apiError, parseBody, validateUrl, extractHtmlContent, getApiUserAgent, setupSSE } from "./helpers.js"
 import { semanticSearchSchema, searchSchema, kbAskSchema, askSearchSchema, webReadSchema, kbIngestSchema } from "./schemas.js"
 import { parseBodyTyped } from "./validate.js"
 import { createLogger } from "../utils/logger.js"
@@ -76,11 +76,50 @@ const logger = createLogger("http:api-search")
     json(res, results)
     return true
   }
+  if (url.pathname === "/api/search/history" && req.method === "GET") {
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10) || 20, 100)
+    try {
+      const { getRecentSearches } = await import("../search/search-history.js")
+      json(res, getRecentSearches(limit))
+    } catch {
+      json(res, [])
+    }
+    return true
+  }
+
+  if (url.pathname === "/api/search/top-queries" && req.method === "GET") {
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "10", 10) || 10, 50)
+    try {
+      const { getTopQueries } = await import("../search/search-history.js")
+      json(res, getTopQueries(limit))
+    } catch {
+      json(res, [])
+    }
+    return true
+  }
+
   if (url.pathname === "/api/kb-ask" && req.method === "POST") {
     const body = await parseBodyTyped(req, res, kbAskSchema)
     if (!body) return true
     const query = body.query
     const maxWebResults = body.max_web_results
+
+    if (url.searchParams.get("stream") === "true") {
+      const { send, cleanup } = setupSSE(res, req.headers.origin)
+      try {
+        const result = await kbAskPipeline(query, maxWebResults, (status) => {
+          send("status", { status })
+        })
+        send("done", result)
+      } catch (e: unknown) {
+        send("error", { error: e instanceof Error ? e.message : String(e) })
+      } finally {
+        cleanup()
+        res.end()
+      }
+      return true
+    }
+
     try {
       const result = await kbAskPipeline(query, maxWebResults)
       json(res, result)
@@ -218,5 +257,78 @@ const logger = createLogger("http:api-search")
     json(res, { saved: true, id: doc.id, title: doc.title, miss_resolved: true })
     return true
   }
+  if (url.pathname === "/api/search/sources" && req.method === "GET") {
+    const { getAllSources } = await import("../search/source-registry.js")
+    const sources = getAllSources().map(s => ({ name: s.name, tier: s.tier, enabled: s.enabled }))
+    json(res, sources)
+    return true
+  }
+
+  if (url.pathname === "/api/search/sources/toggle" && req.method === "POST") {
+    const body = await parseBody(req, res)
+    if (!body) return true
+    const { name, enabled } = body as { name: string; enabled: boolean }
+    if (!name) { apiError(res, 400, "MISSING_FIELD", "Missing 'name'"); return true }
+    const { setSourceEnabled, getSource } = await import("../search/source-registry.js")
+    const desc = getSource(name)
+    if (!desc) { apiError(res, 404, "NOT_FOUND", `Source ${name} not found`); return true }
+    setSourceEnabled(name, enabled)
+    json(res, { name, enabled })
+    return true
+  }
+
+  if (url.pathname === "/api/discover" && req.method === "POST") {
+    const body = await parseBody(req, res)
+    if (!body) return true
+    const { query: discQuery, maxSearchResults, maxDeepReads, autoSave } = body as {
+      query: string
+      maxSearchResults?: number
+      maxDeepReads?: number
+      autoSave?: boolean
+    }
+    if (!discQuery) { apiError(res, 400, "MISSING_FIELD", "Missing 'query'"); return true }
+
+    const accept = req.headers.accept || ""
+    if (accept.includes("text/event-stream")) {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+      })
+      const sendSSE = (event: string, data: unknown) => {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+      }
+
+      try {
+        const { discoverAndIngest } = await import("../search/source-discovery.js")
+        const result = await discoverAndIngest(discQuery, {
+          maxSearchResults,
+          maxDeepReads,
+          autoSave: autoSave !== false,
+          onStatus: (status) => sendSSE("status", { status }),
+        })
+        sendSSE("done", result)
+      } catch (e) {
+        sendSSE("error", { error: e instanceof Error ? e.message : String(e) })
+      }
+      res.end()
+      return true
+    }
+
+    try {
+      const { discoverAndIngest } = await import("../search/source-discovery.js")
+      const result = await discoverAndIngest(discQuery, {
+        maxSearchResults,
+        maxDeepReads,
+        autoSave: autoSave !== false,
+      })
+      json(res, result)
+    } catch (e) {
+      apiError(res, 500, "DISCOVERY_FAILED", e instanceof Error ? e.message : String(e))
+    }
+    return true
+  }
+
   return false
 }

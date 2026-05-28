@@ -366,7 +366,7 @@ describe("search-pipeline", () => {
       available: () => true,
       search: () => Promise.reject(new Error("source down")),
     }
-    const pipeline = new SearchPipeline([failSource], { fastTimeout: 100, slowTimeout: 200 })
+    const pipeline = new SearchPipeline([failSource], { fastTimeout: 100, slowTimeout: 200, enableFallback: false })
     const result = await pipeline.search("fail test", 5)
     expect(result).toBeDefined()
     expect(result.results).toBeDefined()
@@ -380,7 +380,7 @@ describe("search-pipeline", () => {
       available: () => false,
       search: () => Promise.resolve([]),
     }
-    const pipeline = new SearchPipeline([unavailable], { fastTimeout: 100, slowTimeout: 200 })
+    const pipeline = new SearchPipeline([unavailable], { fastTimeout: 100, slowTimeout: 200, enableFallback: false })
     const result = await pipeline.search("test", 5)
     expect(result).toBeDefined()
     expect(result.results.length).toBe(0)

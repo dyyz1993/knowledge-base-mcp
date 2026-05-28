@@ -2,6 +2,9 @@ import { searchDocs, searchDocsCombined, readDoc, writeDoc, resolveMiss, recordM
 import type { DocMeta } from "../storage/index"
 import { loadConfig } from "../config"
 import type { SearchResult } from "./types"
+import { createLogger } from "../utils/logger.js"
+
+const logger = createLogger("search:kb-ask-pipeline")
 import {
   HIGH_RELEVANCE_SCORE,
   LOW_RELEVANCE_SCORE,
@@ -159,6 +162,7 @@ export function buildMissResponse(query: string, allQueriesUsed: string[], loops
 export async function kbAskPipeline(
   query: string,
   maxWebResults: number = 3,
+  onStatus?: (status: string) => void,
 ): Promise<AskResult> {
   const llm = resolvePiConfig()
   const allQueriesUsed: string[] = [query]
@@ -170,6 +174,7 @@ export async function kbAskPipeline(
     return result
   }
 
+  onStatus?.("分析查询意图...")
   const intent = await analyzeIntent(query, llm)
   const intentDegraded = !!(intent as IntentAnalysis & { degraded?: boolean }).degraded
   if (intent.rewrittenQuery && intent.rewrittenQuery !== query) {
@@ -195,6 +200,7 @@ export async function kbAskPipeline(
       }
     }
 
+    onStatus?.(loop === 0 ? "搜索知识库..." : `第${loop + 1}轮搜索...`)
     const results = await multiSearch(allQueries, 5)
 
     if (results.length === 0) {
@@ -226,6 +232,7 @@ export async function kbAskPipeline(
       }
 
       try {
+        onStatus?.("评估结果质量...")
         const evaluation = await evaluateQuality(query, intent, best, content, results, llm)
 
         let calibratedCompleteness = evaluation.completeness
@@ -336,6 +343,7 @@ export async function kbAskPipeline(
       const content = full ? full.content : ""
 
       try {
+        onStatus?.("评估结果质量...")
         const evaluation = await evaluateQuality(query, intent, best, content, results, llm)
 
         if (evaluation.isRelevant) {
@@ -424,6 +432,7 @@ export async function kbAskPipeline(
 
   if (maxWebResults > 0) {
     try {
+      onStatus?.("联网搜索补充...")
       const webResults = await searchViaPipeline(
         intent?.rewrittenQuery || query,
         maxWebResults,
@@ -447,11 +456,66 @@ export async function kbAskPipeline(
     } catch {
     }
 
+    onStatus?.("数据源发现与抓取...")
+    const discoveryResult = await autoSourceDiscovery(query, allQueriesUsed, onStatus)
+    if (discoveryResult) return discoveryResult
+
+    onStatus?.("自动深度研究...")
     const researchResult = await autoResearch(query, allQueriesUsed)
     if (researchResult) return researchResult
   }
 
   return buildMissResponse(query, allQueriesUsed, maxLoops)
+}
+
+async function autoSourceDiscovery(
+  query: string,
+  allQueriesUsed: string[],
+  onStatus?: (status: string) => void,
+): Promise<AskResult | null> {
+  const config = loadConfig()
+  if (!config.searchPipeline?.enabled) return null
+
+  const isDataQuery = /名单|名录|大全|列表|所有|全部|完整|目录|directory|list|all|complete/i.test(query)
+  if (!isDataQuery) return null
+
+  try {
+    const { discoverAndIngest } = await import("./source-discovery.js")
+    const discovery = await discoverAndIngest(query, {
+      maxSearchResults: 10,
+      maxDeepReads: 3,
+      autoSave: true,
+      onStatus,
+    })
+
+    if (discovery.docs_saved.length === 0) return null
+
+    const bestDoc = discovery.docs_saved[0]
+    const full = _deps.readDoc(bestDoc.id, false)
+    const content = full ? full.content : ""
+
+    const sources = discovery.discovered_sources
+      .slice(0, 5)
+      .map(s => `- [${s.title}](${s.url}) (权威度: ${s.authority_score})`)
+      .join("\n")
+
+    return {
+      from_kb: true,
+      id: bestDoc.id,
+      title: bestDoc.title,
+      score: 40,
+      content: content.slice(0, 8000),
+      quality: "medium",
+      completeness: discovery.pages_success >= 2 ? "complete" : "partial",
+      loops_used: getAskPipelineConfig().maxLoops,
+      queries_used: allQueriesUsed,
+      auto_saved: true,
+      hint: `🔍 数据源发现: 找到 ${discovery.discovered_sources.length} 个数据源，抓取 ${discovery.pages_success}/${discovery.pages_read} 页，入库 ${discovery.docs_saved.length} 篇`,
+    }
+  } catch (e) {
+    logger.debug(`autoSourceDiscovery failed: ${e instanceof Error ? e.message : String(e)}`)
+    return null
+  }
 }
 
 async function autoResearch(query: string, allQueriesUsed: string[]): Promise<AskResult | null> {

@@ -51,8 +51,9 @@ export {
   addSessionFavorite,
   removeSessionFavorite,
   buildShareUrl,
+  exportChatHistory,
 } from "./chat"
 
 export { getConfig, updateConfig, reindexEmbeddings, scanSkills, getSkillPaths, updateSkillPaths, detectBrowser } from "./config"
 
-export { smartAsk, ingestWebContent, webRead, askSearch, askDeepRead, askWorkKey, askResearch, agentResearch, askSummarize, getResearchStatus, getResearchResult } from "./ask"
+export { smartAsk, smartAskStream, ingestWebContent, webRead, askSearch, askDeepRead, askWorkKey, askResearch, agentResearch, askSummarize, getResearchStatus, getResearchResult } from "./ask"

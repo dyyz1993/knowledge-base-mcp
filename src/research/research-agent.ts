@@ -15,6 +15,7 @@ import { loadConfig } from "../config"
 import {
   stepAnalyzeQuery,
   stepSearch,
+  stepSiteDirectedRead,
   stepFilterResults,
   stepEvaluate,
   stepDeepRead,
@@ -32,6 +33,13 @@ import {
 } from "./research-agent-result.js"
 
 type ProgressCallback = (progress: ResearchProgress) => void
+
+const researchCache = new Map<string, { result: ResearchResult; timestamp: number }>()
+const CACHE_TTL = 10 * 60 * 1000
+
+function getCacheKey(query: string, mode: string): string {
+  return `${mode}:${query.toLowerCase().trim()}`
+}
 
 export class ResearchAgent {
   private budget: BudgetManager
@@ -91,12 +99,23 @@ export class ResearchAgent {
       githubHints: [],
       sitemapResult: null,
       githubResult: null,
+      siteSelections: [],
       progressLog: this.progressLog,
       phaseLog: this.phaseLog,
     }
   }
 
   async run(): Promise<ResearchResult> {
+    const cacheKey = getCacheKey(this.query, this.mode)
+    for (const [key, entry] of researchCache) {
+      if (Date.now() - entry.timestamp > CACHE_TTL) researchCache.delete(key)
+    }
+    const cached = researchCache.get(cacheKey)
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      this.phaseLog.push(`cache hit: returning cached result from ${new Date(cached.timestamp).toISOString()}`)
+      return { ...cached.result, phaseLog: [...cached.result.phaseLog, ...this.phaseLog] }
+    }
+
     clearDeepReadCache()
     this.startTime = Date.now()
     const flow = this.getFlow()
@@ -225,7 +244,9 @@ export class ResearchAgent {
     }
 
     const summary = await this.doSynthesize()
-    return this.buildResult(summary, false)
+    const result = this.buildResult(summary, false)
+    researchCache.set(cacheKey, { result, timestamp: Date.now() })
+    return result
   }
 
   private getFlow(): StepName[] {
@@ -249,6 +270,7 @@ export class ResearchAgent {
     switch (stepName) {
       case "analyze_query": return stepAnalyzeQuery(this.ctx, warning)
       case "search": return stepSearch(this.ctx)
+      case "site_directed_read": return stepSiteDirectedRead(this.ctx)
       case "filter_results": return stepFilterResults(this.ctx, warning)
       case "evaluate": return stepEvaluate(this.ctx, warning)
       case "deep_read": return stepDeepRead(this.ctx)

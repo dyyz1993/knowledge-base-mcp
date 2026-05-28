@@ -43,6 +43,11 @@ export function clearConfigCache(): void {
   configCacheMap.clear()
 }
 
+export function reloadConfig(): void {
+  clearConfigCache()
+  loadConfig(true)
+}
+
 export interface SearchConfig {
   mode: "combined" | "tfidf" | "semantic"
   minScore: number

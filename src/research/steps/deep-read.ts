@@ -155,6 +155,7 @@ export async function deepReadUrls(
   const toFetch: { result: SearchResult; cacheKey: string }[] = []
 
   for (const r of results) {
+    if (isSearchEngineRedirect(r.url)) continue
     const key = normalizeUrl(r.url)
     const cached = deepReadCache.get(key)
     if (cached) {

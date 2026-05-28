@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback, type ReactNode } from "react"
-import { Loader2, MessageSquare } from "lucide-react"
+import { Loader2, MessageSquare, Download } from "lucide-react"
 import { useChatStore, type TimelineEvent } from "../stores/chat"
 import type { TokenUsage } from "../services/api"
+import { exportChatHistory } from "../services/api"
 import CopyButton from "./CopyButton"
 import ChatInput from "./chat/ChatInput"
 import { ToolCallBlock, ResearchProgressBar } from "./chat/ToolCallDisplay"
@@ -247,6 +248,19 @@ export default function ChatPanel() {
 
         <div ref={bottomRef} />
       </div>
+
+      {currentSessionId && (
+        <div className={`flex items-center justify-end px-3 md:px-4 py-1.5 border-t ${isDark ? "border-zinc-800" : "border-gray-200"}`}>
+          <button
+            onClick={() => exportChatHistory(currentSessionId).catch(() => {})}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors ${isDark ? "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}
+            aria-label="Export chat as markdown"
+          >
+            <Download size={13} />
+            <span>Export</span>
+          </button>
+        </div>
+      )}
 
       <ChatInput
         isStreaming={isStreaming}

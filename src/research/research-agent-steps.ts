@@ -17,6 +17,7 @@ import { evaluateDepth } from "./steps/evaluate-depth"
 import { checkSitemap } from "./steps/check-sitemap"
 import { checkGithub, fetchGitHubFile } from "./steps/check-github"
 import { loadConfig } from "../config"
+import type { SiteSelection } from "./site-selector.js"
 
 export interface StepContext {
   query: string
@@ -36,6 +37,7 @@ export interface StepContext {
   githubHints: string[]
   sitemapResult: SitemapCheck | null
   githubResult: GitHubCheck | null
+  siteSelections: SiteSelection[]
   progressLog: Array<{ step: string; status: string; output?: unknown }>
   phaseLog: string[]
 }
@@ -114,7 +116,10 @@ export async function stepSearch(ctx: StepContext): Promise<null> {
 
   let queries: string[]
   if (ctx.missingTopics.length > 0 && ctx.loopCount > 0) {
-    queries = ctx.missingTopics.slice(0, 5).map(t => `${ctx.query} ${t}`)
+    queries = ctx.missingTopics.slice(0, 5).map(t => {
+      const cleaned = t.replace(/[?.!！？。，,、]/g, "").split(/\s+/).filter(w => w.length > 2)
+      return cleaned.slice(0, 6).join(" ")
+    })
     ctx.phaseLog.push(`gap-driven search: targeting [${ctx.missingTopics.join(", ")}]`)
   } else {
     queries = analyzeOutput?.subQueries?.length
@@ -124,8 +129,8 @@ export async function stepSearch(ctx: StepContext): Promise<null> {
 
   queries = queries.map(q => {
     const tokens = q.split(/\s+/).filter(w => w.length > 1)
-    if (tokens.length >= 2 && !q.includes('"') && tokens.length <= 5) {
-      return `"${q}" ${q}`
+    if (tokens.length >= 2 && tokens.length <= 4) {
+      return `${q} ${tokens.slice(0, 3).join(" ")}`
     }
     return q
   })
@@ -147,20 +152,115 @@ export async function stepSearch(ctx: StepContext): Promise<null> {
     )
     for (const results of batchResults) {
       allResults.push(...results)
-    }
-  }
-
-  const { normalizeUrl } = await import("../search/utils.js")
-  const seen = new Set<string>()
-  ctx.collectedSearchResults = allResults.filter((r) => {
-    const key = normalizeUrl(r.url)
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+     }
+   }
+ 
+   const { normalizeUrl } = await import("../search/utils.js")
+   const seen = new Set<string>()
+   ctx.collectedSearchResults = allResults.filter((r) => {
+     if (!r.url || isSearchRedirect(r.url)) return false
+     const key = normalizeUrl(r.url)
+     if (seen.has(key)) return false
+     seen.add(key)
+     return true
+   })
 
   ctx.phaseLog.push(`search: ${ctx.collectedSearchResults.length} results from ${queries.length} queries`)
   return null
+}
+
+export async function stepSiteDirectedRead(ctx: StepContext): Promise<null> {
+  const config = loadConfig()
+  if (!config.searchPipeline?.enabled) return null
+
+  try {
+    const { selectSites } = await import("./site-selector.js")
+    const analyzeOutput = ctx.progressLog.find(
+      (p) => p.step === "analyze_query" && p.status === "done",
+    )?.output as { coreKeywords?: string[] } | undefined
+    const keywords = analyzeOutput?.coreKeywords || []
+
+    const selections = await selectSites(
+      ctx.query,
+      tierToLlmConfig(ctx.modelTier.small),
+      keywords.length > 0 ? keywords : undefined,
+    )
+
+    ctx.siteSelections = selections
+
+    if (selections.length === 0) {
+      ctx.phaseLog.push("site-directed: no relevant sites found")
+      return null
+    }
+
+    ctx.phaseLog.push(`site-directed: selected ${selections.length} sites: ${selections.map(s => s.site.name).join(", ")}`)
+
+    const searchUrls: SearchResult[] = []
+    for (const sel of selections.slice(0, 3)) {
+      const siteQuery = sel.site.searchPattern.replace("{query}", ctx.query)
+      try {
+        const { SearchPipeline } = await import("../search/search-pipeline.js")
+        const sources: import("../search/types").SearchSource[] = []
+
+        if (config.searchPipeline.sources.xbrowser.enabled) {
+          const { createXBrowserSources } = await import("../search/source-xbrowser.js")
+          const engines = config.searchPipeline.sources.xbrowser.engines?.length
+            ? config.searchPipeline.sources.xbrowser.engines
+            : [config.searchPipeline.sources.xbrowser.engine]
+          const xbrowserSources = createXBrowserSources({
+            enabled: true,
+            engine: config.searchPipeline.sources.xbrowser.engine,
+            cdpEndpoint: config.searchPipeline.sources.xbrowser.cdpEndpoint,
+            headless: config.searchPipeline.sources.xbrowser.headless,
+            timeout: config.searchPipeline.sources.xbrowser.timeout,
+          }, engines)
+          sources.push(...xbrowserSources)
+        }
+
+        if (sources.length === 0) continue
+
+        const pipeline = new SearchPipeline(sources, { fastTimeout: 15_000, slowTimeout: 30_000 })
+        const result = await pipeline.search(siteQuery, 5)
+        for (const r of result.results) {
+          searchUrls.push({
+            ...r,
+            sourceType: "official" as SourceType,
+            qualityScore: 80,
+          })
+        }
+      } catch (e) {
+        ctx.phaseLog.push(`site-directed search failed for ${sel.site.name}: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+
+    const { normalizeUrl } = await import("../search/utils.js")
+    const existingUrls = new Set(ctx.collectedSearchResults.map(r => normalizeUrl(r.url)))
+    const newResults = searchUrls.filter(r => {
+      if (isSearchRedirect(r.url)) return false
+      const key = normalizeUrl(r.url)
+      if (existingUrls.has(key)) return false
+      existingUrls.add(key)
+      return true
+    })
+
+    ctx.collectedSearchResults.push(...newResults)
+    ctx.phaseLog.push(`site-directed: +${newResults.length} site-specific results (total now ${ctx.collectedSearchResults.length})`)
+  } catch (e) {
+    ctx.phaseLog.push(`site-directed step failed: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  return null
+}
+
+const SEARCH_REDIRECT_PATTERNS = [
+  /^https?:\/\/www\.bing\.com\/ck\//i,
+  /^https?:\/\/www\.google\.com\/url\?/i,
+  /^https?:\/\/www\.baidu\.com\/link\?/i,
+  /^https?:\/\/duckduckgo\.com\/l\?/i,
+]
+
+function isSearchRedirect(url: string): boolean {
+  return SEARCH_REDIRECT_PATTERNS.some(p => p.test(url))
 }
 
 export async function stepFilterResults(
