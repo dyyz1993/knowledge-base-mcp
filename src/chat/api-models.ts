@@ -53,9 +53,9 @@ function getDefaultModel(): { provider: string; id: string } | null {
     return { provider: cfg.defaultProvider, id: cfg.defaultModel }
   }
 
-  // Smart fallback: prefer glm-4.5-air (free tier, always available)
+  // Smart fallback: prefer opencode-go/deepseek-v4-flash
   const all = fromPiModelsJson()
-  const preferred = all.find(m => m.id === "glm-4.5-air")
+  const preferred = all.find(m => m.id === "opencode-go/deepseek-v4-flash")
   if (preferred) return { provider: preferred.provider, id: preferred.id }
 
   return null

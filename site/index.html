@@ -1,462 +1,287 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>KB-MCP — Knowledge Base MCP Server</title>
-<meta name="description" content="本地优先、AI 驱动的知识管理服务器。MCP Protocol + REST API + Web UI + AI Research。">
+<meta name="description" content="Knowledge Base MCP — 跨项目知识库 MCP 服务，三层搜索架构">
+<meta property="og:title" content="Knowledge Base MCP">
+<meta property="og:description" content="跨项目知识库 MCP 服务 — 文本/TF-IDF/语义向量三层搜索">
+<meta property="og:image" content="screenshots/kb-view.png">
+<title>Knowledge Base MCP — 跨项目知识库服务</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-:root {
-  --bg: #0a0a0a; --bg-card: #141414; --bg-card-hover: #1a1a1a;
-  --border: #262626; --border-light: #333;
-  --text: #e5e5e5; --text-secondary: #a3a3a3; --text-muted: #737373;
-  --accent: #3b82f6; --accent-light: #60a5fa;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --mono: 'SF Mono', 'Fira Code', 'Fira Mono', 'Roboto Mono', monospace;
-  --max-w: 1120px; --radius: 12px;
-}
-html { scroll-behavior: smooth; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; -webkit-font-smoothing: antialiased; }
-a { color: var(--accent-light); text-decoration: none; }
-a:hover { color: #93c5fd; }
-.container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+:root{--bg:#0a0a0b;--elevated:#131316;--card:#18181c;--hover:#1e1e24;--border:#27272a;--text:#fafafa;--sec:#a1a1aa;--accent:#10b981;--accent-glow:rgba(16,185,129,0.15);--blue:#3b82f6;--purple:#a855f7;--orange:#f59e0b}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Inter,system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;line-height:1.6}
+.container{max-width:1120px;margin:0 auto;padding:0 24px}
 
-/* Animations */
-.fade-section { opacity: 0; transform: translateY(32px); transition: opacity 0.7s cubic-bezier(.16,1,.3,1), transform 0.7s cubic-bezier(.16,1,.3,1); }
-.fade-section.visible { opacity: 1; transform: translateY(0); }
+nav{position:sticky;top:0;z-index:100;backdrop-filter:blur(16px);background:rgba(10,10,11,0.8);border-bottom:1px solid transparent;transition:border-color .3s}
+nav.scrolled{border-color:var(--border)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:56px;max-width:1120px;margin:0 auto;padding:0 24px}
+.nav-brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px}
+.nav-icon{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,var(--accent),#059669);display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 0 16px var(--accent-glow)}
+.nav-links{display:flex;gap:24px;font-size:14px;color:var(--sec)}
+.nav-links a{transition:color .2s}
+.nav-links a:hover{color:var(--text)}
 
-/* Nav */
-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; backdrop-filter: blur(16px) saturate(1.4); background: rgba(10,10,10,.72); border-bottom: 1px solid var(--border); }
-nav .container { display: flex; align-items: center; justify-content: space-between; height: 56px; }
-.nav-brand { font-weight: 700; font-size: 16px; color: var(--text); display: flex; align-items: center; gap: 8px; }
-.nav-brand svg { width: 22px; height: 22px; }
-.nav-links { display: flex; gap: 28px; font-size: 14px; }
-.nav-links a { color: var(--text-secondary); transition: color .2s; }
-.nav-links a:hover { color: var(--text); }
+.hero{text-align:center;padding:120px 0 60px}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:100px;background:var(--card);border:1px solid var(--border);font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--accent);margin-bottom:28px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);animation:pulse 2s infinite}
+.hero h1{font-size:clamp(36px,6vw,64px);font-weight:800;letter-spacing:-.03em;line-height:1.05;margin-bottom:20px}
+.gradient{background:linear-gradient(135deg,var(--accent),#34d399,var(--blue));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:clamp(15px,1.8vw,18px);color:var(--sec);max-width:560px;margin:0 auto 32px}
+.btn-group{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:10px;font-size:14px;font-weight:600;transition:all .2s;cursor:pointer}
+.btn-primary{background:var(--accent);color:#000}
+.btn-primary:hover{box-shadow:0 0 30px var(--accent-glow);transform:translateY(-2px)}
+.btn-secondary{background:var(--card);border:1px solid var(--border);color:var(--text)}
+.btn-secondary:hover{background:var(--hover);transform:translateY(-2px)}
 
-/* Hero */
-.hero { padding: 160px 0 100px; text-align: center; position: relative; overflow: hidden; }
-.hero::before { content: ''; position: absolute; top: -40%; left: 50%; transform: translateX(-50%); width: 800px; height: 600px; background: radial-gradient(ellipse, rgba(59,130,246,.12) 0%, rgba(139,92,246,.08) 40%, transparent 70%); pointer-events: none; }
-.hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; border-radius: 100px; border: 1px solid var(--border); background: var(--bg-card); font-size: 13px; color: var(--text-secondary); margin-bottom: 28px; }
-.hero-badge span { color: var(--accent-light); font-weight: 600; }
-.hero h1 { font-size: clamp(40px, 7vw, 72px); font-weight: 800; line-height: 1.08; letter-spacing: -0.035em; margin-bottom: 20px; }
-.hero h1 .gradient { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #d946ef 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.hero .tagline { font-size: 20px; color: var(--text-secondary); max-width: 540px; margin: 0 auto 40px; line-height: 1.6; }
-.cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-.btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 600; transition: all .2s; cursor: pointer; border: none; }
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover { background: #2563eb; color: #fff; box-shadow: 0 0 24px rgba(59,130,246,.3); }
-.btn-secondary { background: var(--bg-card); color: var(--text); border: 1px solid var(--border); }
-.btn-secondary:hover { background: var(--bg-card-hover); border-color: var(--border-light); color: #fff; }
-.btn svg { width: 18px; height: 18px; }
-.install-cmd { margin-top: 20px; display: inline-flex; align-items: center; gap: 10px; padding: 10px 20px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border); font-family: var(--mono); font-size: 14px; color: var(--text-secondary); cursor: pointer; position: relative; transition: border-color .2s; }
-.install-cmd:hover { border-color: var(--border-light); }
-.install-cmd .dollar { color: var(--text-muted); }
-.install-cmd .cmd-text { color: var(--accent-light); }
-.install-cmd .copy-hint { font-family: var(--font); font-size: 11px; color: var(--text-muted); position: absolute; right: -60px; opacity: 0; transition: opacity .2s; }
-.install-cmd:hover .copy-hint { opacity: 1; }
+.terminal{max-width:640px;margin:48px auto 0;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.term-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border)}
+.term-dot{width:11px;height:11px;border-radius:50%}
+.term-dot:nth-child(1){background:#ef4444}
+.term-dot:nth-child(2){background:#eab308}
+.term-dot:nth-child(3){background:#22c55e}
+.term-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:#52525b;margin-left:8px}
+.term-body{padding:18px 22px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.8;text-align:left}
+.term-body .prompt{color:var(--accent)}
+.term-body .cmd{color:var(--text)}
+.term-body .out{color:var(--sec)}
+.term-body .hl{color:var(--blue)}
+.term-body .ok{color:var(--accent)}
+.cursor{display:inline-block;width:7px;height:13px;background:var(--accent);animation:blink 1s step-end infinite;vertical-align:text-bottom}
 
-/* Section */
-section { padding: 100px 0; }
-.section-label { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 12px; }
-.section-title { font-size: clamp(28px, 4vw, 40px); font-weight: 700; letter-spacing: -0.02em; margin-bottom: 16px; }
-.section-desc { color: var(--text-secondary); max-width: 560px; font-size: 17px; margin-bottom: 48px; }
+section{padding:80px 0}
+.section-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;display:block}
+.section-title{font-size:clamp(24px,3.5vw,36px);font-weight:700;letter-spacing:-.02em;margin-bottom:12px}
+.section-desc{font-size:15px;color:var(--sec);max-width:560px;margin-bottom:40px}
 
-/* Features */
-.features-header { text-align: center; margin-bottom: 56px; }
-.features-header .section-desc { margin-left: auto; margin-right: auto; }
-.features-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.feature-card { padding: 28px 24px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-card); transition: all .25s; }
-.feature-card:hover { border-color: var(--border-light); background: var(--bg-card-hover); transform: translateY(-2px); }
-.feature-icon { width: 40px; height: 40px; border-radius: 10px; background: rgba(59,130,246,.1); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 20px; }
-.feature-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
-.feature-card p { font-size: 14px; color: var(--text-secondary); line-height: 1.55; }
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.card{padding:24px;border-radius:12px;background:var(--card);border:1px solid var(--border);transition:all .3s}
+.card:hover{background:var(--hover);border-color:rgba(255,255,255,.08);transform:translateY(-2px)}
+.card-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;font-size:18px}
+.card-icon.g{background:var(--accent-glow);color:var(--accent)}
+.card-icon.b{background:rgba(59,130,246,.12);color:var(--blue)}
+.card-icon.p{background:rgba(168,85,247,.12);color:var(--purple)}
+.card-icon.o{background:rgba(245,158,11,.12);color:var(--orange)}
+.card h3{font-size:15px;font-weight:600;margin-bottom:6px}
+.card p{font-size:13px;color:var(--sec);line-height:1.6}
 
-/* Architecture */
-.arch-header { text-align: center; margin-bottom: 56px; }
-.arch-header .section-desc { margin-left: auto; margin-right: auto; }
-.arch-diagram { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; padding: 48px 0; }
-.arch-node { padding: 20px 28px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-card); text-align: center; min-width: 160px; transition: all .25s; }
-.arch-node:hover { border-color: var(--accent); box-shadow: 0 0 20px rgba(59,130,246,.1); }
-.arch-node .node-icon { font-size: 28px; margin-bottom: 8px; }
-.arch-node .node-title { font-size: 14px; font-weight: 600; }
-.arch-node .node-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-.arch-arrow { color: var(--text-muted); font-size: 24px; padding: 0 12px; flex-shrink: 0; }
-.arch-arrow svg { width: 40px; height: 16px; stroke: var(--border-light); }
+.stat-row{display:flex;justify-content:center;gap:40px;padding:48px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.stat{text-align:center}
+.stat-num{font-size:32px;font-weight:700;letter-spacing:-.02em}
+.stat-num .accent{color:var(--accent)}
+.stat-label{font-size:12px;color:var(--sec);margin-top:4px;font-family:'JetBrains Mono',monospace}
 
-/* Quick Start */
-.qs-header { text-align: center; margin-bottom: 56px; }
-.qs-header .section-desc { margin-left: auto; margin-right: auto; }
-.qs-steps { display: flex; flex-direction: column; gap: 20px; max-width: 680px; margin: 0 auto; }
-.qs-step { display: flex; gap: 20px; align-items: flex-start; }
-.qs-num { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: rgba(59,130,246,.12); color: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; margin-top: 4px; }
-.qs-content { flex: 1; }
-.qs-content h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-.qs-content p { font-size: 14px; color: var(--text-secondary); margin-bottom: 10px; }
-.code-block { background: #0d0d0d; border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; font-family: var(--mono); font-size: 13px; line-height: 1.7; overflow-x: auto; color: var(--text-secondary); }
-.code-block .comment { color: var(--text-muted); }
-.code-block .string { color: #a5d6ff; }
-.code-block .keyword { color: #ff7b72; }
-.code-block .cmd { color: var(--accent-light); }
+.showcase-item{border-radius:12px;overflow:hidden;border:1px solid var(--border);background:var(--card);box-shadow:0 10px 40px rgba(0,0,0,.4);transition:transform .3s}
+.showcase-item:hover{transform:translateY(-4px)}
+.showcase-item img{width:100%;height:auto;display:block}
+.showcase-caption{padding:16px 22px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border)}
+.showcase-caption h4{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
+.showcase-caption span{font-size:12px;color:var(--sec);font-family:'JetBrains Mono',monospace}
+.showcase-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.showcase-grid{grid-template-columns:1fr}}
 
-/* API Examples */
-.api-header { text-align: center; margin-bottom: 56px; }
-.api-header .section-desc { margin-left: auto; margin-right: auto; }
-.api-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.api-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card); overflow: hidden; transition: all .25s; }
-.api-card:hover { border-color: var(--border-light); }
-.api-card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
-.api-method { font-family: var(--mono); font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 4px; background: rgba(59,130,246,.15); color: var(--accent-light); }
-.api-path { font-family: var(--mono); font-size: 13px; color: var(--text-secondary); }
-.api-card-body { padding: 16px 20px; }
-.api-card-body .code-block { border: none; padding: 0; font-size: 12px; background: transparent; }
+.code-block{background:#0c0c0f;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:14px}
+.code-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.3)}
+.code-bar span{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--sec)}
+.code-body{padding:16px 20px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.7;overflow-x:auto}
+.code-body .kw{color:#c084fc}
+.code-body .str{color:#34d399}
+.code-body .com{color:#52525b}
+.code-body .fn{color:#60a5fa}
+.code-body .num{color:#fbbf24}
 
-/* Stats */
-.stats-section { padding: 80px 0; }
-.stats-grid { display: flex; justify-content: center; gap: 48px; flex-wrap: wrap; }
-.stat-item { text-align: center; }
-.stat-value { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.stat-label { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+.arch-item{display:flex;align-items:center;gap:20px;padding:20px 24px;border-radius:10px;border:1px solid var(--border);background:var(--card);transition:all .3s}
+.arch-item:hover{background:var(--hover)}
+.arch-tag{width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;flex-shrink:0}
+.arch-tag.p0{background:rgba(16,185,129,.1);color:var(--accent);border:1px solid rgba(16,185,129,.2)}
+.arch-tag.p1{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.2)}
+.arch-tag.p2{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
+.arch-content h4{font-size:14px;font-weight:600;margin-bottom:2px;display:flex;align-items:center;gap:8px}
+.arch-content h4 .speed{font-family:'JetBrains Mono',monospace;font-size:10px;padding:1px 7px;border-radius:100px}
+.arch-content p{font-size:13px;color:var(--sec)}
 
-/* Footer */
-footer { border-top: 1px solid var(--border); padding: 40px 0; }
-.footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
-.footer-left { font-size: 14px; color: var(--text-muted); }
-.footer-links { display: flex; gap: 24px; font-size: 14px; }
-.footer-links a { color: var(--text-secondary); }
-.footer-links a:hover { color: var(--text); }
+.tool-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.tool-tags span{font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px 10px;border-radius:6px;background:var(--card);border:1px solid var(--border);color:var(--sec);transition:all .2s;cursor:default}
+.tool-tags span:hover{background:var(--hover);border-color:var(--accent);color:var(--accent)}
 
-/* Responsive */
-@media (max-width: 1024px) {
-  .features-grid { grid-template-columns: repeat(2, 1fr); }
-  .api-cards { grid-template-columns: 1fr; }
-}
-@media (max-width: 640px) {
-  .hero { padding: 120px 0 60px; }
-  .features-grid { grid-template-columns: 1fr; }
-  .arch-diagram { flex-direction: column; }
-  .arch-arrow svg { transform: rotate(90deg); }
-  .stats-grid { gap: 32px; }
-  .nav-links { gap: 16px; }
-  .cta-row { flex-direction: column; align-items: center; }
-  .install-cmd .copy-hint { display: none; }
-}
+.cta-box{text-align:center;padding:56px 32px;border-radius:16px;background:linear-gradient(180deg,var(--card),var(--elevated));border:1px solid var(--border)}
+.cta-box h2{font-size:clamp(22px,3vw,30px);font-weight:700;margin-bottom:10px}
+.cta-box p{color:var(--sec);margin-bottom:28px;font-size:15px}
+
+footer{border-top:1px solid var(--border);padding:32px 0;text-align:center}
+footer p{font-size:12px;color:var(--sec);font-family:'JetBrains Mono',monospace}
+footer .heart{color:var(--accent)}
+
+.reveal{opacity:0;transform:translateY(24px);transition:opacity .6s,transform .6s}
+.reveal.show{opacity:1;transform:translateY(0)}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes blink{50%{opacity:0}}
+@media(max-width:768px){.nav-links{display:none}.stat-row{gap:20px;flex-wrap:wrap}}
 </style>
 </head>
 <body>
 
-<!-- Nav -->
-<nav>
-  <div class="container">
-    <a href="#" class="nav-brand">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="m9 10 2 2 4-4"/></svg>
-      KB-MCP
-    </a>
-    <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#architecture">Architecture</a>
-      <a href="#quickstart">Quick Start</a>
-      <a href="#api">API</a>
-      <a href="https://github.com/dyyz1993/knowledge-base-mcp" target="_blank">GitHub</a>
-    </div>
-  </div>
+<nav id="nav">
+<div class="nav-inner">
+<a href="#" class="nav-brand">
+<span class="nav-icon">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2.5" stroke-linecap="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+</span>KB MCP</a>
+<div class="nav-links">
+<a href="#features">Features</a><a href="#showcase">Screenshots</a><a href="#quickstart">Quick Start</a>
+<a href="https://github.com/dyyz1993/knowledge-base-mcp" target="_blank">GitHub</a>
+</div>
+</div>
 </nav>
 
-<!-- Hero -->
 <section class="hero">
-  <div class="container">
-    <div class="hero-badge">Open Source &middot; <span>v2.42.0</span> &middot; 361 Tests Passed</div>
-    <h1>Knowledge Base<br><span class="gradient">MCP Server</span></h1>
-    <p class="tagline">本地优先、AI 驱动的知识管理服务器。为 AI Agent 提供原生知识库工具链。</p>
-    <div class="cta-row">
-      <a href="https://github.com/dyyz1993/knowledge-base-mcp" target="_blank" class="btn btn-primary">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-        View on GitHub
-      </a>
-      <a href="#quickstart" class="btn btn-secondary">Get Started &rarr;</a>
-    </div>
-    <div class="install-cmd" onclick="copyInstall(this)" title="Click to copy">
-      <span class="dollar">$</span>
-      <span class="cmd-text">bun add -g @dyyz1993/kb-mcp</span>
-      <span class="copy-hint">click to copy</span>
-    </div>
-  </div>
+<div class="container">
+<div class="hero-badge"><span class="dot"></span> v2.47.0 · 18 MCP Tools · MIT</div>
+<h1>Your AI's <span class="gradient">Long-Term Memory.</span></h1>
+<p>跨项目知识库 MCP 服务。三层搜索架构：文本匹配 + TF-IDF + 多语言语义向量。让 AI Agent 拥有持久化、可检索、自进化的知识系统。</p>
+<div class="btn-group">
+<a href="#quickstart" class="btn btn-primary">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Quick Start
+</a>
+<a href="https://github.com/dyyz1993/knowledge-base-mcp" target="_blank" class="btn btn-secondary">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg> GitHub
+</a>
+</div>
+<div class="terminal">
+<div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span><span class="term-label">~ npx @dyyz1993/kb-mcp</span></div>
+<div class="term-body">
+<span class="prompt">$</span> <span class="cmd">npx</span> <span class="hl">@dyyz1993/kb-mcp</span> --stdio<br>
+<span class="out">  → Loading knowledge base from ~/.knowledge/</span><br>
+<span class="out">  → MCP server ready (stdio mode)</span><br><br>
+<span class="prompt">$</span> <span class="cmd">npx</span> <span class="hl">@dyyz1993/kb-mcp</span> --http --port 19877<br>
+<span class="out">  → HTTP server listening on </span><span class="ok">:19877</span><br>
+<span class="out">  → Web UI: </span><span class="hl">http://localhost:19877</span><span class="cursor"></span>
+</div>
+</div>
+</div>
 </section>
 
-<!-- Features -->
-<section id="features" class="fade-section">
-  <div class="container">
-    <div class="features-header">
-      <div class="section-label">Features</div>
-      <h2 class="section-title">Everything you need for AI knowledge management</h2>
-      <p class="section-desc">从搜索到研究，从存储到自进化，KB-MCP 提供完整的知识管理工具链。</p>
-    </div>
-    <div class="features-grid">
-      <div class="feature-card">
-        <div class="feature-icon">&#x1F50D;</div>
-        <h3>Multi-layer Search</h3>
-        <p>关键词 + TF-IDF + 语义向量三重检索，AI Embedding 驱动的语义匹配。</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">&#x1F916;</div>
-        <h3>MCP Protocol</h3>
-        <p>AI Agent 原生知识库工具。搜索、读写、语义检索，一条协议搞定。</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">&#x1F310;</div>
-        <h3>REST API</h3>
-        <p>30+ HTTP 端点覆盖 CRUD、搜索、摄入、统计，标准 RESTful 接口。</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">&#x1F3A8;</div>
-        <h3>Web UI</h3>
-        <p>深色主题管理界面，文档管理、知识图谱可视化、全局搜索一站搞定。</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">&#x1F52C;</div>
-        <h3>AI Research</h3>
-        <p>自动研究 Agent：搜索 &rarr; 深读 &rarr; 综合 &rarr; 评分，生成结构化报告。</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">&#x1F4E5;</div>
-        <h3>Site Ingestion</h3>
-        <p>全站摄入引擎，支持 sitemap、llms-full.txt、VitePress 站点自动爬取。</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">&#x267E;&#xFE0F;</div>
-        <h3>Self-evolving</h3>
-        <p>Miss 检测 &rarr; 联网搜索 &rarr; 自动存储 &rarr; 下次命中。越用越聪明。</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">&#x1F6E1;&#xFE0F;</div>
-        <h3>Security</h3>
-        <p>Bearer Token 认证、SSRF 防护、原子写入，生产级安全防护。</p>
-      </div>
-    </div>
-  </div>
+<div class="container">
+<div class="stat-row">
+<div class="stat reveal"><div class="stat-num"><span class="accent">18</span></div><div class="stat-label">MCP Tools</div></div>
+<div class="stat reveal"><div class="stat-num">3-Layer</div><div class="stat-label">Search</div></div>
+<div class="stat reveal"><div class="stat-num">50+</div><div class="stat-label">Languages</div></div>
+<div class="stat reveal"><div class="stat-num"><span class="accent">0ms</span></div><div class="stat-label">Cold Start*</div></div>
+<div class="stat reveal"><div class="stat-num"><span class="accent">MIT</span></div><div class="stat-label">License</div></div>
+</div>
+</div>
+
+<section id="features">
+<div class="container">
+<div class="reveal">
+<span class="section-label">Features</span>
+<h2 class="section-title">Built for AI Agents that need real memory.</h2>
+<p class="section-desc">不是简单的向量数据库。是专为 AI Agent 设计的知识管理系统——从存储、搜索到自进化，全链路覆盖。</p>
+</div>
+<div class="grid">
+<div class="card reveal"><div class="card-icon g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div><h3>三层搜索架构</h3><p>P0 文本匹配 → P1 TF-IDF → P2 多语言语义向量。加权融合排序，越用越准。</p></div>
+<div class="card reveal"><div class="card-icon b"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg></div><h3>18 个 MCP 工具</h3><p>kb_write / kb_read / kb_search / kb_ask / kb_ingest_url / kb_ingest_repo… 覆盖知识全生命周期。</p></div>
+<div class="card reveal"><div class="card-icon p"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-3-3v6m-7 4h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2Z"/></svg></div><h3>自进化闭环</h3><p>kb_ask miss → Agent 联网搜索 → kb_ingest_url 存储 → 下次秒回。知识库自动增长。</p></div>
+<div class="card reveal"><div class="card-icon o"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 11l2-2-2-2M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg></div><h3>双传输模式</h3><p>Stdio（本地 MCP 零配置）+ HTTP（REST / SSE / StreamableHTTP）。一条命令切换。</p></div>
+<div class="card reveal"><div class="card-icon g"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="4" rx="2"/><line x1="2" x2="22" y1="9" y2="9"/></svg></div><h3>Web UI 管理</h3><p>Vite + React + Tailwind + Ant Design。知识库、智能问答、Chat 对话、内容工作台四合一。</p></div>
+<div class="card reveal"><div class="card-icon b"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5z"/><polyline points="14 2 14 8 20 8"/></svg></div><h3>多格式支持</h3><p>Markdown / 代码 / URL 抓取 / GitHub 仓库分析。自动提取关键词、生成摘要、建立索引。</p></div>
+</div>
+</div>
 </section>
 
-<!-- Architecture -->
-<section id="architecture" class="fade-section">
-  <div class="container">
-    <div class="arch-header">
-      <div class="section-label">Architecture</div>
-      <h2 class="section-title">How it works</h2>
-      <p class="section-desc">KB-MCP 作为 MCP Server 桥接 AI Agent 与本地知识存储。</p>
-    </div>
-    <div class="arch-diagram">
-      <div class="arch-node">
-        <div class="node-icon">&#x1F916;</div>
-        <div class="node-title">AI Agent</div>
-        <div class="node-sub">Claude / Opencode / Cursor</div>
-      </div>
-      <div class="arch-arrow">
-        <svg viewBox="0 0 40 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M0 8h36m0 0l-6-5m6 5l-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <div class="arch-node" style="border-color: var(--accent); box-shadow: 0 0 24px rgba(59,130,246,.12);">
-        <div class="node-icon">&#x2699;&#xFE0F;</div>
-        <div class="node-title">MCP Protocol</div>
-        <div class="node-sub">Stdio / HTTP Transport</div>
-      </div>
-      <div class="arch-arrow">
-        <svg viewBox="0 0 40 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M0 8h36m0 0l-6-5m6 5l-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <div class="arch-node">
-        <div class="node-icon">&#x1F4DA;</div>
-        <div class="node-title">KB Server</div>
-        <div class="node-sub">TypeScript + Bun + Hono</div>
-      </div>
-      <div class="arch-arrow">
-        <svg viewBox="0 0 40 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M0 8h36m0 0l-6-5m6 5l-6 5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <div class="arch-node">
-        <div class="node-icon">&#x1F4BE;</div>
-        <div class="node-title">Storage</div>
-        <div class="node-sub">JSON + Embedding Index</div>
-      </div>
-    </div>
-  </div>
+<section id="showcase">
+<div class="container">
+<div class="reveal">
+<span class="section-label">Screenshots</span>
+<h2 class="section-title">See it in action.</h2>
+<p class="section-desc">四标签页设计 + Dark / Light 双主题。真实截图，所见即所得。</p>
+</div>
+<div class="showcase-item reveal"><img src="screenshots/kb-view.png" alt="KB View" loading="lazy"><div class="showcase-caption"><h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg> Knowledge Base</h4><span>document viewer · sidebar · search</span></div></div>
+<div class="showcase-grid" style="margin-top:16px">
+<div class="showcase-item reveal"><img src="screenshots/ask-view.png" alt="Ask" loading="lazy"><div class="showcase-caption"><h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962l6.135-1.582A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0l1.582 6.135A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> Ask</h4><span>smart Q&A</span></div></div>
+<div class="showcase-item reveal"><img src="screenshots/chat-view.png" alt="Chat" loading="lazy"><div class="showcase-caption"><h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat</h4><span>AI conversation</span></div></div>
+<div class="showcase-item reveal"><img src="screenshots/content-view.png" alt="Content" loading="lazy"><div class="showcase-caption"><h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> Content</h4><span>content workshop</span></div></div>
+<div class="showcase-item reveal"><img src="screenshots/kb-light-mode.png" alt="Light Mode" loading="lazy"><div class="showcase-caption"><h4><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg> Light Mode</h4><span>full theme support</span></div></div>
+</div>
+</div>
 </section>
 
-<!-- Quick Start -->
-<section id="quickstart" class="fade-section">
-  <div class="container">
-    <div class="qs-header">
-      <div class="section-label">Quick Start</div>
-      <h2 class="section-title">Up and running in 60 seconds</h2>
-      <p class="section-desc">三步启动你的 AI 知识库服务器。</p>
-    </div>
-    <div class="qs-steps">
-      <div class="qs-step">
-        <div class="qs-num">1</div>
-        <div class="qs-content">
-          <h3>Install</h3>
-          <p>使用 Bun 全局安装 KB-MCP 服务器。</p>
-          <div class="code-block"><span class="cmd">bun add -g @dyyz1993/kb-mcp</span></div>
-        </div>
-      </div>
-      <div class="qs-step">
-        <div class="qs-num">2</div>
-        <div class="qs-content">
-          <h3>Start Server</h3>
-          <p>启动 HTTP + Web UI 服务器，设置你的 API Key。</p>
-          <div class="code-block"><span class="cmd">KB_API_KEY</span>=<span class="string">your-secret</span> <span class="cmd">kb-mcp</span> --http --web --port <span class="string">19877</span></div>
-        </div>
-      </div>
-      <div class="qs-step">
-        <div class="qs-num">3</div>
-        <div class="qs-content">
-          <h3>Connect AI Agent</h3>
-          <p>在你的 AI Agent (Claude / Opencode / Cursor 等) 中配置 MCP Server。</p>
-          <div class="code-block">{
-  <span class="string">"mcpServers"</span>: {
-    <span class="string">"kb"</span>: {
-      <span class="string">"command"</span>: <span class="string">"kb-mcp"</span>,
-      <span class="string">"env"</span>: { <span class="string">"KB_API_KEY"</span>: <span class="string">"your-secret"</span> }
-    }
-  }
-}</div>
-        </div>
-      </div>
-    </div>
-  </div>
+<section id="quickstart">
+<div class="container">
+<div class="reveal">
+<span class="section-label">Quick Start</span>
+<h2 class="section-title">One command. Zero config.</h2>
+<p class="section-desc">无需克隆仓库，无需安装依赖。NPX 直接运行。</p>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" class="reveal">
+<div><h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--sec)"><span style="color:var(--accent)">Stdio</span> 模式</h4>
+<div class="code-block"><div class="code-bar"><span><span style="color:var(--accent)">bash</span></span><span>terminal</span></div><div class="code-body"><span class="com"># 一键启动</span><br><span class="kw">npx</span> <span class="fn">@dyyz1993/kb-mcp</span> <span class="num">--stdio</span></div></div></div>
+<div><h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--sec)"><span style="color:var(--blue)">HTTP</span> 模式</h4>
+<div class="code-block"><div class="code-bar"><span><span style="color:var(--blue)">bash</span></span><span>terminal</span></div><div class="code-body"><span class="com"># 启动 HTTP 服务</span><br><span class="kw">npx</span> <span class="fn">@dyyz1993/kb-mcp</span> <span class="num">--http</span> --port 19877<br><span class="kw">open</span> <span class="str">http://localhost:19877</span></div></div></div>
+</div>
+<div class="reveal" style="margin-top:20px">
+<h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--sec)">OpenCode / Claude / Cursor 配置</h4>
+<div class="code-block"><div class="code-bar"><span style="color:var(--orange)">json</span><span>~/.config/opencode/opencode.json</span></div><div class="code-body">{<br>  <span class="str">"mcp"</span>: {<br>    <span class="str">"servers"</span>: {<br>      <span class="str">"knowledge-base"</span>: {<br>        <span class="str">"type"</span>: <span class="str">"local"</span>,<br>        <span class="str">"command"</span>: [<span class="str">"npx"</span>, <span class="str">"@dyyz1993/kb-mcp"</span>, <span class="str">"--stdio"</span>]<br>      }<br>    }<br>  }<br>}</div></div></div>
+</div>
 </section>
 
-<!-- API Examples -->
-<section id="api" class="fade-section">
-  <div class="container">
-    <div class="api-header">
-      <div class="section-label">REST API</div>
-      <h2 class="section-title">Powerful API out of the box</h2>
-      <p class="section-desc">30+ HTTP 端点，覆盖知识管理的每一个环节。</p>
-    </div>
-    <div class="api-cards">
-      <div class="api-card">
-        <div class="api-card-header">
-          <span class="api-method">POST</span>
-          <span class="api-path">/api/docs/write</span>
-        </div>
-        <div class="api-card-body">
-          <div class="code-block">{
-  <span class="string">"title"</span>: <span class="string">"My Doc"</span>,
-  <span class="string">"content"</span>: <span class="string">"Hello KB..."</span>,
-  <span class="string">"tags"</span>: [<span class="string">"guide"</span>],
-  <span class="string">"keywords"</span>: [<span class="string">"example"</span>]
-}</div>
-        </div>
-      </div>
-      <div class="api-card">
-        <div class="api-card-header">
-          <span class="api-method">POST</span>
-          <span class="api-path">/api/search</span>
-        </div>
-        <div class="api-card-body">
-          <div class="code-block">{
-  <span class="string">"query"</span>: <span class="string">"how to use MCP"</span>,
-  <span class="string">"limit"</span>: <span class="cmd">5</span>,
-  <span class="string">"mode"</span>: <span class="string">"semantic"</span>
-}</div>
-        </div>
-      </div>
-      <div class="api-card">
-        <div class="api-card-header">
-          <span class="api-method">POST</span>
-          <span class="api-path">/api/ask-deep-read</span>
-        </div>
-        <div class="api-card-body">
-          <div class="code-block">{
-  <span class="string">"query"</span>: <span class="string">"compare React vs Vue"</span>,
-  <span class="string">"mode"</span>: <span class="string">"deep"</span>,
-  <span class="string">"max_web_results"</span>: <span class="cmd">5</span>
-}</div>
-        </div>
-      </div>
-    </div>
-  </div>
+<section>
+<div class="container">
+<div class="reveal"><span class="section-label">Architecture</span><h2 class="section-title">Three-layer search engine.</h2><p class="section-desc">从毫秒级文本匹配到深度语义理解。三层递进，加权融合。</p></div>
+<div class="reveal">
+<div class="arch-item"><div class="arch-tag p0">P0</div><div class="arch-content"><h4>文本匹配 <span class="speed" style="background:var(--accent-glow);color:var(--accent)">&lt; 1ms</span></h4><p>即时全文检索，关键词命中。适合精确查找已知内容。</p></div></div>
+<div class="arch-item" style="margin-top:10px"><div class="arch-tag p1">P1</div><div class="arch-content"><h4>TF-IDF <span class="speed" style="background:var(--blue-glow);color:var(--blue)">&lt; 5ms</span></h4><p>词频-逆文档频率。关键词加权排序，处理拼写变形和部分匹配。</p></div></div>
+<div class="arch-item" style="margin-top:10px"><div class="arch-tag p2">P2</div><div class="arch-content"><h4>语义向量 <span class="speed" style="background:var(--purple-glow);color:var(--purple)">&lt; 50ms</span></h4><p>paraphrase-multilingual-MiniLM-L12-v2。跨语言语义检索，理解意图而非关键词。</p></div></div>
+</div>
+<div class="reveal" style="margin-top:40px"><span class="section-label">18 MCP Tools</span>
+<div class="tool-tags">
+<span>kb_write</span><span>kb_read</span><span>kb_search</span><span>kb_search_semantic</span><span>kb_list</span>
+<span>kb_delete</span><span>kb_update</span><span>kb_outline</span><span>kb_recent</span><span>kb_ask</span>
+<span>kb_ingest_url</span><span>kb_ingest_repo</span><span>kb_stale_check</span><span>kb_auto_link</span><span>kb_suggest</span>
+<span>file_read</span><span>file_grep</span><span>file_exists</span>
+</div></div>
+</div>
 </section>
 
-<!-- Stats -->
-<section class="stats-section fade-section">
-  <div class="container">
-    <div class="stats-grid">
-      <div class="stat-item">
-        <div class="stat-value">361</div>
-        <div class="stat-label">Tests Passed</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value">30+</div>
-        <div class="stat-label">API Endpoints</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value">8</div>
-        <div class="stat-label">Core Features</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-value">v2.42</div>
-        <div class="stat-label">Latest Version</div>
-      </div>
-    </div>
-  </div>
+<section>
+<div class="container">
+<div class="cta-box reveal">
+<h2>Give your AI a brain.</h2>
+<p>一行命令，开始构建你的知识库。</p>
+<div class="btn-group" style="justify-content:center">
+<a href="https://github.com/dyyz1993/knowledge-base-mcp" target="_blank" class="btn btn-primary">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg> Star on GitHub
+</a>
+<a href="#quickstart" class="btn btn-secondary">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg> Quick Start
+</a>
+</div>
+</div>
+</div>
 </section>
 
-<!-- Footer -->
 <footer>
-  <div class="container">
-    <div class="footer-inner">
-      <div class="footer-left">KB-MCP &middot; MIT License &middot; Built with TypeScript + Bun + Hono</div>
-      <div class="footer-links">
-        <a href="https://github.com/dyyz1993/knowledge-base-mcp" target="_blank">GitHub</a>
-        <a href="https://www.npmjs.com/package/@dyyz1993/kb-mcp" target="_blank">npm</a>
-      </div>
-    </div>
-  </div>
+<div class="container">
+<p>
+<a href="https://github.com/dyyz1993/knowledge-base-mcp" target="_blank" style="color:var(--sec)">GitHub</a>
+&nbsp;·&nbsp;
+<a href="https://www.npmjs.com/package/@dyyz1993/kb-mcp" target="_blank" style="color:var(--sec)">npm</a>
+&nbsp;·&nbsp; MIT · Made with <span class="heart">&hearts;</span> for AI Agents
+</p>
+</div>
 </footer>
 
 <script>
-// Fade-in on scroll
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach((entry) => {
-    if (entry.isIntersecting) {
-      entry.target.classList.add('visible');
-      observer.unobserve(entry.target);
-    }
-  });
-}, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
-document.querySelectorAll('.fade-section').forEach((el) => observer.observe(el));
-
-// Copy install command
-function copyInstall(el) {
-  const text = 'bun add -g @dyyz1993/kb-mcp';
-  navigator.clipboard.writeText(text).then(() => {
-    const hint = el.querySelector('.copy-hint');
-    const orig = hint.textContent;
-    hint.textContent = 'copied!';
-    hint.style.color = '#4ade80';
-    hint.style.opacity = '1';
-    setTimeout(() => { hint.textContent = orig; hint.style.color = ''; hint.style.opacity = ''; }, 1800);
-  });
-}
-
-// Smooth nav offset
-document.querySelectorAll('nav a[href^="#"]').forEach((a) => {
-  a.addEventListener('click', (e) => {
-    const id = a.getAttribute('href');
-    if (id === '#') return;
-    const target = document.querySelector(id);
-    if (target) {
-      e.preventDefault();
-      const y = target.getBoundingClientRect().top + window.scrollY - 64;
-      window.scrollTo({ top: y, behavior: 'smooth' });
-    }
-  });
-});
+const nav=document.getElementById('nav')
+window.addEventListener('scroll',()=>nav.classList.toggle('scrolled',window.scrollY>10))
+const o=new IntersectionObserver(e=>{e.forEach(e=>{e.isIntersecting&&(e.target.classList.add('show'),o.unobserve(e.target))})},{threshold:.1})
+document.querySelectorAll('.reveal').forEach(e=>o.observe(e))
 </script>
 </body>
 </html>

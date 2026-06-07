@@ -21,7 +21,7 @@ function resolveConfiguredModel(provider?: string, modelId?: string): Configured
     const found = configured.find(m => m.provider === provider && m.id === modelId)
     if (found) return found
   }
-  const preferred = configured.find(m => m.id === "glm-4.5-air" && m.apiKey && m.baseUrl)
+  const preferred = configured.find(m => m.id === "opencode-go/deepseek-v4-flash" && m.apiKey && m.baseUrl)
   if (preferred) return preferred
   return configured.length > 0 ? configured[0] : null
 }
@@ -95,7 +95,7 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
       if (!resp.ok) {
         const errBody = await resp.text()
         if (resp.status === 429) {
-          send("error", { error: `RATE_LIMITED:${cfg.id}`, hint: `当前模型 ${cfg.id} 请求频率已达上限。请在左侧模型选择器中切换到其他模型（如 glm-4.5-air）后重试。` })
+          send("error", { error: `RATE_LIMITED:${cfg.id}`, hint: `当前模型 ${cfg.id} 请求频率已达上限。请在左侧模型选择器中切换到其他模型后重试。` })
         } else {
           send("error", { error: `API ${resp.status}: ${errBody.slice(0, 500)}` })
         }

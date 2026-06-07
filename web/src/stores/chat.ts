@@ -431,7 +431,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         let errorContent = `⚠️ Error: ${error}`
         if (error.startsWith("RATE_LIMITED:")) {
           const modelId = error.replace("RATE_LIMITED:", "")
-          errorContent = `⚠️ **模型 ${modelId} 请求频率已达上限**\n\n请在左侧 **模型选择器** 中切换到其他模型（如 glm-4.5-air）后重试。\n\n> 免费模型有请求频率限制，稍后再试或切换到其他可用模型。`
+          const preferred = get().models.find(m => m.id === "opencode-go/deepseek-v4-flash")
+          const fallbackName = preferred?.name || preferred?.id || "其他模型"
+          errorContent = `⚠️ **模型 ${modelId} 请求频率已达上限**\n\n请在左侧 **模型选择器** 中切换到其他模型（如 ${fallbackName}）后重试。\n\n> 免费模型有请求频率限制，稍后再试或切换到其他可用模型。`
         }
 
         const preservedMessages = partialContent
