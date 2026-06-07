@@ -12,6 +12,20 @@
 - **双传输模式** — Stdio（本地 MCP 客户端）+ HTTP（StreamableHTTP / SSE / REST API）
 - **Web UI** — Vite 6 + React 18 + Zustand + Tailwind + Ant Design
 
+## 截图预览
+
+| Knowledge Base · 知识库管理 | Ask · 智能问答 |
+|:---:|:---:|
+| ![kb-view](docs/screenshots/kb-view.png) | ![ask-view](docs/screenshots/ask-view.png) |
+
+| Chat · AI 对话 | Content · 内容工作台 |
+|:---:|:---:|
+| ![chat-view](docs/screenshots/chat-view.png) | ![content-view](docs/screenshots/content-view.png) |
+
+| Light Mode · 浅色主题 |
+|:---:|
+| ![kb-light-mode](docs/screenshots/kb-light-mode.png) |
+
 ## 快速开始
 
 ### npx 一键启动（推荐）
